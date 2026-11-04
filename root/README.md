@@ -17,6 +17,10 @@ that ends root, or Homebrew Channel's failsafe start) leaves LG's Home as it was
 | `undo-home.sh` | Puts LG's Home back: `temp` until the next start, or for good ("Use LG's Home") |
 | `watchdog.sh` | Puts LG's Home back until the next start if HomeTV's page stops answering while on screen |
 | `decide.js` | Which way, which services, and the appinfo for the mount |
+| `debloat-stop.sh`, `debloat-undo.sh`, `15-hometv-debloat` | Stops LG's ad and telemetry services while HomeTV is Home (four groups; the ad servers blocked in a copy of `/etc/hosts` mounted in memory, never in the file itself), and puts them back |
+| `install.sh` | Run as root once: refuses without Homebrew Channel's hooks, with the Developer Mode app, without HomeTV, or with a native Home; saves LG Home's own appinfo; adds the two hooks |
+| `uninstall.sh` | LG's Home back now, the hooks and the HomeTV folder gone; restart afterwards |
 | `lib.sh` | Paths, each overridable for the tests |
 
-Not here yet: the debloat (stopping LG's ad and tracking services, in memory), install and uninstall, and tests.
+Tested on a PC only, with stub commands (`tests/root.test.mjs`). Not here yet: the heartbeat HomeTV's page sends the
+watchdog (it comes with HomeTV's LG app), a settings restore, and Homebrew Channel's update list.

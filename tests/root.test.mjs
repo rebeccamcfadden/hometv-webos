@@ -44,8 +44,19 @@ function setup({ homeType = 'flutter', fg = 'com.webos.app.home', services = 'vi
   for (const [name, body] of Object.entries(STUBS)) fs.writeFileSync(path.join(bin, name), '#!/bin/sh\n' + body + '\n');
   const mounts = path.join(t, 'mounts');
   fs.writeFileSync(mounts, 'rootfs / rootfs ro 0 0\n');
+  const sbin = path.join(t, 'sbin');
+  fs.mkdirSync(sbin);
+  for (const b of ['acr2', 'adoverlay-service', 'sportsalarm', 'admanager']) fs.writeFileSync(path.join(sbin, b), '');
+  fs.writeFileSync(path.join(t, 'hosts'), '127.0.0.1 localhost\n');
+  fs.mkdirSync(path.join(t, 'initd'));
+  const stockHome = path.join(t, 'stock-home');
+  fs.mkdirSync(stockHome);
+  fs.writeFileSync(path.join(stockHome, 'appinfo.json'), JSON.stringify({ id: 'com.webos.app.home', type: homeType }));
   const env = {
     ...process.env,
+    HOMETV_SBIN: fwd(sbin), HOMETV_HOSTS: fwd(path.join(t, 'hosts')), HOMETV_INITD: fwd(path.join(t, 'initd')),
+    HOMETV_DEVMODE_APP: fwd(path.join(t, 'devmode-app')), HOMETV_SKIP_ROOT_CHECK: '1', HOMETV_DEBLOAT_DELAY: '0',
+    HOMETV_HOME_INFO: fwd(path.join(stockHome, 'appinfo.json')),
     HOMETV_PATH: [msys(bin), msys(path.dirname(process.execPath)), GITBIN].join(':'),
     HOMETV_DIR: fwd(D), HOMETV_APP: fwd(app), HOMETV_MOUNTS: fwd(mounts), HOMETV_LOG: fwd(path.join(t, 'boot.log')),
     HOMETV_ALIVE: fwd(path.join(t, 'alive')), HOMETV_LASTAPP: fwd(path.join(t, 'lastapp.json')),
@@ -58,7 +69,7 @@ function setup({ homeType = 'flutter', fg = 'com.webos.app.home', services = 'vi
   const waitFor = async (re) => {
     for (let i = 0; i < 100 && !re.test(read('stub.log') + read('boot.log')); i++) await new Promise((r) => setTimeout(r, 50));
   };
-  return { t, D, run, read, mounted, waitFor, done: () => fs.rmSync(t, { recursive: true, force: true }) };
+  return { t, D, env, run, read, mounted, waitFor, done: () => fs.rmSync(t, { recursive: true, force: true }) };
 }
 
 test('decide.js: only the flutter or web Home is taken over; services by SDK', () => {
@@ -175,6 +186,94 @@ test('the watchdog leaves things alone while another app is on screen', { skip: 
     await s.waitFor(/after-sam/);
     s.run('watchdog.sh');
     assert.ok(s.mounted());
+  } finally {
+    s.done();
+  }
+});
+
+test('debloat: stubs the on-demand services, stops the others, blocks ad servers in a hosts copy; undo puts all back', { skip: !SH }, () => {
+  const s = setup();
+  try {
+    const sbin = fwd(path.join(s.t, 'sbin'));
+    s.run('debloat-stop.sh');
+    const m = s.read('mounts');
+    for (const b of ['acr2', 'adoverlay-service', 'sportsalarm']) assert.ok(m.includes(' ' + sbin + '/' + b + ' '), b);
+    assert.ok(!m.includes('/admanager '), 'admanager is never stubbed (HBO Max, Disney+)');
+    assert.ok(m.includes(' ' + fwd(path.join(s.t, 'hosts')) + ' '), 'hosts copy mounted');
+    assert.match(fs.readFileSync(path.join(s.D, 'hosts'), 'utf8'), /lgsmartad\.com .*# hometv-debloat/);
+    assert.equal(fs.readFileSync(path.join(s.t, 'hosts'), 'utf8'), '127.0.0.1 localhost\n', '/etc/hosts itself untouched');
+    assert.match(s.read('stub.log'), /systemctl --no-block stop remotelogger\.service/);
+    s.run('debloat-stop.sh');
+    assert.equal((s.read('mounts').match(/acr2/g) || []).length, 1, 'idempotent');
+    s.run('debloat-undo.sh');
+    const after = s.read('mounts');
+    assert.ok(!after.includes('acr2') && !after.includes('/hosts '), after);
+    assert.match(s.read('stub.log'), /systemctl --no-block start contentminer\.service/);
+    assert.ok(!fs.existsSync(path.join(s.D, 'hosts.mounted')));
+  } finally {
+    s.done();
+  }
+});
+
+test('debloat only one group', { skip: !SH }, () => {
+  const s = setup();
+  try {
+    s.run('debloat-stop.sh', 'tracking');
+    const m = s.read('mounts');
+    assert.ok(m.includes('/acr2 '));
+    assert.ok(!m.includes('adoverlay-service') && !m.includes('/hosts '));
+  } finally {
+    s.done();
+  }
+});
+
+test('install refuses without Homebrew hooks, with the Developer Mode app, without HomeTV, or a native Home', { skip: !SH }, () => {
+  const cases = [
+    ['no hooks', (s) => fs.rmSync(path.join(s.t, 'initd'), { recursive: true }), /no Homebrew Channel start-up hooks/],
+    ['devmode', (s) => fs.mkdirSync(path.join(s.t, 'devmode-app')), /Developer Mode app is installed/],
+    ['no app', (s) => fs.rmSync(path.join(s.t, 'app', 'index.html')), /HomeTV isn't installed/]
+  ];
+  for (const [name, prep, re] of cases) {
+    const s = setup();
+    try {
+      fs.rmSync(path.join(s.D, 'backup'), { recursive: true });
+      prep(s);
+      assert.throws(() => s.run('install.sh'), (e) => re.test(String(e.stderr)), name);
+      assert.deepEqual(fs.existsSync(path.join(s.t, 'initd')) ? fs.readdirSync(path.join(s.t, 'initd')) : [], [], name);
+    } finally {
+      s.done();
+    }
+  }
+  const n = setup({ homeType: 'native' });
+  try {
+    fs.rmSync(path.join(n.D, 'backup'), { recursive: true });
+    assert.throws(() => n.run('install.sh'), (e) => /only the flutter or web Home/.test(String(e.stderr)));
+  } finally {
+    n.done();
+  }
+});
+
+test('install saves LG Home\'s appinfo once and adds the two hooks; uninstall removes everything and LG\'s Home is back', { skip: !SH }, async () => {
+  const s = setup();
+  try {
+    fs.rmSync(path.join(s.D, 'backup'), { recursive: true });
+    fs.writeFileSync(path.join(s.D, 'DISABLE'), '');
+    const out = s.run('install.sh');
+    assert.match(out, /installed\. Restart the TV/);
+    assert.ok(fs.existsSync(path.join(s.D, 'backup', 'home-appinfo.orig.json')));
+    assert.deepEqual(fs.readdirSync(path.join(s.t, 'initd')).sort(), ['10-hometv-home', '15-hometv-debloat']);
+    assert.ok(!fs.existsSync(path.join(s.D, 'DISABLE')));
+    // the "restart": the hooks run
+    s.run('10-hometv-home');
+    await s.waitFor(/launch/);
+    s.run('15-hometv-debloat');
+    await s.waitFor(/acr2 stubbed/);
+    assert.ok(s.mounted());
+    s.run('uninstall.sh');
+    assert.ok(!s.mounted());
+    assert.ok(!s.read('mounts').includes('acr2'), 'debloat lifted');
+    assert.deepEqual(fs.readdirSync(path.join(s.t, 'initd')), []);
+    assert.ok(!fs.existsSync(s.D));
   } finally {
     s.done();
   }

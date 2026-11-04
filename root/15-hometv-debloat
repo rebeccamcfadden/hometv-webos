@@ -1,0 +1,9 @@
+#!/bin/sh
+# Homebrew Channel start-up hook (/var/lib/webosbrew/init.d/15-hometv-debloat): a minute after the start, if HomeTV
+# is LG's Home, stops LG's ad and telemetry services (debloat-stop.sh), in memory only. Off: the file DISABLE-DEBLOAT in
+# the HomeTV folder, or DISABLE (LG's own Home doesn't start without the ad services). From lasharor's (MIT).
+. "$(dirname "$(readlink -f "$0")")/lib.sh"
+[ -e "$D/DISABLE-DEBLOAT" ] && exit 0
+[ -e "$D/DISABLE" ] && exit 0
+(sleep "${HOMETV_DEBLOAT_DELAY:-60}"; replaced && sh "$D/debloat-stop.sh") </dev/null >/dev/null 2>&1 &
+exit 0

@@ -4,7 +4,8 @@ Written 2026-11-04. Nothing here has been run on any TV, and it gives no exploit
 ability to unroot is part of the backup process, so nothing is bricked if something goes wrong or the TV's owner
 doesn't like it; test unrooted first, then prepare the backup and unrooting configuration, then the root/full
 install. **The plan: one launcher of our own, installed unrooted first as a check, then rooted only after a backup
-and an unroot path are ready.** **LG's automatic updates stay on.**
+and an unroot path are ready.** **LG's automatic updates are turned off on the first test call**, to keep root
+possible (LG's security fixes wait meanwhile; undo: switch them back on).
 
 The test TV: 43UT8000AUA, webOS 25, release 10.3.1-3001 (software 33.31.61).
 
@@ -27,7 +28,8 @@ The test TV: 43UT8000AUA, webOS 25, release 10.3.1-3001 (software 33.31.61).
   (33.31.61): root said "complete", the person then removed the Developer Mode app, and after the restart Homebrew
   Channel was gone. So the Developer Mode app (from the unrooted test) must be removed, and the TV restarted,
   **before** root, never after.
-  (2) An LG update will most likely end root at some point (updates stay on). The plan makes that harmless: LG's Home
+  (2) An LG update will most likely end root at some point (automatic updates are off, but one can still be installed
+  by hand or come back on after a reset). The plan makes that harmless: LG's Home
   simply comes back.
 
 ## The steps
@@ -43,7 +45,7 @@ window) runs them in order and stops on any failed check.
 | 4 | **The way back, ready before root** (below): the undo for each level, LG's firmware file for the test TV's model on a USB stick, the steps printed | Nothing | - | None | On paper; the USB stick is checked on the PC |
 | 5 | **Clear the way:** delete HomeTV and the Developer Mode app, restart, confirm Home and the apps work | Back to stock | - | Very low | The TV |
 | 6 | **Root** with SlopBro (pinned to the reviewed commit `21023d5`) from the laptop; restart; confirm Homebrew Channel opens | See [What root changes](#what-root-changes) | Level 3 (factory reset) | Low but not zero; see the warning for the test TV's firmware | Footprint on paper; success only on the TV |
-| 7 | **Lock it down:** SSH with a key only (no default password), Telnet off, "Block system updates" left **off** (automatic updates stay on), never `chattr` | Three flag files | Switch back in Homebrew Channel | None | On paper |
+| 7 | **Lock it down:** SSH with a key only (no default password), Telnet off, "Block system updates" left **off** (LG's own Allow Automatic Updates is switched off instead, on the first call; one setting, undone in LG's menu), never `chattr` | Three flag files | Switch back in Homebrew Channel | None | On paper |
 | 8 | **HomeTV through Homebrew Channel, on Home and at power-on** (the in-memory takeover, lasharor's method, credited) | HomeTV's files and one start-up script; the takeover in memory | Level 1 or 2 | Low; a watchdog puts LG's Home back if HomeTV stops answering | lasharor's reports on two sibling UT TVs on webOS 25; the TV proves it |
 
 Steps 1-4 can be the first call; 5-8 the same call or a second one, depending on how long the unrooted install takes.
@@ -97,7 +99,8 @@ available.
 
 ## When an LG update ends root
 
-Updates stay on. What to expect, from Homebrew Channel's issue #234 and the tools' notes: the update may close
+Automatic updates are off from the first test call, but an update can still come (installed by hand, or with updates
+switched back on). What to expect, from Homebrew Channel's issue #234 and the tools' notes: the update may close
 SlopBro's bug, and may stop the start-up scripts. Then:
 
 - **At the next start, LG's Home is back** (HomeTV's takeover is in memory only and isn't re-applied).

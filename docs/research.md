@@ -226,7 +226,8 @@ except where marked.
 - **The service:** hometv-tizen's ES5 key-page service, ported to webOS's service API (same Node built-ins).
 - **Off the TV:** LG's CLI (`@webos-tools/cli` 3.2.6, on this PC's npm feed) packages and installs; LG's TV emulator
   needs VirtualBox, not installed here (a question before installing it).
-- **The first TV call:** read the software version (33.31.61?) and whether automatic updates are on; Developer Mode
+- **The first TV call:** read the software version (33.31.61?), note whether automatic updates were on, and switch
+  them off (to keep root possible); Developer Mode
   and the timer; a test app with buttons for
   launch, list apps, the key page from a phone, title links, and the time left in Developer Mode.
 

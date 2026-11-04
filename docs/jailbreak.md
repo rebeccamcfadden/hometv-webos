@@ -46,11 +46,12 @@ What that means, and what's unknown:
 - "Newest known rootable version" means someone has reported success on it; it doesn't promise the next version
   fails. Other webOS 25 models are listed as rootable up to 10.3.1-3006 (33.31.68), so a small next update may
   still work. Nobody knows when LG fixes it for good.
-- **If the TV updates itself** before a decision, root may become impossible. Turning off automatic updates would
-  keep the window open longer, but also delays LG's security fixes. **Automatic updates stay on, so root may go
-  away.** (The menu path is LG's for 2023+ TVs; medium confidence it's the same on webOS 25.)
+- **If the TV updates itself** before root, root may become impossible. **Decided: the first test call turns off
+  automatic updates** (Settings › All Settings › Support › Software Update › Allow Automatic Updates: off), which keeps
+  root possible and also delays LG's security fixes; undo: switch it back on. (The menu path is LG's for 2023+ TVs;
+  medium confidence it's the same on webOS 25.)
 - **To read on the first call:** Settings › Support › TV Information: software version **33.31.61** (confirms the
-  mapping), and whether automatic updates are on.
+  mapping), and whether automatic updates were on (noted, then switched off).
 - **If root is picked, after the non-root test:** the Developer Mode app must be deleted first (both root tool
   authors: never both); Homebrew Channel's "Block system updates" on; SSH given a key and Telnet off at once;
   lasharor's launcher (tested on a webOS 25 OLED) or Razdva122's Root edition for Home. A rehearsal on another LG
@@ -113,8 +114,8 @@ firmware, the test TV included ([above](#the-test-tv-43ut8000aua)). Each new too
    people open, monthly Extend, the Home helper working on the test TV's model), stay there. If power-on, the Home
    key or the timer are the problem, root with SlopBro is the only route on the test TV, at the cost of LG's updates
    for good.
-3. **Before the decision:** whether to turn off automatic updates to keep root possible. Decided: automatic updates
-   stay on, so root may go away.
+3. **Before the decision:** automatic updates are turned off on the first test call, to keep root possible (LG's
+   security fixes wait meanwhile; undo: switch them back on).
 4. **Never:** options 5-7.
 
 ## Sources

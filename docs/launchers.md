@@ -5,7 +5,7 @@ data today; nothing run on a TV. For each: how it gets the Home key and power-on
 licence, how active it is, how well it's built, and what HomeTV would take from it. Then four plans.
 
 The test TV for reference: 43UT8000AUA, a 2024 LCD (US) on webOS 25, release 10.3.1-3001, Chromium 120, Node 16.
-Automatic updates stay on, so root may go away.
+Automatic updates are turned off on the first test call, to keep root possible.
 
 ## The short version
 
@@ -137,7 +137,7 @@ Automatic updates stay on, so root may go away.
 | **A (recommended)** | **HomeTV as its own Developer Mode app**, our code plus the MIT pieces above. The Home key: chosen after the first call. If the test app shows an app's own service can open the remote's device, our own small watcher (zzeppieri's way, tested on the test TV); if not, Razdva122's native Helper, forked only for that part, pointed at HomeTV | HomeTV with its own tile, opens offline, apps and YouTube titles open from it, key page and phone notes; Home key if the helper works on the test TV; no power-on | ~3-4 days for the first version (screens exist), +1-2 days for the helper | Low; we own the code; the helper is the experimental part, off by default | Delete the app |
 | B | **Fork Razdva122** (as AeroTizen for Samsung): our screens in its launcher, keep its Helper and Windows installer | The same as A, plus its installer and renewal (beta) | ~4-5 days, then keeping up with a project releasing several times a day | Medium: a 2-week-old, one-person, AI-heavy base untested on the test TV's model; #96 on webOS 25 | Its uninstall; delete the apps |
 | C | **Recommend Razdva122 or Hearth as they are** for now, HomeTV later | Their home screen, not HomeTV's catalogue or prices | ~0.5 day (an install guide) | As B, but nothing of ours to maintain | Their uninstall |
-| D | **Root with lasharor** (only if root still works on the test TV's firmware, after a non-root test) | The full thing: Home key and power-on, no 41-day timer | A non-root test first, then ~2-3 days to swap our screens into its launcher | Higher: root, LG updates blocked for good to keep it ([jailbreak.md](jailbreak.md)); conflicts with the decision to leave automatic updates on | Remove its start scripts; restart |
+| D | **Root with lasharor** (only if root still works on the test TV's firmware, after a non-root test) | The full thing: Home key and power-on, no 41-day timer | A non-root test first, then ~2-3 days to swap our screens into its launcher | Higher: root, LG updates blocked for good to keep it ([jailbreak.md](jailbreak.md)) | Remove its start scripts; restart |
 
 **Why A:** none of the bases is proven on the test TV's model, all are weeks old, and the parts HomeTV needs most (the screens,
 the key page, phone notes, page updates) are already ours from Samsung. The only hard LG-specific part is the Home key,
