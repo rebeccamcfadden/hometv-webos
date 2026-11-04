@@ -14,11 +14,12 @@ Rebecca's decisions for the LG port, quoted with the time. Her Samsung answers d
   burner. W6 (a) page updates.
 - **The TV** (22:1x): 43UT8000AUA, webOS 25, release 10.3.1-3001. Never write its serial number anywhere.
 
-## Open (asked through the Decision proxy)
+## Answered 22:23 (the launcher comparison is open)
 
-- (22:18) Turn off automatic updates on his TV now, to keep root possible until she decides? Delays LG's security
-  fixes; undo by switching it back on.
-- (22:18) Build HomeTV for LG on Razdva122's No-root base (MIT, credited), as she chose AeroTizen for Samsung?
+- **Rebecca, 22:23:** (1) **(b) leave LG's automatic updates on** and accept root may go. (2) No base picked yet:
+  compare five LG launchers first (lasharor's, zzeppieri/webos-custom-home, Shantil-K/OpenLauncher,
+  rudra-avatar/Hearth, Razdva122's): Home and power-on, install path, licence, activity, code quality, what HomeTV
+  would reuse, and a plan for her to pick from. The test app goes on where it doesn't depend on the choice.
 
 ## Next
 

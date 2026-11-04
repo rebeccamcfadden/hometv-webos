@@ -1,0 +1,7 @@
+{
+  "name": "com.hometv.checks.service",
+  "version": "0.1.0",
+  "description": "HomeTV checks: the phone page and Developer Mode's time left",
+  "main": "service.js",
+  "private": true
+}

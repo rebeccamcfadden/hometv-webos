@@ -1,0 +1,10 @@
+{
+  "id": "com.hometv.checks.service",
+  "description": "HomeTV checks: the phone page and Developer Mode's time left",
+  "services": [
+    {
+      "name": "com.hometv.checks.service",
+      "description": "HomeTV checks service"
+    }
+  ]
+}

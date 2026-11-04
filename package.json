@@ -1,0 +1,13 @@
+{
+  "name": "hometv-webos",
+  "version": "0.0.1",
+  "private": true,
+  "description": "HomeTV on LG webOS: research spike and the first TV call's checks app.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "test": "node --test tests/",
+    "package": "node tools/build.mjs && npx -y -p @webos-tools/cli@3.2.6 ares-package dist/checks-app checks/service -o dist"
+  }
+}

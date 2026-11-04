@@ -1,0 +1,25 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: #0d1117; color: #e6edf3; font-family: "LG Smart UI", Roboto, Arial, sans-serif;
+  padding: 48px 96px; overflow: hidden; width: 1920px; height: 1080px; transform-origin: 0 0;
+}
+h1 { font-size: 44px; margin: 0 0 8px; }
+h2 { font-size: 30px; margin: 0 0 16px; }
+#about { font-size: 24px; color: #9da7b3; margin: 0 0 24px; }
+main { display: flex; }
+#list { flex: 1 1 0; min-width: 0; margin-right: 48px; height: 860px; overflow: hidden; }
+#side { flex: 0 0 480px; background: #161b22; border-radius: 16px; padding: 24px; height: 860px; }
+.row { display: flex; align-items: flex-start; margin-bottom: 8px; }
+.row button {
+  flex: 0 0 440px; font-size: 22px; text-align: left; padding: 10px 18px; border-radius: 10px;
+  border: 3px solid transparent; background: #21262d; color: #e6edf3;
+}
+.row button:focus { outline: none; border-color: #58a6ff; background: #30363d; }
+.row .result { flex: 1 1 0; min-width: 0; font-size: 19px; padding: 12px 0 0 18px; color: #9da7b3; word-break: break-word; }
+.row .result.ok { color: #3fb950; }
+.row .result.fail { color: #f85149; }
+.row .result.ask { color: #d29922; }
+.big { font-size: 28px; word-break: break-all; }
+#phone-help, #phone-seen { font-size: 22px; color: #9da7b3; }
+#qr { background: #fff; margin: 8px 0 16px; }

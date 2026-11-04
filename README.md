@@ -7,5 +7,7 @@ Private until it works (Rebecca, 2026-11-04).
 - [docs/privacy.md](docs/privacy.md): LG's tracking and ad settings per year, DNS blocking, undo.
 - [docs/jailbreak.md](docs/jailbreak.md): Developer Mode and root options, safest first.
 - [docs/launcher-replacement.md](docs/launcher-replacement.md): replacing LG's Home, per tier, and the projects to build on.
+- [checks/](checks/README.md): the first TV call's test app (a Developer Mode app; not run on a TV yet).
 
-Nothing here has been run on a TV.
+Nothing here has been run on a TV. `npm test`, `npm run build`, `node tools/dev.mjs` (a pretend TV in the browser),
+`npm run package` (the .ipk).

@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>HomeTV checks</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>HomeTV checks</h1>
+    <p id="about">Each button is one check. Results stay on screen and on the phone page.</p>
+  </header>
+  <main>
+    <section id="list" aria-label="Checks"></section>
+    <aside id="side">
+      <h2>Phone page</h2>
+      <p id="phone-help">Press "Start the phone page" first.</p>
+      <canvas id="qr" width="264" height="264" hidden></canvas>
+      <p id="phone-url" class="big"></p>
+      <p id="phone-code" class="big"></p>
+      <p id="phone-seen"></p>
+    </aside>
+  </main>
+  <script src="qr.js"></script>
+  <script src="checks.js"></script>
+</body>
+</html>

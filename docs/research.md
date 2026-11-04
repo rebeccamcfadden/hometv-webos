@@ -67,6 +67,10 @@ Asked through the Decision proxy on 2026-11-04, 22:03; answered above.
   ([Application Manager](https://webostv.developer.lge.com/develop/references/application-manager)).
 - **Listing the installed apps** (`listApps`, `listLaunchPoints`): the same service; it works over LG's remote-control
   connection (Home Assistant and PyWebOSTV use it). From inside an app: likely, not documented. A TV check.
+- **Permissions to come (ACG):** LG is adding per-app permission groups for Luna calls: not enforced on webOS 25 and
+  older, testable on webOS 26 Re:New, **mandatory from webOS 27** ([ACG guide](https://webostv.developer.lge.com/develop/guides/acg-guide)).
+  `launch` is in the public list (`application.launcher`); `listApps` isn't, so it may stop working for apps on
+  webOS 27. His TV is webOS 25: no effect now; HomeTV declares `requiredACG` once it targets 26+.
 - **LG's remote-control connection** (SSAP, `ws://<tv>:3000`, `wss://<tv>:3001` on newer sets) is what phone apps and
   Home Assistant use: launch, close, list apps, which app is on screen, remote key presses. The TV asks once to
   allow each new client. Razdva122's Home helper pairs with the TV's own connection, from the TV, which shows a page
