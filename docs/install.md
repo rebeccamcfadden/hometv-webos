@@ -116,13 +116,14 @@ Why it works this way:
   root password (`alpine`). It goes in `lg-root-key` (`HOMETV_ROOT_KEY` names another), made once and kept; on
   Windows only this account may read it, as Windows' ssh requires. From Windows:
   `ssh -i %USERPROFILE%\HomeTV\lg-root-key root@<tv ip>`.
-- **"Block system updates" is left as it is** (a decision for later). What it does, from `startup.sh`: while the flag
+- **"Block system updates" is switched on** in step 7, as a second layer behind Allow Automatic Updates being off
+  (decided). What it does, from `startup.sh`: while the flag
   `/var/luna/preferences/webosbrew_block_updates` exists, each start copies `/etc/hosts` to `/tmp`, mounts the copy
   over it in memory and points `snu.lge.com`, `su-dev.lge.com`, `su.lge.com` and `su-ssl.lge.com` at the TV itself
   (IPv4 and IPv6), so the TV can't reach those update servers: automatic updates and the menu's update check should
   both fail (read from the source, not tried); a USB update doesn't go through them. Nothing is written to the
   firmware; undo: switch it off, restart. It
-  works alongside HomeTV's debloat, which mounts its own copy of the hosts file on top. Step 7 prints its state.
+  works alongside HomeTV's debloat, which mounts its own copy of the hosts file on top. Step 7 checks it took.
 - **The restart check asks the person** whether HomeTV is on screen: the takeover mounts HomeTV over LG's Home and
   keeps LG Home's app id (`com.webos.app.home`), so LG's remote-control connection reports the same app either way.
 

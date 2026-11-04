@@ -192,10 +192,10 @@ test('the whole way: backup, Developer Mode, checks, root, Homebrew Channel, roo
     assert.match(pub, /^ssh-ed25519 \S+ hometv-lg$/);
     assert.equal(fs.readFileSync(tv('ssh', 'authorized_keys'), 'utf8').trim(), pub);
     assert.ok(fs.existsSync(tv('prefs', 'webosbrew_telnet_disabled')) && fs.existsSync(tv('prefs', 'webosbrew_sshd_enabled')));
-    assert.ok(!fs.existsSync(tv('prefs', 'webosbrew_block_updates')), 'Block system updates is left alone');
+    assert.ok(fs.existsSync(tv('prefs', 'webosbrew_block_updates')), 'Block system updates is switched on');
     const stub = fs.readFileSync(tv('stub.log'), 'utf8');
     assert.match(stub, /appInstallService\/dev\/install .*com\.ares\.defaultName/);
-    assert.match(s.text(), /"Block system updates" is off \(left as it is\)/);
+    assert.match(s.text(), /Telnet off, SSH on and Block system updates on/);
     assert.match(s.text(), /All steps done: HomeTV is Home\./);
     // step 8 logs in with exactly the key and known-hosts file hometv-lg restore uses
     assert.deepEqual(s.logins.map((l) => [l.key, l.knownHosts, l.cmd]),

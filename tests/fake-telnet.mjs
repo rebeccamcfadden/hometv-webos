@@ -22,6 +22,7 @@ case "$*" in
     if [ -z "$STUB_HBC_IGNORE" ]; then
       case "$*" in *'"telnetDisabled":true'*) touch "$STUB_PREFS/webosbrew_telnet_disabled";; esac
       case "$*" in *'"sshdEnabled":true'*) touch "$STUB_PREFS/webosbrew_sshd_enabled";; esac
+      case "$*" in *'"blockUpdates":true'*) touch "$STUB_PREFS/webosbrew_block_updates";; esac
     fi
     echo '{"returnValue": true}';;
   *hbchannel.service/getConfiguration*)

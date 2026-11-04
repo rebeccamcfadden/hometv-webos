@@ -353,15 +353,16 @@ export const STEPS = [
         if (k.code !== 0) return stop('Couldn\'t add the SSH key on the TV.', 'Tell the HomeTV team.');
         ctx.say('  ✓ SSH key added (Homebrew Channel then sets no default password); the laptop\'s half: ' + KEY_FILE);
 
-        // Homebrew Channel's own switches (services/service.ts, setConfiguration): only the two named are changed
-        await sh.run('luna-send -n 1 -w 10000 -f ' + q(HBC_SERVICE + 'setConfiguration') + ' ' + q(JSON.stringify({ telnetDisabled: true, sshdEnabled: true })) + ' >/dev/null 2>&1');
+        // Homebrew Channel's own switches (services/service.ts, setConfiguration): only the three named are changed.
+        // Block system updates is a second layer behind Allow Automatic Updates off (decided; docs/install.md)
+        await sh.run('luna-send -n 1 -w 10000 -f ' + q(HBC_SERVICE + 'setConfiguration') + ' ' + q(JSON.stringify({ telnetDisabled: true, sshdEnabled: true, blockUpdates: true })) + ' >/dev/null 2>&1');
         const after = await hbcConfig(sh);
-        if (!after.telnetDisabled || !after.sshdEnabled) {
-          return stop('Homebrew Channel didn\'t take the change (Telnet off, SSH on).',
-            'In Homebrew Channel > Settings, switch Telnet off and SSH Server on, then run this again.');
+        if (!after.telnetDisabled || !after.sshdEnabled || !after.blockUpdates) {
+          return stop('Homebrew Channel didn\'t take the change (Telnet off, SSH on, Block system updates on).',
+            'In Homebrew Channel > Settings, switch Telnet off, SSH Server on and Block system updates on, then run this again.');
         }
-        ctx.say('  ✓ Homebrew Channel: Telnet off and SSH on from the next restart');
-        ctx.say('  Homebrew Channel\'s "Block system updates" is ' + (after.blockUpdates ? 'on' : 'off') + ' (left as it is).');
+        ctx.say('  ✓ Homebrew Channel: Telnet off, SSH on and Block system updates on, from the next restart');
+        ctx.say('    (undo for the update block: switch it off in Homebrew Channel > Settings, then restart)');
         return { note: 'HomeTV\'s root edition is installed; Telnet closes at the next restart' };
       } finally {
         sh.close();
