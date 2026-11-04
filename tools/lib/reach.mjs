@@ -6,6 +6,7 @@ import http from 'node:http';
 import os from 'node:os';
 
 export function laptopAddress(tvHost) {
+  if (/^127\./.test(String(tvHost))) return '127.0.0.1'; // a pretend TV on this machine
   const tvParts = String(tvHost).split('.');
   let fallback = null;
   for (const list of Object.values(os.networkInterfaces())) {
