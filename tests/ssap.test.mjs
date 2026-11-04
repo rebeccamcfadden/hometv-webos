@@ -67,7 +67,7 @@ test('the command line: pairs, keeps the key, writes an allowlisted report with 
   try {
     await withTv(async (port) => {
       const run = () => new Promise((resolve, reject) => {
-        execFile(process.execPath, ['tools/tv-check.mjs', '127.0.0.1', '--backup', '--ws-port', String(port)],
+        execFile(process.execPath, ['tools/tv-check.mjs', '127.0.0.1', '--backup', '--reach', '--reach-address', '127.0.0.1', '--ws-port', String(port)],
           { env: { ...process.env, HOMETV_DIR: dir }, timeout: 20000 },
           (err, stdout) => (err ? reject(err) : resolve(stdout)));
       });
@@ -81,7 +81,14 @@ test('the command line: pairs, keeps the key, writes an allowlisted report with 
       assert.ok(reports.length >= 1);
       const text = fs.readFileSync(path.join(dir, reports[0]), 'utf8');
       assert.ok(!text.includes('SECRET123') && !text.includes('aa:bb:cc') && !text.includes('127.0.0.1'));
-      assert.equal(JSON.parse(text).settings.picture.backlight.value, '80');
+      const saved = JSON.parse(text);
+      assert.equal(saved.settings.picture.backlight.value, '80');
+      assert.equal(saved.reach.ok, true);
+      assert.match(out, /TV reaches the laptop: yes/);
+      assert.deepEqual(saved.readiness, {
+        software: '33.31.61', root: 'SlopBro: the newest version known to work (CanI.RootMy.TV, read 2026-11-04)',
+        developerModeApp: true, homebrewChannel: false, appList: true, launchesWork: null
+      });
     });
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

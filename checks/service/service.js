@@ -119,6 +119,27 @@ service.register('inputs', function (message) {
   message.respond({ returnValue: true, names: names, nodes: nodes });
 });
 
+service.register('home', function (message) {
+  // For v0's root install: what kind of app LG's Home is (the takeover supports flutter and web) and the free space
+  // where apps go. Read-only: LG Home's appinfo.json (id and type only) and `df`.
+  var kind = null;
+  try {
+    var info = JSON.parse(String(fs.readFileSync('/usr/palm/applications/com.webos.app.home/appinfo.json', 'utf8')));
+    kind = { id: info.id || '', type: info.type || '' };
+  } catch (e) {
+    kind = { error: e && e.code || 'unreadable' };
+  }
+  require('child_process').execFile('df', ['-k', '/media/developer'], { timeout: 5000 }, function (err, out) {
+    var freeMb = null;
+    if (!err) {
+      var row = String(out).trim().split('\n').pop().split(/\s+/);
+      var avail = parseInt(row[3], 10);
+      if (!isNaN(avail)) freeMb = Math.round(avail / 1024);
+    }
+    message.respond({ returnValue: true, home: kind, freeMb: freeMb, dfError: err ? String(err.code || err.message) : null });
+  });
+});
+
 service.register('devmode', function (message) {
   var token;
   try {

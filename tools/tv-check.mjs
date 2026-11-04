@@ -1,24 +1,31 @@
 // Install step 1 (the laptop check) and step 3 (the settings backup), over LG's remote-control connection.
 //
-//   node tools/tv-check.mjs <tv address> [--backup] [--launch]   (or: hometv-lg check …)
+//   node tools/tv-check.mjs <tv address> [--backup] [--launch] [--reach]   (or: hometv-lg check …)
 //
-// Without flags: read-only checks (model and firmware, apps, inputs, sound output). --backup also reads the settings
-// the TV lets a paired app read. --launch then opens Netflix, YouTube and a YouTube video, asking first and asking
-// what happened. The TV shows "Allow" the first time; the key it gives is kept in %USERPROFILE%\HomeTV (never in the
-// repo). The report goes there too, without the TV's address, serial number or device id, so it can be shared.
+// Without flags: read-only checks (model and firmware, apps, inputs, sound output) and what v0 needs (root status for
+// the software, Developer Mode app, Homebrew Channel). --backup also reads the settings the TV lets a paired app read.
+// --launch then opens Netflix, YouTube and a YouTube video, asking first and asking what happened. --reach checks the
+// TV can reach this laptop (needed for root). The TV shows "Allow" the first time; the key it gives is kept in
+// %USERPROFILE%\HomeTV (never in the repo). The report goes there too, without the TV's or laptop's address, serial
+// number or device id, so it can be shared.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { open } from './lib/ssap.mjs';
-import { readOnlyChecks, readSettings, launch, toast, LAUNCHES } from './lib/checks.mjs';
+import { readOnlyChecks, readSettings, launch, toast, readiness, LAUNCHES } from './lib/checks.mjs';
+import { reach } from './lib/reach.mjs';
 
 const args = process.argv.slice(2);
-const host = args.find((a) => !a.startsWith('--') && !/^\d+$/.test(a));
+const VALUED = ['--ws-port', '--reach-address'];
+const host = args.find((a, i) => !a.startsWith('--') && !VALUED.includes(args[i - 1]));
 const wsPortArg = args.indexOf('--ws-port');
 const wsPort = wsPortArg >= 0 ? Number(args[wsPortArg + 1]) : 0;
+// Tests only: the address the TV should use for this laptop.
+const reachAddrArg = args.indexOf('--reach-address');
+const reachAddr = reachAddrArg >= 0 ? args[reachAddrArg + 1] : '';
 if (!host || !/^[0-9A-Za-z.\-:]+$/.test(host)) {
-  console.error('Usage: hometv-lg check <tv address> [--backup] [--launch]');
+  console.error('Usage: hometv-lg check <tv address> [--backup] [--launch] [--reach]');
   process.exit(2);
 }
 const dir = process.env.HOMETV_DIR || path.join(os.homedir(), 'HomeTV');
@@ -62,6 +69,17 @@ if (args.includes('--launch')) {
     if (r.ok) await rl.question('Press Back or Home on the remote to leave it, then Enter here. ');
   }
 }
+
+if (args.includes('--reach')) {
+  say('Checking the TV can reach this laptop (the TV\'s browser opens for a moment; Windows may ask to allow it)…');
+  report.reach = await reach(tv, host, { address: reachAddr || undefined });
+  say('TV reaches the laptop: ' + (report.reach.ok ? 'yes' : 'no (' + report.reach.error + ')'));
+}
+
+report.readiness = readiness(report);
+const rd = report.readiness;
+say('For v0: root ' + rd.root + '; Developer Mode app ' + (rd.developerModeApp ? 'installed' : 'not installed') +
+  '; Homebrew Channel ' + (rd.homebrewChannel ? 'installed' : 'not installed') + '.');
 
 await toast(tv, 'HomeTV check finished. Thank you!');
 tv.close();

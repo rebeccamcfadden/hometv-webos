@@ -66,6 +66,9 @@ async function luna(uri, params) {
     phone.state.report = params.results || {};
     return { returnValue: true };
   }
+  if (uri === 'luna://com.hometv.checks.service/home') {
+    return { returnValue: true, home: { id: 'com.webos.app.home', type: 'flutter' }, freeMb: 812, dfError: null };
+  }
   if (uri === 'luna://com.hometv.checks.service/inputs') {
     return { returnValue: true, names: ['PRETEND remote'], nodes: ['event0:EACCES'] };
   }

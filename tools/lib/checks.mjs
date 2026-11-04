@@ -91,3 +91,23 @@ export async function launch(tv, l) {
 export async function toast(tv, message) {
   return tv.request('system.notifications/createToast', { message });
 }
+
+// What v0 will need, from what the laptop check read (v-1, Rebecca 23:05). Root status is dated: re-check
+// CanI.RootMy.TV before root (docs/jailbreak.md).
+export const ROOTABLE = {
+  '33.31.61': 'SlopBro: the newest version known to work (CanI.RootMy.TV, read 2026-11-04)'
+};
+
+export function readiness(report) {
+  const c = report.checks;
+  const sw = c.software && c.software.ok ? c.software.major_ver + '.' + c.software.minor_ver : '';
+  const ids = c.apps && c.apps.ok ? c.apps.all.map((a) => a.id) : [];
+  return {
+    software: sw || 'unknown',
+    root: ROOTABLE[sw] || (sw ? 'not in the known list: check CanI.RootMy.TV before any root' : 'unknown'),
+    developerModeApp: ids.includes('com.palmdts.devmode'),
+    homebrewChannel: ids.includes('org.webosbrew.hbchannel'),
+    appList: !!(c.apps && c.apps.ok),
+    launchesWork: report.launches ? Object.values(report.launches).some((l) => l.ok) : null
+  };
+}

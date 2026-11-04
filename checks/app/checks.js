@@ -129,6 +129,17 @@
         text: open + ' of ' + r.nodes.length + ' input nodes open to the app (' + r.nodes.join(' ') + '); devices: ' + names
       };
     } },
+    { id: 'home', label: 'For v0: LG\'s Home kind, free space', run: async function () {
+      var r = await luna(SERVICE + 'home', {});
+      if (!r.returnValue) return { state: 'fail', text: errText(r) };
+      var h = r.home || {};
+      var fits = h.id === 'com.webos.app.home' && (h.type === 'flutter' || h.type === 'web');
+      return {
+        state: fits ? 'ok' : 'fail',
+        text: (h.error ? 'LG\'s Home unreadable (' + h.error + ')' : 'LG\'s Home: ' + h.id + ' ' + h.type + (fits ? ' (HomeTV can take it over)' : ' (not the kind HomeTV takes over)')) +
+          '; free: ' + (r.freeMb === null ? 'unknown (' + r.dfError + ')' : r.freeMb + ' MB')
+      };
+    } },
     { id: 'devmode', label: 'Developer Mode: time left', run: async function () {
       var r = await luna(SERVICE + 'devmode', {});
       if (!r.returnValue) return { state: 'fail', text: errText(r) };

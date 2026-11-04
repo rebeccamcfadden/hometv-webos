@@ -53,14 +53,21 @@ export const HANDLERS = {
   }),
   'system/getSystemInfo': () => ({ returnValue: true, modelName: '43UT8000AUA', receiverType: 'atsc', serialNumber: 'SECRET123' }),
   'com.webos.applicationManager/listLaunchPoints': () => ({
-    returnValue: true, launchPoints: [{ id: 'netflix', title: 'Netflix' }, { id: 'youtube.leanback.v4', title: 'YouTube' }, { id: 'com.webos.app.browser', title: 'Web Browser' }]
+    returnValue: true, launchPoints: [{ id: 'netflix', title: 'Netflix' }, { id: 'youtube.leanback.v4', title: 'YouTube' }, { id: 'com.webos.app.browser', title: 'Web Browser' }, { id: 'com.palmdts.devmode', title: 'Developer Mode' }]
   }),
   'com.webos.applicationManager/getForegroundAppInfo': () => ({ returnValue: true, appId: 'com.webos.app.home', windowId: 'x' }),
   'tv/getExternalInputList': () => ({ returnValue: true, devices: [{ id: 'HDMI_1', label: 'HDMI 1', connected: true, appId: 'com.webos.app.hdmi1', icon: 'x.png' }] }),
   'com.webos.service.apiadapter/audio/getSoundOutput': () => ({ returnValue: true, soundOutput: 'tv_speaker' }),
   'settings/getSystemSettings': (p) => (p.category === 'picture' && p.keys[0] === 'backlight'
     ? { returnValue: true, settings: { backlight: '80' } } : { returnValue: false, errorText: 'no such key' }),
-  'com.webos.applicationManager/launch': (p) => (p.id === 'netflix' ? { returnValue: true } : { returnValue: false, errorText: 'not installed' })
+  'com.webos.applicationManager/launch': (p) => (p.id === 'netflix' ? { returnValue: true } : { returnValue: false, errorText: 'not installed' }),
+  // The TV's browser: fetches the page like the real one would, from this machine.
+  'system.launcher/open': (p) => {
+    if (!/^http:\/\//.test(p.target || '')) return { returnValue: false, errorText: 'bad target' };
+    setTimeout(() => { http.get(p.target, (r) => r.resume()).on('error', () => {}); }, 100);
+    return { returnValue: true, id: 'com.webos.app.browser', sessionId: 'browser-1' };
+  },
+  'system.launcher/close': () => ({ returnValue: true })
 };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
