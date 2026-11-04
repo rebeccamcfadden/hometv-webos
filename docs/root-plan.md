@@ -41,7 +41,7 @@ window) runs them in order and stops on any failed check.
 |---|---|---|---|---|---|
 | 1 | **Laptop check** (LG's remote-control connection: model, firmware, apps, inputs, Netflix and YouTube open) | One "Allow" pairing for the laptop | Nothing needed (a factory reset clears it) | None | Built and tested against a pretend TV; the TV proves it |
 | 2 | **HomeTV unrooted** (LG developer account, Developer Mode, HomeTV and its checks screen from the laptop) | Developer Mode on; HomeTV installed as a developer app | Delete HomeTV; delete the Developer Mode app | Very low | Packaging works; the TV proves it |
-| 3 | **Backup** (below) | Nothing | - | None | On paper |
+| 3 | **Backup** (below; [backup.md](backup.md)) | Nothing | - | None | Built and tested against pretend TVs; the TV proves it |
 | 4 | **The way back, ready before root** (below): the undo for each level, LG's firmware file for the test TV's model on a USB stick, the steps printed | Nothing | - | None | On paper; the USB stick is checked on the PC |
 | 5 | **Clear the way:** delete HomeTV and the Developer Mode app, restart, confirm Home and the apps work | Back to stock | - | Very low | The TV |
 | 6 | **Root** with SlopBro (pinned to the reviewed commit `21023d5`) from the laptop; restart; confirm Homebrew Channel opens | See [What root changes](#what-root-changes) | Level 3 (factory reset) | Low but not zero; see the warning for the test TV's firmware | Footprint on paper; success only on the TV |
@@ -73,7 +73,8 @@ From the source of SlopBro (`wwwroot/autoroot.sh`, commit `21023d5`) and Homebre
 LG TVs have no settings export, so the backup is three parts, kept on the laptop and with the TV's owner:
 
 1. **What the laptop can read** (the laptop check with `--backup`): picture mode and levels, sound output, the inputs,
-   the TV's apps, the model and firmware. Saved without the TV's address, serial number or device id.
+   the TV's apps, the model and firmware. Saved without the TV's address, serial number or device id. With root, also
+   whole settings categories, read only; `hometv-lg restore` puts them back ([backup.md](backup.md)).
 2. **Photos**, guided screen by screen: picture and sound settings, the privacy switches ([privacy.md](privacy.md)),
    the home-row order, Power On Screen and Quick Start+, HDMI device links (SIMPLINK), the channel list if an aerial
    is used, accessibility settings.

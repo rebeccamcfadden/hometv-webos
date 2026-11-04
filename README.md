@@ -20,6 +20,8 @@ on a TV.
 | [docs/privacy.md](docs/privacy.md) | LG's tracking and ad settings for each year, DNS blocking, how to undo each step |
 | [docs/jailbreak.md](docs/jailbreak.md) | Developer Mode and root options, safest first, with their risks |
 | [docs/root-plan.md](docs/root-plan.md) | Research: rooting with a way back (backup, what root changes, undo levels, an LG update ending root) |
+| [docs/install.md](docs/install.md) | How HomeTV v0 gets onto an LG TV: Developer Mode (renew about every 1,000 hours) or rooted (research only) |
+| [docs/backup.md](docs/backup.md) | The settings backup and `hometv-lg restore`: what is saved, where, what restore writes, its limits |
 | [docs/launchers.md](docs/launchers.md), [docs/launcher-replacement.md](docs/launcher-replacement.md) | Other LG home screens compared, and ways to replace LG's Home |
 | [tools/](tools/tv-check.mjs) | `hometv-lg check`: the read-only laptop check over LG's remote-control connection |
 | [checks/](checks/README.md) | The test app for the first call (a Developer Mode app) |

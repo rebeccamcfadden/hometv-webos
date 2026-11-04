@@ -4,7 +4,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { open } from '../tools/lib/ssap.mjs';
-import { readOnlyChecks, readSettings, launch } from '../tools/lib/checks.mjs';
+import { readOnlyChecks, launch } from '../tools/lib/checks.mjs';
+import { readSettings } from '../tools/lib/backup.mjs';
 import { fakeTv, HANDLERS } from './fake-ssap.mjs';
 
 async function withTv(fn) {

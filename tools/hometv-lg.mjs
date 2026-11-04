@@ -99,13 +99,17 @@ if (cmd === 'check') {
 } else if (cmd === 'get') {
   process.argv = [process.argv[0], 'get', ...rest];
   await import('./get.mjs');
+} else if (cmd === 'restore') {
+  process.argv = [process.argv[0], 'restore', ...rest];
+  await import('./restore.mjs');
 } else if (!cmd) {
   await guided();
 } else {
   console.log('HomeTV for LG\n\n  hometv-lg                      (double-click) asks: check the TV, or install HomeTV step by step\n' +
     '  hometv-lg check <tv address> [--backup] [--launch] [--reach]\n' +
     '  hometv-lg install <tv address> [--ipk <file>] [--from <step>]   (or: install --list)\n' +
-    '  hometv-lg get dev-manager | root-kit\n\n' +
+    '  hometv-lg get dev-manager | root-kit\n' +
+    '  hometv-lg restore <backup file> <tv address> [--root] [--dry-run]\n\n' +
     'check   reads the TV (model, apps, inputs, what v0 needs) after its "Allow" prompt;\n' +
     '        --backup also saves the settings it can read; --launch opens Netflix and YouTube, asking first;\n' +
     '        --reach checks the TV can reach this laptop (the TV\'s browser opens for a moment).\n' +
