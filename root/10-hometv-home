@@ -11,6 +11,13 @@ if [ "$(node "$D/decide.js" takeover "$home")" != mount ]; then
   exit 0
 fi
 sh "$D/stage-home.sh" || exit 0
+# HomeTV's service writes the heartbeat the watchdog reads, so it must see the real /tmp: elevated at every start (it
+# changes nothing when already done; an update of HomeTV re-registers the service jailed)
+if [ -f "$ELEVATE" ]; then
+  node "$ELEVATE" "$APP_ID.service" "$APP_ID" >/dev/null 2>&1 || say "home: elevate-service failed for $APP_ID.service"
+else
+  say "home: no elevate-service ($ELEVATE); the watchdog may give LG's Home back"
+fi
 pgrep -f "[h]ometv/watchdog.sh" >/dev/null || (sh "$D/watchdog.sh" </dev/null >/dev/null 2>&1 &)
 if replaced; then
   say "home: already HomeTV (the page was refreshed in place)"

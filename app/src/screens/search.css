@@ -1,0 +1,319 @@
+/* Search (screens/search.ts), from design_preview's screens.css at 2bf3c2d. Chromium 56: no grid, no flex gap (margins
+   instead), no inset; the results grid is inline-block cards. The page fills the stage (the panel and results run to
+   its edges, as in design_preview); the top bar keeps the safe area. */
+
+.screen.search {
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  color: var(--text-1);
+}
+.search,
+.search * {
+  box-sizing: border-box;
+}
+.search > .topbar {
+  position: absolute;
+  left: var(--safe-x);
+  right: var(--safe-x);
+  top: var(--safe-y);
+}
+
+.search-bar {
+  position: absolute;
+  top: 168px;
+  left: var(--safe-x);
+  right: var(--safe-x);
+  height: 84px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px 0 30px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: var(--line-w) solid var(--line);
+  color: var(--text-2);
+}
+.search-bar > * + * {
+  margin-left: 16px;
+}
+.search-bar.is-focused {
+  background: var(--surface-2);
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+.sb-typed {
+  font-size: 30px;
+  font-weight: 500;
+  color: var(--text-1);
+  white-space: pre;
+}
+.sb-typed.is-placeholder {
+  font-weight: 400;
+  color: var(--text-3);
+}
+.sb-ghost {
+  font-size: 30px;
+  color: var(--ghost);
+}
+.sb-ghost:empty {
+  margin-left: 0;
+}
+.sb-spacer {
+  flex: 1;
+}
+.sb-pill {
+  display: flex;
+  align-items: center;
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font-size: 19px;
+  color: var(--text-3);
+}
+.sb-pill > * + * {
+  margin-left: 8px;
+}
+/* .offline-pill is in ui/widgets.css. */
+
+.search-panel {
+  position: absolute;
+  top: 276px;
+  left: var(--safe-x);
+  width: 440px;
+  padding: 24px 32px 30px;
+  border-radius: var(--radius-xl);
+  background: var(--well);
+  border: var(--line-w) solid var(--line);
+  transition:
+    transform var(--slow) var(--ease),
+    opacity var(--slow) ease;
+}
+.search.is-expanded .search-panel {
+  transform: translateX(-560px);
+  opacity: 0;
+}
+.sp-head {
+  padding-left: 16px;
+  margin-bottom: 6px;
+  font-size: var(--t-min);
+  font-weight: 500;
+  color: var(--text-3);
+}
+.sp-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 196px;
+}
+.sp-item {
+  display: flex;
+  align-items: center;
+  height: 48px;
+  margin-bottom: 2px;
+  padding: 0 16px;
+  border-radius: var(--radius-m);
+  color: var(--text-3);
+}
+.sp-item > * + * {
+  margin-left: 14px;
+}
+.sp-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 22px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sp-text .hit {
+  color: var(--text-1);
+}
+.sp-tag {
+  font-size: var(--t-min);
+}
+.sp-item.is-focused {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.sp-item.is-focused .hit,
+.sp-item.is-focused .sp-text {
+  color: var(--on-accent);
+}
+.sp-none {
+  padding: 12px 16px;
+  font-size: 22px;
+  color: var(--text-3);
+}
+.keyboard {
+  margin-top: 18px;
+}
+.key-row {
+  display: flex;
+  margin-bottom: 8px;
+}
+.key-row:last-child {
+  margin-bottom: 0;
+}
+.key {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-right: 8px;
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  border: var(--line-w) solid var(--line);
+  font-size: var(--t-body);
+}
+.key:last-child {
+  margin-right: 0;
+}
+.key--space {
+  width: 184px;
+}
+.key--clear {
+  width: 120px;
+}
+.key.is-focused {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  transform: scale(1.08);
+}
+
+.search-viewport {
+  position: absolute;
+  top: 276px;
+  left: 584px;
+  /* Bleeds off the right edge of the screen, so the next cards are cut by the TV's edge, not a margin. */
+  right: 0;
+  bottom: var(--safe-y);
+  overflow: hidden;
+  transition: left var(--slow) var(--ease);
+}
+.search.is-expanded .search-viewport {
+  /* The grid starts at the safe margin, in line with the bar, and its eight columns end 98px short of the right edge. */
+  left: 88px;
+}
+/* Coming back to Search after leaving it for another tab: the panel is back in place at once, without the slide. */
+.search.is-snapping .search-panel,
+.search.is-snapping .search-viewport {
+  transition: none;
+}
+.search-results {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  padding: 8px;
+  overflow: hidden;
+}
+.bottom-fade-local {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 110px;
+  background: linear-gradient(rgba(var(--shade-rgb), 0), rgba(var(--shade-rgb), 0.97));
+  pointer-events: none;
+}
+.results-head {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+}
+.results-count {
+  margin-right: 28px;
+  font-size: var(--t-h3);
+  white-space: nowrap;
+}
+.results-head .chips {
+  flex-wrap: nowrap;
+}
+.results-head .chips > .chip {
+  margin-bottom: 0;
+}
+/* F46: C cards, eight across when widened; beside the keyboard six show and the rest run off the edge. */
+.results-grid {
+  width: 1752px;
+  padding-bottom: 140px;
+}
+.results-grid > .card {
+  margin: 0 24px 32px 0;
+}
+.results-empty {
+  padding: 20px 0;
+}
+.browse,
+.no-matches {
+  padding-bottom: 120px;
+}
+.nm-title {
+  font-size: 34px;
+  padding-top: 16px;
+}
+.nm-note {
+  margin: 12px 0 40px;
+  font-size: 22px;
+  color: var(--text-2);
+}
+
+/* A person among the C cards: a round portrait in the poster's box, the name and "Person" at its foot. */
+.card--mini.card--person .card-art {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.card--mini.card--person .person-cap {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 14px;
+  text-align: center;
+}
+.card--mini.card--person .card-name {
+  font-size: 20px;
+  font-weight: 600;
+  white-space: normal;
+}
+.card--mini.card--person .card-meta {
+  margin-top: 4px;
+  font-size: var(--t-min);
+  color: var(--text-2);
+}
+
+/* Offline with nothing saved (06-states A). */
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-top: 40px;
+}
+.state > * + * {
+  margin-top: 16px;
+}
+.state-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+.state .empty-title {
+  margin-top: 24px;
+  font-size: var(--t-h2);
+}
+.state-note {
+  max-width: 1000px;
+}
+.state-actions {
+  display: flex;
+  margin-top: 30px;
+}

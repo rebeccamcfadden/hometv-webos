@@ -1,0 +1,7 @@
+{
+  "name": "com.hometv.app.service",
+  "version": "0.1.0",
+  "description": "HomeTV: the heartbeat for the rooted edition's watchdog",
+  "main": "service.js",
+  "private": true
+}

@@ -11,7 +11,7 @@ that ends root, or Homebrew Channel's failsafe start) leaves LG's Home as it was
 
 | File | What it does |
 |---|---|
-| `10-hometv-home` | Homebrew Channel start-up hook: mounts HomeTV over LG's Home, restarts the app manager (sam), starts the watchdog |
+| `10-hometv-home` | Homebrew Channel start-up hook: elevates HomeTV's service (Homebrew Channel's `elevate-service`, so its heartbeat reaches the real `/tmp`), mounts HomeTV over LG's Home, restarts the app manager (sam), starts the watchdog |
 | `stage-home.sh` | Builds the folder mounted over LG's Home from HomeTV's installed page and the TV's own stock Home appinfo |
 | `after-sam.sh` | Restarts the services that lose track of the app manager (webOS 25: videooutputd, umediaserver) |
 | `undo-home.sh` | Puts LG's Home back: `temp` until the next start, or for good ("Use LG's Home") |
@@ -22,5 +22,7 @@ that ends root, or Homebrew Channel's failsafe start) leaves LG's Home as it was
 | `uninstall.sh` | LG's Home back now, the hooks and the HomeTV folder gone; restart afterwards |
 | `lib.sh` | Paths, each overridable for the tests |
 
-Tested on a PC only, with stub commands (`tests/root.test.mjs`). Not here yet: the heartbeat HomeTV's page sends the
-watchdog (it comes with HomeTV's LG app), a settings restore, and Homebrew Channel's update list.
+Tested on a PC only, with stub commands (`tests/root.test.mjs`). The heartbeat: HomeTV's page calls its service
+(`service/service.js`) every 10 seconds while it shows, and the service touches `/tmp/hometv-alive`. Elevation only
+changes HomeTV's own service registration (`/var/luna-service2-dev`); removing the HomeTV app removes it. Not here
+yet: a settings restore, and Homebrew Channel's update list.

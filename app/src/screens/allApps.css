@@ -1,0 +1,129 @@
+/* All apps and its TV Utilities folder (screens/allApps.ts), from design_preview's screens.css, for Chromium 56:
+   six tiles across (264 px, 20 px apart, 28 px between rows), inline-block with margins. */
+
+.aa-page {
+  box-sizing: border-box;
+  padding: var(--safe-y) var(--safe-x) 0;
+}
+.aa-head {
+  margin-top: 36px;
+}
+.aa-head .page-title {
+  display: inline-block;
+  margin-right: 20px;
+}
+.aa-count {
+  font-size: var(--t-small);
+  color: var(--text-3);
+}
+.aa-note {
+  margin-top: 10px;
+  font-size: var(--t-body);
+  color: var(--text-2);
+}
+.aa-scroll {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 260px;
+  bottom: 0;
+  overflow: hidden;
+  padding: 16px var(--safe-x) 0;
+}
+.aa-grid {
+  width: 1704px;
+  padding-bottom: 120px;
+}
+.aa-empty {
+  padding-top: 24px;
+  font-size: var(--t-body);
+  color: var(--text-2);
+}
+.aa-app {
+  display: inline-block;
+  vertical-align: top;
+  width: 264px;
+  margin: 0 20px 28px 0;
+}
+.aa-face {
+  position: relative;
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  height: 148px;
+  padding: 0 14px;
+  overflow: hidden;
+  border-radius: var(--radius-l);
+  background: var(--tile);
+  box-shadow: inset 0 0 0 var(--line-w) var(--line);
+  font-size: var(--t-h3);
+  text-align: center;
+  transition: box-shadow 140ms ease, transform 140ms ease-out;
+}
+.aa-art {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.aa-face.has-art .aa-mark {
+  visibility: hidden;
+}
+.aa-name {
+  margin-top: 12px;
+  overflow: hidden;
+  font-size: var(--t-small);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+.aa-app.is-focused .aa-face {
+  box-shadow: var(--focus-ring);
+  transform: scale(1.05);
+}
+.aa-app.is-focused .aa-name {
+  color: var(--text-1);
+}
+/* F41: TV Utilities as a folder with a gear, drawn in code (ui/folderArt.ts). */
+.aa-folder-face {
+  height: 148px;
+  transition: transform 140ms ease-out;
+}
+.aa-folder-art {
+  display: block;
+  margin: -6px;
+  overflow: visible;
+}
+.aa-folder-body {
+  fill: var(--surface);
+  stroke: var(--line);
+  stroke-width: var(--line-w);
+}
+.aa-folder-gear {
+  fill: var(--text-2);
+}
+.aa-folder-ring {
+  stroke: transparent;
+  stroke-width: 8px;
+}
+.aa-app.is-focused .aa-folder-face {
+  transform: scale(1.05);
+}
+.aa-app.is-focused .aa-folder-body {
+  fill: var(--surface-2);
+}
+.aa-app.is-focused .aa-folder-gear {
+  fill: var(--text-1);
+}
+.aa-app.is-focused .aa-folder-ring {
+  stroke: var(--accent);
+}
+.aa-folder-count {
+  color: var(--text-3);
+}

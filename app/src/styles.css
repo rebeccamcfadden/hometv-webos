@@ -1,0 +1,349 @@
+/* The 1920×1080 TV screen, in the Midnight look of design_preview's tokens.css. Kept to what Chromium 56 has:
+   no grid, no flex gap (margins instead), no :focus-visible. tools/check-legacy.mjs checks the build. */
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #0b0f1a;
+  color: #e8ecf5;
+  font-family: 'Segoe UI', 'Samsung One', Roboto, Arial, sans-serif;
+}
+
+#stage {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: 0 0;
+  background: radial-gradient(ellipse at 20% 0%, #1b2a4a 0%, #0b0f1a 60%);
+  overflow: hidden;
+}
+
+.screen {
+  position: absolute;
+  left: 96px;
+  right: 96px;
+  top: 54px;
+  bottom: 54px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 72px;
+}
+.brand {
+  font-size: 40px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.topright {
+  display: flex;
+  align-items: center;
+}
+/* Search, at the start of the top bar's right side (screens/home.ts). */
+.searchbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  margin-right: 24px;
+  border-radius: 32px;
+  background: #1c2740;
+}
+.searchbtn.is-focused {
+  background: #b9d4ff;
+  color: #0b0f1a;
+  transform: scale(1.08);
+}
+.clock {
+  font-size: 32px;
+  margin-left: 24px;
+}
+.pill {
+  font-size: 20px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: #24324f;
+}
+.pill.preview {
+  background: #4f3a24;
+}
+.problem {
+  position: absolute;
+  left: 0;
+  top: 80px;
+  font-size: 22px;
+  color: #ffb3a7;
+}
+
+.rowtitle {
+  font-size: 28px;
+  font-weight: 500;
+  margin: 120px 0 20px;
+  color: #aab6cf;
+}
+
+.approw {
+  display: flex;
+  height: 220px;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  outline: none;
+  cursor: pointer;
+  transition: transform 140ms ease-out, box-shadow 140ms ease-out;
+}
+
+.tile {
+  position: relative;
+  width: 228px;
+  height: 160px;
+  margin-right: 24px;
+  border-radius: 16px;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.06);
+}
+.tile .mark {
+  font-size: 30px;
+  color: #fff;
+}
+.tile .name {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 176px;
+  font-size: 22px;
+  color: #aab6cf;
+  opacity: 0;
+  transition: opacity 140ms;
+}
+.tile.missing {
+  opacity: 0.45;
+}
+.tile .art {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  object-fit: cover;
+}
+.tile.has-art .mark {
+  visibility: hidden;
+}
+.tile.is-focused {
+  transform: scale(1.08);
+  box-shadow: 0 0 0 4px #b9d4ff;
+}
+.tile.is-focused .name {
+  opacity: 1;
+}
+
+.lowerrow {
+  display: flex;
+  align-items: center;
+  margin-top: 60px;
+}
+.button {
+  font-size: 24px;
+  padding: 16px 28px;
+  border-radius: 12px;
+  background: #1c2740;
+  margin-right: 24px;
+  text-align: left;
+}
+.button.is-focused {
+  background: #b9d4ff;
+  color: #0b0f1a;
+  transform: scale(1.03);
+}
+.button.wide {
+  display: block;
+  width: 640px;
+  margin-bottom: 12px;
+  padding: 12px 24px;
+}
+.hint {
+  font-size: 20px;
+  color: #7f8aa3;
+}
+
+.phonelink {
+  font-size: 26px;
+  margin: 12px 0 20px;
+  color: #ffd27f;
+}
+.cols {
+  display: flex;
+}
+.checklist {
+  width: 700px;
+}
+.log {
+  flex: 1;
+  margin-left: 40px;
+  font-size: 20px;
+}
+.log h3 {
+  margin: 0 0 12px;
+  font-size: 22px;
+  color: #aab6cf;
+}
+.result {
+  padding: 8px 0;
+  border-top: 1px solid #24324f;
+}
+.result .rcheck {
+  display: inline-block;
+  width: 340px;
+  color: #aab6cf;
+}
+.result.ok .rtext {
+  color: #9fe3b0;
+}
+.result.bad .rtext {
+  color: #ffb3a7;
+}
+
+/* API keys (screens/keys.ts): the QR on the left, the address, code and each key's state on the right. */
+.keyslead {
+  font-size: 24px;
+  color: #aab6cf;
+  margin: 16px 0 28px;
+  max-width: 1500px;
+}
+.keycols {
+  display: flex;
+  align-items: flex-start;
+}
+.qrbox {
+  width: 440px;
+  height: 440px;
+  margin-right: 64px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #1c2740;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.qrbox .qr {
+  display: block;
+  width: 440px;
+  height: 440px;
+}
+.qrnone {
+  padding: 32px;
+  font-size: 24px;
+  color: #ffd27f;
+}
+.keyside {
+  flex: 1;
+}
+.keylabel {
+  font-size: 20px;
+  color: #7f8aa3;
+}
+.keyaddr {
+  font-size: 34px;
+  margin: 4px 0 12px;
+}
+.keycode {
+  font-size: 52px;
+  font-weight: 600;
+  letter-spacing: 6px;
+  margin: 2px 0 16px;
+}
+.keysvalue {
+  font-size: 22px;
+  color: #aab6cf;
+  margin-bottom: 8px;
+}
+.keysvalue.warn {
+  color: #ffd27f;
+}
+.keyrow {
+  display: block;
+  width: 1100px;
+  text-align: left;
+  padding: 12px 20px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  background: #151e33;
+}
+.keyrow.is-focused {
+  background: #24324f;
+  box-shadow: 0 0 0 3px #b9d4ff;
+}
+.keyname {
+  font-size: 26px;
+  font-weight: 600;
+  margin-right: 16px;
+}
+.keyuse {
+  font-size: 20px;
+  color: #7f8aa3;
+}
+.keystatus {
+  display: block;
+  font-size: 22px;
+  margin-top: 4px;
+}
+.tone-good {
+  color: #9fe3b0;
+}
+.tone-warn {
+  color: #ffd27f;
+}
+.tone-bad {
+  color: #ffb3a7;
+}
+.tone-dim {
+  color: #7f8aa3;
+}
+.keysnote {
+  font-size: 22px;
+  color: #ffd27f;
+  margin: 0;
+}
+.keys .lowerrow {
+  margin-top: 16px;
+}
+
+.toast {
+  position: absolute;
+  left: 50%;
+  top: 140px;
+  transform: translate(-50%, 20px);
+  max-width: 1400px;
+  padding: 18px 32px;
+  border-radius: 14px;
+  background: #24324f;
+  font-size: 24px;
+  opacity: 0;
+  transition: opacity 320ms, transform 320ms;
+}
+.toast.is-shown {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.toast.is-bad {
+  background: #5a2a2a;
+}
+/* The last message, kept small at the top left so a screenshot taken later still shows what happened. */
+.lastaction {
+  position: absolute;
+  left: 96px;
+  top: 20px;
+  font-size: 18px;
+  color: #7f8aa3;
+}

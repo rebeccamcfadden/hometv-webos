@@ -1,11 +1,11 @@
-// src/qr.ts (copied from hometv-tizen's app/src/qr.ts) against Project Nayuki's own encoder, with the vectors of the Android launcher's QrTest.java: made
+// app/src/qr.ts against Project Nayuki's own encoder, with the vectors of the Android launcher's QrTest.java: made
 // with his Python library (qrcodegen 1.8), each the version, level and mask he chose and the SHA-256 of the modules
 // read row by row as "1" for dark and "0" for light. Node runs the TypeScript as it is (type stripping).
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { encodeQr, dark } from '../src/qr.ts';
+import { encodeQr, dark } from '../app/src/qr.ts';
 
 const ALPHA = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.';
 /** A stand-in for TMDB's v4 request token, as long as a real one; not a token. */

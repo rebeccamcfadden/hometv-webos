@@ -44,6 +44,13 @@ library and Matheus Caldeira's cleanyourtv-ui, both MIT; the full notice is at t
 - zzeppieri/webos-custom-home (MIT): the shape of the Luna wrapper in `app/src/webos/luna.ts`.
 - home-assistant-libs/aiowebostv (Apache-2.0): the names of LG's remote-control permissions in `tools/lib/ssap.mjs`.
 - webosbrew/dev-manager-desktop (Apache-2.0): where Developer Mode's session is read, for the checks app's time-left check.
+- webosbrew/webos-homebrew-channel (MIT): its `elevate-service` is run (not copied) by `root/10-hometv-home`, so
+  HomeTV's service can write the heartbeat.
+
+## HomeTV's screens
+
+`app/` (all but the LG platform files) is copied from [rebeccamcfadden/hometv-tizen](https://github.com/rebeccamcfadden/hometv-tizen)
+(MIT, same author); `app/SOURCE.md` names the commit.
 
 ## The shared package
 

@@ -1,0 +1,448 @@
+/* The title page (screens/title.ts) and the rent dialog (rent.ts), from design_preview's screens.css at 2bf3c2d
+   (Title preview, Option C; 07-prices A). Chromium 56: no grid, no flex gap, no inset. */
+
+/* Popups and dialogs cover the whole stage, not the safe area .screen keeps. Sizes count their padding and border,
+   as design_preview's do. */
+.screen.layer-popup,
+.screen.layer-dialog {
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+}
+.layer-popup *,
+.layer-dialog * {
+  box-sizing: border-box;
+}
+/* .scrim is in ui/widgets.css. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.985);
+  }
+}
+
+/* ===== Title page ===== */
+.popup {
+  position: absolute;
+  top: 90px;
+  left: var(--safe-x);
+  width: 1728px;
+  height: 900px;
+  overflow: hidden;
+  border-radius: var(--radius-xl);
+  background: var(--bg-raised);
+  box-shadow:
+    0 0 0 var(--line-w) var(--line),
+    0 30px 90px rgba(0, 0, 0, 0.55);
+  animation: rise-in var(--slow) var(--ease);
+  color: var(--text-1);
+}
+.pv-art {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--art-loading);
+}
+/* The poster stands in for design_preview's landscape art, at the top right. */
+.pv-poster {
+  position: absolute;
+  top: 40px;
+  right: 72px;
+  width: 200px;
+  height: 300px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 var(--line-w) var(--line);
+}
+.pv-poster img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pv-poster.is-missing {
+  display: none;
+}
+.pv-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(
+    rgba(var(--deep-rgb), 0.45),
+    rgba(var(--deep-rgb), 0) 14%,
+    rgba(var(--deep-rgb), 0) 28%,
+    rgba(var(--deep-rgb), 0.9) 50%,
+    rgba(var(--deep-rgb), 1) 60%
+  );
+}
+.pv-back {
+  position: absolute;
+  top: 40px;
+  left: 48px;
+}
+.pv-back .btn:not(.is-focused) {
+  background: rgba(var(--deep-rgb), 0.6);
+}
+.pv-body {
+  position: absolute;
+  left: 72px;
+  right: 72px;
+  bottom: 44px;
+}
+.pv-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.pv-titleblock {
+  min-width: 0;
+  margin-right: 40px;
+}
+.pv-title {
+  margin: 0;
+  font-size: var(--t-display);
+  font-weight: 400;
+  line-height: 1.05;
+}
+.pv-details {
+  display: flex;
+  align-items: center;
+  margin-top: 14px;
+  font-size: 22px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.pv-details > * {
+  margin-right: 12px;
+}
+.pv-details .dot {
+  color: var(--text-3);
+}
+.pv-details .rating {
+  margin-left: 6px;
+  padding: 1px 10px;
+  border: var(--line-w) solid rgba(var(--text-2-rgb), 0.5);
+  border-radius: calc(var(--radius-s) / 2);
+  font-size: 19px;
+}
+.pv-details .score {
+  display: flex;
+  align-items: center;
+}
+.pv-details .score .star {
+  margin-right: 6px;
+  color: var(--star);
+}
+.pv-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+.pv-actions > * + * {
+  margin-left: 12px;
+}
+.pv-tabs {
+  display: flex;
+  margin-top: 30px;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  height: 52px;
+  margin-right: 8px;
+  padding: 0 22px;
+  border-radius: var(--radius-pill);
+  font-size: 22px;
+  color: var(--text-3);
+}
+.tab.is-active {
+  background: rgba(var(--tint-rgb), 0.12);
+  color: var(--text-1);
+  font-weight: 600;
+}
+.tab.is-focused {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.pv-divider {
+  height: 1px;
+  margin: 18px 0 22px;
+  background: var(--line);
+}
+.pv-content {
+  position: relative;
+  height: 220px;
+}
+/* F46: More like this's C cards (293 px), with room for the focus ring; the body grows upward from its foot. */
+.pv-content--cards {
+  height: 305px;
+}
+.pv-overview {
+  display: flex;
+}
+.pv-synopsis {
+  width: 820px;
+  margin: 0 64px 0 0;
+  font-size: var(--t-body);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+.pv-facts {
+  display: flex;
+  flex-direction: column;
+  font-size: 21px;
+  color: var(--text-2);
+}
+.pv-fact {
+  display: flex;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.pv-fact > * {
+  margin-right: 10px;
+}
+.pv-row {
+  display: flex;
+  overflow: hidden;
+  padding: 8px;
+  margin: -8px;
+}
+.pv-row > * {
+  flex: none;
+  margin-right: 20px;
+}
+.pv-empty {
+  font-size: 22px;
+  color: var(--text-3);
+}
+.service {
+  width: 376px;
+  padding: 22px 24px;
+  box-sizing: border-box;
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  border: var(--line-w) solid var(--line);
+}
+.service-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.service-name {
+  font-size: var(--t-h3);
+  font-weight: 600;
+}
+.service-offer {
+  margin-top: 10px;
+  font-size: 22px;
+}
+.service-detail {
+  margin-top: 4px;
+  font-size: var(--t-min);
+  color: var(--text-3);
+}
+.service.is-focused {
+  box-shadow: var(--focus-ring);
+  transform: scale(1.03);
+}
+.pv-where {
+  height: 100%;
+}
+.pv-credit {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  font-size: var(--t-min);
+  color: var(--text-3);
+}
+.price-lines {
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+}
+.pl {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 22px;
+}
+.pl b {
+  font-weight: 600;
+}
+.pl b.cheap {
+  color: var(--good);
+}
+.pl .q {
+  margin-left: 16px;
+  font-size: var(--t-small);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.tag-best {
+  display: inline-flex;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--good-soft);
+  color: var(--good);
+  font-size: var(--t-min);
+  font-weight: 500;
+}
+.pv-episodes {
+  display: flex;
+}
+.pv-seasons {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  width: 180px;
+  height: 220px;
+  overflow: hidden;
+  padding: 6px;
+  margin: -6px 22px -6px -6px;
+}
+.pv-seasons .chip {
+  justify-content: center;
+  flex: none;
+  margin-bottom: 10px;
+}
+.pv-episodes .pv-row {
+  flex: 1;
+  min-width: 0;
+}
+.episode {
+  width: 300px;
+  height: 196px;
+  padding: 20px;
+  box-sizing: border-box;
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  border: var(--line-w) solid var(--line);
+}
+.episode--next {
+  border-color: var(--accent);
+}
+.episode.is-focused {
+  box-shadow: var(--focus-ring);
+  transform: scale(1.03);
+}
+.episode-num {
+  display: flex;
+  align-items: center;
+  font-size: var(--t-min);
+  color: var(--text-3);
+}
+.episode-num > * + * {
+  margin-left: 10px;
+}
+.episode-seen {
+  color: var(--good);
+}
+.episode-name {
+  margin-top: 12px;
+  font-size: 23px;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.episode-meta {
+  margin-top: 10px;
+  font-size: var(--t-min);
+  color: var(--text-3);
+}
+
+/* ===== Rent / buy dialog ===== */
+.dialog {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 860px;
+  padding: 52px 56px;
+  transform: translate(-50%, -50%);
+  border-radius: var(--radius-xl);
+  background: var(--popup-bg);
+  border: var(--line-w) solid var(--line-strong);
+  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.6);
+  animation: fade-in var(--fast) ease-out;
+  color: var(--text-1);
+}
+.dialog--rent {
+  width: 900px;
+}
+.dialog-title {
+  font-size: 38px;
+}
+.dialog-detail {
+  margin-top: 12px;
+  font-size: var(--t-min);
+  line-height: 1.5;
+  color: var(--text-3);
+}
+.dialog-actions {
+  display: flex;
+  margin-top: 40px;
+}
+.qual {
+  display: flex;
+  align-items: center;
+  margin-top: 28px;
+}
+.qual[hidden] {
+  display: none;
+}
+.qual .chip {
+  height: 50px;
+  margin-right: 12px;
+}
+.qual-note {
+  margin-left: 8px;
+  font-size: var(--t-small);
+  color: var(--text-3);
+}
+/* Two price buttons side by side (design_preview: a two-column grid). */
+.dlg-prices {
+  margin-top: 30px;
+  white-space: nowrap;
+}
+.pbtn {
+  display: inline-block;
+  vertical-align: top;
+  width: 386px;
+  padding: 20px 24px;
+  box-sizing: border-box;
+  border-radius: var(--radius-l);
+  background: var(--surface);
+  border: var(--line-w) solid var(--line);
+  white-space: normal;
+}
+.pbtn + .pbtn {
+  margin-left: 16px;
+}
+.pbtn .k {
+  font-size: var(--t-small);
+  color: var(--text-3);
+}
+.pbtn .v {
+  margin-top: 4px;
+  font-size: 32px;
+}
+.pbtn .d {
+  margin-top: 4px;
+  font-size: var(--t-min);
+  color: var(--text-3);
+}
+.pbtn.is-focused {
+  background: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.03);
+}
+.pbtn.is-focused * {
+  color: var(--on-accent);
+}

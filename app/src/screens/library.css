@@ -1,0 +1,97 @@
+/* Movies and TV Shows (screens/library.ts), from design_preview's screens.css, for Chromium 56: the grid is
+   inline-block cards with margins, eight across 1728 px (195 px cards, 24 px apart, 32 px between rows). */
+
+.page-scroll {
+  position: absolute;
+  top: 150px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 var(--safe-x);
+  overflow: hidden;
+}
+.lib-intro {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-justify-content: space-between;
+  justify-content: space-between;
+  -webkit-align-items: flex-start;
+  align-items: flex-start;
+  margin-top: 30px;
+}
+.lib-scope {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-justify-content: space-between;
+  justify-content: space-between;
+  -webkit-align-items: center;
+  align-items: center;
+  margin-top: 18px;
+}
+.lib-scope-text,
+.lib-filter-summary {
+  font-size: var(--t-small);
+  color: var(--text-3);
+}
+.lib-filters {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+}
+.lib-filter-summary,
+.lib-btn-slot {
+  margin-left: 22px;
+}
+.library .chips {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  /* One row however many lists there are; it scrolls with focus. Room for the focus ring. */
+  -webkit-flex-wrap: nowrap;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  overflow: hidden;
+  padding: 8px;
+  margin: 8px -8px -8px;
+}
+.library .chips > * {
+  -webkit-flex: none;
+  flex: none;
+}
+.library .chips > .chip {
+  margin: 0 12px 0 0;
+}
+.chips-label {
+  margin-right: 18px;
+  font-size: var(--t-small);
+  color: var(--text-3);
+}
+.lib-list-head {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-justify-content: space-between;
+  justify-content: space-between;
+  -webkit-align-items: baseline;
+  align-items: baseline;
+  margin-top: 40px;
+}
+.lib-list-title {
+  font-size: var(--t-h2);
+}
+.lib-list-status {
+  font-size: var(--t-small);
+  color: var(--text-3);
+}
+.lib-grid {
+  width: 1752px;
+  margin-top: 22px;
+}
+.lib-grid .card--mini {
+  margin: 0 24px 32px 0;
+}
+/* As tall as .bottom-fade, so the last row can scroll clear of it (data-scroll-pad-bottom on .page-scroll). */
+.page-end {
+  height: 200px;
+}

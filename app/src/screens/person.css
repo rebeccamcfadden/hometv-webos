@@ -1,0 +1,50 @@
+/* The person page (screens/person.ts), from design_preview's screens.css, for Chromium 56. Its titles use the
+   library's card grid, eight across. */
+
+.person-page {
+  box-sizing: border-box;
+  padding: var(--safe-y) var(--safe-x);
+}
+.person-hero {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  margin-top: 40px;
+}
+.person-page .person-portrait {
+  display: -webkit-flex;
+  display: flex;
+  -webkit-align-items: center;
+  align-items: center;
+  -webkit-justify-content: center;
+  justify-content: center;
+  width: 160px;
+  height: 160px;
+  margin-right: 36px;
+  border-radius: 50%;
+  background: var(--person-bg);
+  box-shadow: inset 0 0 0 var(--line-w) var(--line);
+  font-size: 52px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.person-known {
+  margin-top: 54px;
+}
+.person-scroll {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 420px;
+  bottom: 0;
+  overflow: hidden;
+  padding: 8px var(--safe-x) 0;
+}
+.person-grid {
+  width: 1752px;
+  padding-bottom: 80px;
+}
+.person-grid .card--mini {
+  margin: 0 24px 32px 0;
+}

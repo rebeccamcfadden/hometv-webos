@@ -7,9 +7,16 @@
   "type": "module",
   "scripts": {
     "build": "node tools/build.mjs",
+    "build:app": "tsc --noEmit -p app && vite build",
+    "dev:app": "vite",
     "test": "node --test tests/",
     "package": "node tools/build.mjs && npx -y -p @webos-tools/cli@3.2.6 ares-package dist/checks-app checks/service -o dist",
+    "package:app": "npm run build:app && node tools/package-webos.mjs",
     "exe": "node tools/build-exe.mjs",
     "check": "node tools/tv-check.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^6.4.5"
   }
 }

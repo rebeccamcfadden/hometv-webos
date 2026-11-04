@@ -1,0 +1,10 @@
+{
+  "id": "com.hometv.app.service",
+  "description": "HomeTV: the heartbeat for the rooted edition's watchdog",
+  "services": [
+    {
+      "name": "com.hometv.app.service",
+      "description": "HomeTV service"
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2017", "DOM"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "paths": { "@hometv/core/*": ["../vendor/hometv-launcher/packages/core/src/*"], "@v1": ["./src/v1.ts"] },
+    "types": ["vite/client"]
+  },
+  "include": ["src"]
+}
