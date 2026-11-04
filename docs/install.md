@@ -21,7 +21,7 @@ for it, so there are two ways to put it there. **Path 1 is the one to use.**
 Developer Mode is a feature LG built for people who make TV apps. It lets a computer on your Wi-Fi install an app. It
 doesn't change LG's software.
 
-1. **Switch Developer Mode on.** On the TV, install LG's **Developer Mode** app from the LG Content Store, open it,
+1. **Switch Developer Mode on.** On the TV, install LG's **Developer Mode** app from the TV's app store (**Apps**, or **LG Content Store** on older TVs), open it,
    sign in with an LG Developer account, press **Dev Mode Status** (the TV restarts), then open the app again and
    press **Key Server**. The app now shows a 6-letter **passphrase**.
 2. **Get the laptop tools.** On a Windows laptop, `hometv-lg get dev-manager` downloads webosbrew's free
@@ -48,8 +48,8 @@ More in [jailbreak.md](jailbreak.md) and [launcher-replacement.md](launcher-repl
 
 > [!CAUTION]
 > **Research only. Do not do this unless the TV's owner agrees, and never without a backup and a way back.**
-> Rooting uses a bug in LG's software. It can leave a TV that won't start, it usually ends LG's updates (which
-> blocks security fixes too), it may void the warranty, and **there is no "unroot" button**: the full undo is LG's
+> Rooting uses a bug in LG's software. It can leave a TV that won't start, an LG update usually ends root (so a rooted TV is often kept
+> off updates, which also means no security fixes), it may void the warranty, and **there is no "unroot" button**: the full undo is LG's
 > *Reset to Initial Settings*, which clears all settings, apps and sign-ins. A TV can't go back to older firmware.
 > Rooted TVs must not have the Developer Mode app installed, so the two paths don't mix.
 
