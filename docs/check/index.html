@@ -124,6 +124,61 @@ person helping you can see whether HomeTV will work on it. About 10 minutes.</p>
   TV's address in place of the example:</p>
 <div class="cmd"><span id="c2">hometv-lg.exe check 192.168.1.50 --backup --reach --launch</span><button onclick="copy('c2', this)">Copy</button></div>
 
+<!-- Facts in the next section: webosbrew/dev-manager-desktop README (Windows .msi installer; "Add device without need to use command line"; "Install apps on TV with a few clicks") and its source (src/app/devices/devices.component.html
+     "Add new device..."; src/app/apps/apps.component.html "Install" button that asks for an .ipk file;
+     device-editor.component.ts: the passphrase "usually has 6 characters and is case sensitive").
+     https://github.com/webosbrew/dev-manager-desktop
+     LG's Developer Mode guide: https://webostv.developer.lge.com/develop/getting-started/developer-mode-app
+     (sign in with an LG Developer site account, Dev Mode Status button reboots the TV, Key Server button, passphrase
+     of 6 characters shown at the bottom left, Extend button, Developer Mode ends after 10 restarts without a network
+     or when the session time has run out). -->
+<h2 id="install">If you were asked to install the test app</h2>
+<p class="warn"><strong>Only if you were asked to.</strong> This is <strong>not needed for the check above</strong>.
+  Still work in progress and not tested on a real TV. It puts a small test app on the TV; you can delete it again from
+  the TV's app list. If nobody asked you to do this, stop here.</p>
+<p class="small">You need: the <code>.ipk</code> file you were sent (the test app), and the LG Developer account details
+  (an email and a password) from the person who sent you this link. Don't use your own LG account.</p>
+<ol>
+  <li>
+    <p><strong>Turn on Developer Mode on the TV.</strong> Open the <span class="path">LG Content Store</span> on the TV,
+      search for <span class="path">Developer Mode</span> and install that app. Open it and sign in with the
+      LG Developer account details you were given. Then press <span class="path">Dev Mode Status</span> to switch it
+      <strong>ON</strong>. The TV restarts by itself.</p>
+  </li>
+  <li>
+    <p><strong>Open the Developer Mode app again</strong> after the restart, and press
+      <span class="path">Key Server</span> to switch it <strong>ON</strong>. Leave this screen open: you need the
+      6-letter <span class="path">passphrase</span> shown at the bottom left (capital and small letters count).</p>
+  </li>
+  <li>
+    <p><strong>Get Dev Manager on the laptop.</strong> Dev Manager is a free Windows program, from the open-source
+      webOS Homebrew project, that puts apps on the TV. In Command Prompt, in your Downloads folder (where
+      <code>hometv-lg.exe</code> is), run:</p>
+    <div class="cmd"><span id="c3">hometv-lg.exe get dev-manager</span><button onclick="copy('c3', this)">Copy</button></div>
+    <p>It downloads the installer, checks it, and starts it. Windows asks <span class="path">Do you want to allow this
+      app to make changes?</span>: click <span class="path">Yes</span>, then follow the installer.</p>
+  </li>
+  <li>
+    <p><strong>Add the TV in Dev Manager.</strong> Open <span class="path">webOS Dev Manager</span>, click
+      <span class="path">Add new device...</span>, type the TV's address (the four numbers from step 3 of the check, like
+      <code>192.168.1.50</code>) and any name. For the sign-in choose the option that uses the Developer Mode
+      <strong>passphrase</strong>, and type the 6 letters from the TV's screen. The laptop must be on the same Wi-Fi as
+      the TV.</p>
+  </li>
+  <li>
+    <p><strong>Install the test app.</strong> In Dev Manager open the TV's <span class="path">Apps</span> page, click
+      <span class="path">Install</span>, and pick the <code>.ipk</code> file you were sent. When it finishes, the app
+      is in the TV's app list.</p>
+  </li>
+  <li>
+    <p><strong>Tell the person who sent you the link</strong> that it's installed, and what the TV showed if anything
+      went wrong.</p>
+  </li>
+</ol>
+<p class="small"><strong>Good to know:</strong> Developer Mode runs out after about 1,000 hours (about 41 days). Before
+  that, open the Developer Mode app and press <span class="path">Extend</span>; if it runs out, LG removes the apps you
+  installed this way. To undo everything: delete the app in the TV's app list, or delete the Developer Mode app (the apps go with it). Also, Developer Mode switches itself off after 10 restarts with no network.</p>
+
 <p class="small">HomeTV for LG is open source: <a href="https://github.com/rebeccamcfadden/hometv-webos">github.com/rebeccamcfadden/hometv-webos</a>.</p>
 </main>
 <script>
