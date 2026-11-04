@@ -125,7 +125,8 @@ SlopBro's bug, and may stop the start-up scripts. Then:
   `elevate-service.ts`, `frontend/views/SettingsPanel.js`); issues [#11](https://github.com/webosbrew/webos-homebrew-channel/issues/11)
   (paths to clean), [#234](https://github.com/webosbrew/webos-homebrew-channel/issues/234) (after updates; factory reset).
 - [rootmy.tv/warning](https://rootmy.tv/warning) (signed partitions, `chattr`); RootMyTV docs/TROUBLESHOOTING.md;
-  webosbrew/pages (overlays, glossary, cheatsheet).
+  webosbrew/pages (overlays, glossary, cheatsheet). RootMyTV itself doesn't apply to his TV (patched since 2022, never
+  on webOS 22+; [jailbreak.md](jailbreak.md)); SlopBro ends in the same Homebrew Channel set-up, so the undo is the same.
 - Launchers' footprints: lasharor `docs/tv-changes.md`, `uninstall.sh`, `scripts/watchdog.sh`, issues #10, #11, #122;
   Hearth `src/poweron/README.md`, `src/homehook/`, issue #43. Detail: [launchers.md](launchers.md).
 - LG: [Reset to Initial Settings](https://www.lg.com/us/support/help-library/lg-tv-how-to-reset-your-tv--20154634935200).

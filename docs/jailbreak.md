@@ -35,7 +35,8 @@ Root tools for exactly this TV, from [CanI.RootMy.TV](https://cani.rootmy.tv)'s 
 | **SlopBro** | **Very likely works** | Newest known rootable version: **33.31.61, his exact version**. No patched version listed | Run from a computer on the same Wi-Fi; pairs with the TV's remote connection (the TV asks "Allow"), uses an LG bug in a built-in service, then installs Homebrew Channel with persistence. No USB, no Developer Mode. AGPL-3.0, created 2026-06, last commit 2026-09-28. Its author calls it a lightly tested proof of concept; it already carries a workaround for one LG fix attempt. Reported working on webOS 4-11 |
 | DangBro | **No** | Works only on TVs with a DVB tuner; this US set has ATSC | - |
 | faultmanager | **No** | Patched on this platform from 23.22.60 (webOS 24); not listed for webOS 25 | - |
-| DejaVuln, crashd, WTA, ASM, RootMyTV | **No** | Older platforms or patched | - |
+| DejaVuln, crashd, WTA, ASM | **No** | Older platforms or patched | - |
+| **RootMyTV** (v1, v2; MIT; Rebecca's 22:52 link) | **No** | Its own README: patched by LG since mid-2022, and it "never worked on … TVs that came with webOS … 7 (22), or 8 (23)"; his is a 2024 set on webOS 25, and CanI.RootMy.TV lists no RootMyTV entry for it | The first one-click LG root (2021), the origin of Homebrew Channel's install-and-persist step that SlopBro reuses (same end state, same undo: a factory reset). Useful for us: its [warning page](https://rootmy.tv/warning) (never write signed partitions, never `chattr`) and TROUBLESHOOTING (factory reset to clear leftovers), both in [root-plan.md](root-plan.md); and its one-page, run-from-the-TV's-browser flow as an idea for the installer |
 
 What that means, and what's unknown:
 

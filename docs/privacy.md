@@ -80,6 +80,7 @@ Privacy & Terms › Advertisement); 2020 and older: General › Additional Setti
 | **Screen Saver Promotion** (2024+) | Off: System › Additional Settings › Screen Saver Settings | Ads on the screensaver | Nothing | On |
 | **AI Recommendations** (2026) | Off: General › AI Service › LG AI Settings | AI-picked rows | Nothing | On |
 | **"Hi LG" hands-free voice** | Off, if nobody uses it (General › Voice, or Additional Settings, by year) | The TV's microphone listening for its wake word | "Hi LG"; the remote's microphone button still works | On |
+| **Hardware microphone switch** (some models) | Off | The TV's built-in microphone, in hardware | Hands-free voice | Switch it back |
 | **Always Ready** (2022+, on by default) | Off: General › Always Ready | The TV staying half on (wallpaper, music, listening for "Hi LG") when switched off | Ambient mode and voice wake | On |
 | **Quick Start+** | The household's choice | Off: a true standby, nothing running while off | Off: slower start; and the "start on the last input" setting needs it on (LG). **Keep it on if HomeTV relies on waking where it was** | Back as it was |
 | **Power On Screen** (2023+) / **Home Auto Launch** (2019-2022) | "Last input" / Off | The TV starting on LG's Home | Nothing | Back as it was |
@@ -129,8 +130,19 @@ whole home (NextDNS, Pi-hole, AdGuard Home), and a router rule catching TVs that
 | [furkan-bayrak/lg-tv-blocklist](https://github.com/furkan-bayrak/lg-tv-blocklist) | Newer, safe and strict tiers; less established |
 
 **Catch the TV going around it:** if the blocker's log shows nothing from the TV, it's asking another DNS; a router
-rule fixes that (upstream links guides). **A guest or IoT network** for the TV keeps it apart from the home's
-computers (LG TVs scan the home network, with no switch for it); casting then needs the phone on that network too.
+rule fixes that: send all outgoing port 53 to the blocker and block port 853 (DNS over TLS); upstream links guides for
+pfSense, OpenWrt, OPNsense, MikroTik and UniFi. Most internet-provider routers can't. HaGeZi's `doh-vpn-proxy-bypass`
+list stops devices going around it over DNS-over-HTTPS or VPNs. **A guest or IoT network** for the TV keeps it apart
+from the home's computers (LG TVs scan the home network, with no switch for it; CyberInsider, Sep 2026); casting then
+needs the phone on that network too, unless the router passes mDNS between them.
+
+**NextDNS, if used:** its "Native Tracking Protection" has **no LG entry** (upstream checked its list): add HaGeZi's
+`native.lgwebos` from the Blocklists tab. Its free plan (300,000 queries a month) **stops blocking without saying so**
+once a TV plus a household passes it.
+
+**Check it from a phone:** upstream's page has a network check (run on a phone on the TV's Wi-Fi) that asks the home's
+DNS for LG's tracking names and says whether they're blocked: [cleanyour.tv/not-android#check](https://cleanyour.tv/not-android#check).
+It replaces the DNS check this note planned to build.
 
 ## 3. What can be scripted
 
@@ -140,7 +152,7 @@ computers (LG TVs scan the home network, with no switch for it); casting then ne
 | **Press the keys through the menus** | SSAP's remote-key socket | **No**: menus differ by year, a script can't see the screen |
 | **A read-only check** | Read the settings over SSAP and say which are back on (after an update or reset) | **Yes**: small, safe. Could live in HomeTV's Settings later (a question for Rebecca then) |
 | **A guided checklist** | This page's tables, for the family's year only, with a photo per step | **Yes**: fits a family call |
-| **A DNS check** | Ask the home's DNS for the tracking names (blocked?) and the never-block names (still there?) | **Yes**: catches a too-broad list |
+| **A DNS check** | Ask the home's DNS for the tracking names (blocked?) and the never-block names (still there?) | **Yes, already exists**: upstream's phone check ([cleanyour.tv/not-android#check](https://cleanyour.tv/not-android#check)) |
 | **Root: block firmware updates, stop LG's ad services** | Homebrew Channel's own "Block system updates" switch (verified in its source); lasharor's optional debloat | **Not for a family TV**: see [jailbreak.md](jailbreak.md). Blocking updates also blocks security fixes |
 
 **Avoid:** brand-new "LG debloat" or "own your TV" root scripts outside webosbrew that turned up in searches. They're
@@ -156,6 +168,18 @@ one network step, and a read-only check later. No key-pressing script.
 - Update check-ins: blocking them stops security updates.
 - The TV scanning the home network: only a separate network stops it.
 - After a factory reset everything is back on; after a firmware update, check again.
+- **Last resort (upstream):** keep the TV offline and use a separate streaming box (upstream suggests an Apple TV:
+  no ACR). An offline TV gets no security updates; fine while it stays offline.
+
+## Compared with upstream's LG section (cleanyour.tv/not-android#lg, read 2026-11-04)
+
+Upstream has five LG steps (Live Plus, optional agreements, ad tracking, home promotions, "Hi LG"), each checked on
+real TVs by contributors (a 2019 C9, a 2022 50UQ75006LG, a 2021-2024 set), a short LG DNS table, and the network
+check. Taken from it into this note: NextDNS's missing LG entry and quota, DNS redirection and the bypass list, the
+network check, the hardware mic switch, the offline last resort, and two details: if Privacy & Terms has no
+Advertisement entry, the agreement in step 2 is the switch; and in Texas, LG agreed in May 2026 to ask for consent
+(Texas's December 2025 lawsuit), which covers Texas only. This note adds what upstream doesn't have: 2017-2019 paths,
+Always Ready, Quick Start+, LG Channels, the longer DNS table with what each name does, and what can be scripted.
 
 ## Sources
 

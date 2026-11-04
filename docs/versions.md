@@ -68,7 +68,7 @@ TV? Is root (steps 5-7) on the first call, or a second call once the unroot path
 |---|---|---|---|
 | **Themes**, Seasonal themes, Motion settings | M | No | Not built |
 | **Clock screensaver** | S | No | Not built |
-| **Privacy**: a guided checklist screen for his TV's year; a read-only check that the switches stay off | M | Yes | Research done (privacy.md) |
+| **Privacy**: a guided checklist screen for his TV's year; a read-only check that the switches stay off (the DNS part: upstream's phone check, cleanyour.tv/not-android#check, nothing to build) | M | Yes | Research done (privacy.md) |
 | **Debloat with root**: stop LG's ad and telemetry services, undoable | M | Yes | Not built |
 | **Home row apps** settings (reorder, hide) | S | No | Not built |
 | **Tile menu** (hold OK: move, hide) | S | No | Not built |
