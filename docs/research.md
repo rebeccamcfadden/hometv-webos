@@ -21,8 +21,8 @@ it comes from. Nothing here has been run on any TV. The companion notes: [privac
   check.
 - **Home key and power-on: not by LG's rules.** LG confirmed in 2026 that no app can start at power-on, and the Home
   key belongs to LG's Home. Two no-root projects get around the Home key (a helper that reads the remote's key
-  presses on the TV, tested on a handful of models); power-on needs root. Details in
-  [launcher-replacement.md](launcher-replacement.md).
+  presses on the TV, tested on a handful of models); power-on needs root, which SlopBro very likely gives on her
+  dad's exact firmware ([jailbreak.md](jailbreak.md)). Details in [launcher-replacement.md](launcher-replacement.md).
 - **Cost for the household:** an LG developer account (free), the Developer Mode app from LG's store, a computer
   (or an Android phone) once for the install, and the 41-day Extend. All of it undone by deleting the apps.
 - **Best base to build on:** [Razdva122/clean-your-tv-lg-webos](https://github.com/Razdva122/clean-your-tv-lg-webos)
@@ -30,13 +30,27 @@ it comes from. Nothing here has been run on any TV. The companion notes: [privac
   [OmkarK97/webos-vibehack](https://github.com/OmkarK97/webos-vibehack) and on upstream cleanyourtv. Less proven
   than AeroTizen is for Samsung: its own docs mark most models "unverified".
 
+## Her dad's TV, and Rebecca's answers
+
+- **The TV** (Rebecca, 22:1x, from a screenshot; only model, webOS version and firmware are ever quoted):
+  **43UT8000AUA**, a 2024 UT80 LCD (US) with LG's webOS 25 upgrade, release **10.3.1-3001** (software 33.31.61).
+  So: **Chromium 120 and Node 16** (LG's charts for webOS 25): a modern build target, newer than the Samsung one's
+  Chromium 56. A budget model: assume little memory and keep the fork's 1 GB-TV rules.
+- **Access:** a TV call at most once a week; a Windows laptop at the house; the US (21:54-22:09).
+- **W1** (a): a reminder inside HomeTV now; automatic renewal later. **And root is open for research in this repo**:
+  explore both, with the risks; test without root first, before she decides whether to root
+  ([jailbreak.md](jailbreak.md) has the status for his exact firmware). No root on any TV until she picks it.
+- **W2** (a): title-link checks on a call. **W3** (a): the Home helper, now that the model is known. **W4**: covered
+  by the root research. **W5** (a): the key page and phone notes; the phone remote on the back burner (as on
+  Samsung). **W6** (a): page updates.
+
 ## Questions for Rebecca (her rule: features that may not work go to her)
 
-Sent through the Decision proxy; listed here so the note stands alone.
+Asked through the Decision proxy on 2026-11-04, 22:03; answered above.
 
 | # | Feature | What fails | Evidence | Cost of more research |
 |---|---|---|---|---|
-| W1 | **HomeTV staying installed** | Developer Mode runs out after ~1,000 h and uninstalls HomeTV and its keys | LG's Developer Mode guide, quoted below | (a) a reminder inside HomeTV plus the Extend button (a minute with the remote, every month): ~1 day; (b) automatic renewal from a phone or PC: ~1-2 days, plus a TV check; (c) root: see [jailbreak.md](jailbreak.md) (against AGENTS.md's no-root rule) |
+| W1 | **HomeTV staying installed** | Developer Mode runs out after ~1,000 h and uninstalls HomeTV and its keys | LG's Developer Mode guide, quoted below | (a) a reminder inside HomeTV plus the Extend button (a minute with the remote, every month): ~1 day; (b) automatic renewal from a phone or PC: ~1-2 days, plus a TV check; (c) root: see [jailbreak.md](jailbreak.md) (Rebecca's pick, only after a non-root test) |
 | W2 | **"Watch on" opening the title** | Only YouTube (and maybe Netflix) open a title | Home Assistant, homebridge and Jellyfin reports; no documented form for the others | ~1 hour of build plus ~15 minutes of checks on a TV call |
 | W3 | **The Home key going to HomeTV** | LG keeps the Home key | LG's docs; every project works around it | Test the on-TV helper (Razdva122's, or LG-TV-HA-Home-Launcher's) on the family's model: ~1 day plus a call |
 | W4 | **Opening at power-on** | No app can start at power-on without root (LG, April 2026) | LG developer forum, quoted below | No no-root way known; only "start on the last input" settings |
@@ -158,7 +172,7 @@ except where marked.
 - **The web engine by year** (LG's [chart](https://webostv.developer.lge.com/develop/specifications/web-api-and-web-engine)):
   2016-2017 Chromium 38, 2018-2019 53, 2020 68, 2021 79, 2022 87, 2023 94, 2024 108, 2025 120, 2026 132. The
   Samsung build targets Chromium 56; **a 2016-2019 LG needs older still** (Chromium 38/53: no CSS grid on 38, careful
-  ES5 output). The family TV's year decides the build target (unknown until the first call reads it).
+  ES5 output). His TV is webOS 25: Chromium 120, so this only matters for other households.
 - **Memory:** LG publishes no figure. Third-party notes say 1.5-3 GB on recent sets, with backgrounded apps reclaimed
   quickly. The fork's 1 GB-TV rules (no blur, no autoplaying video) fit as they are.
 - **Unknown:** start time and scrolling on the family's TV.
@@ -209,7 +223,8 @@ except where marked.
 - **The service:** hometv-tizen's ES5 key-page service, ported to webOS's service API (same Node built-ins).
 - **Off the TV:** LG's CLI (`@webos-tools/cli` 3.2.6, on this PC's npm feed) packages and installs; LG's TV emulator
   needs VirtualBox, not installed here (a question before installing it).
-- **The first TV call:** read the model and webOS version; Developer Mode and the timer; a test app with buttons for
+- **The first TV call:** read the software version (33.31.61?) and whether automatic updates are on; Developer Mode
+  and the timer; a test app with buttons for
   launch, list apps, the key page from a phone, title links, and the time left in Developer Mode.
 
 ## Sources

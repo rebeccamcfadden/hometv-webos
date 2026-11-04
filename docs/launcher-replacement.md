@@ -11,8 +11,9 @@ each point is, is said where it matters.
   and optionally an **experimental on-TV helper** that catches the Home key and opens HomeTV instead. Razdva122's
   project does exactly this, MIT-licensed, with a Windows installer.
 - **With root, Home can be replaced properly** (lasharor's project: Home key and power-on, held only in memory, so a
-  restart without its start-up script brings LG's Home back). Root is against AGENTS.md's hard rules and carries the
-  risks in [jailbreak.md](jailbreak.md): **not for the family TV** unless Rebecca changes that.
+  restart without its start-up script brings LG's Home back). Root carries the risks in [jailbreak.md](jailbreak.md);
+  on her dad's TV it's very likely possible (SlopBro), and it's **Rebecca's pick, only after a non-root test**
+  (22:1x).
 - **LG's own Home can't be changed** by an app: its banner and recommended row are turned off in settings
   ([privacy.md](privacy.md)); HomeTV covers the rest while it's open.
 - **Unlike Samsung, Developer Mode runs out** (~41 days) and takes the app with it: every no-root tier carries the
@@ -28,7 +29,7 @@ each point is, is said where it matters.
 | **LG's ad rows** | Banner and recommendations off in settings | Same; HomeTV covers Home while it's open | Could be stopped (debloat) |
 | **Keeps working** | Until a reset | **While Developer Mode is extended** (~monthly) and, for the helper, while its pairing and the Wi-Fi work | Until a firmware update ends root (updates are usually blocked, which blocks security fixes too) |
 | **Undo** | Settings back | Delete the apps; Developer Mode off | Remove the start-up script and restart; [jailbreak.md](jailbreak.md) |
-| **Risk** | None | Low (the helper: per model, experimental) | Higher; against AGENTS.md |
+| **Risk** | None | Low (the helper: per model, experimental) | Higher: a young root tool, LG's updates stopped for good |
 
 ## How the existing ones do it
 
@@ -73,7 +74,7 @@ can renew Developer Mode) and youtube-webos (GPL-3.0, an ad-free YouTube). Not a
 | **Razdva122/clean-your-tv-lg-webos** | MIT | No (and a root edition) | Windows, Mac, Linux, Android | On-TV helper | C3 (root), C4 (no-root, community) | **Best base**: the installer, the helper and the recovery are the hard, LG-specific parts |
 | OmkarK97/webos-vibehack | MIT | No | Mac script | Another computer watches | C6 | Simpler, but needs an always-on second device |
 | mbsintegrations/LG-TV-HA-Home-Launcher | **GPL-3.0** (copying its code would make HomeTV's webOS app GPL) | No | Home Assistant | On-TV helper | B9, NANO76 | Second source for the helper, ideas only; needs Home Assistant |
-| lasharor/cleanyourtv-WebOS | MIT | **Yes** | Homebrew Channel | Takes Home over | G2 (OLED65G26LA), webOS 25 | Out: root |
+| lasharor/cleanyourtv-WebOS | MIT | **Yes** | Homebrew Channel | Takes Home over | G2 (OLED65G26LA), webOS 25 | **The root base**, if Rebecca picks root: the most complete, tested on webOS 25 |
 
 Licences checked from each repo's LICENSE file on 2026-11-04 (GitHub's licence badge can't read the MIT ones, which
 carry two copyright lines). Razdva122's also ships a font under the SIL OFL. Last pushes: Razdva122 and lasharor
@@ -81,18 +82,18 @@ carry two copyright lines). Razdva122's also ships a font under the SIL OFL. Las
 
 **Recommendation:** HomeTV's screens (from hometv-tizen and `design_preview/`) on Razdva122's No-root base, as
 builder-4 did with AeroTizen: its installer and Home Helper, its MIT licence kept and credited. Less proven than
-AeroTizen (its own docs mark most models unverified), so the first TV call checks it on the family's model before
-anything is built on it. Only after Rebecca's answers (W1, W3 in [research.md](research.md)).
+AeroTizen (its own docs mark most models unverified; none is a UT80), so the first TV call checks it on his TV before
+anything is built on it. Whether to build on it is Rebecca's call (asked 22:18, as she decided AeroTizen for Samsung).
 
 ## What HomeTV should do on LG
 
 1. **Be a Developer Mode app** with its own tile, packaged so it opens offline.
 2. **LG's start settings**, set by the household from a short guide: Power On Screen (or Home Auto Launch) to the last
    input, Quick Start+ on, Home Promotion and Content Recommendation off.
-3. **The Home helper: off by default** (the fork's rule), only after it's been checked on the family's model, with
-   the three-presses way out explained.
-4. **A Developer Mode reminder** inside HomeTV, if it can read the time left (W1).
-5. **No root** on the family TV.
+3. **The Home helper: off by default** (the fork's rule), only after it's been checked on his TV, with the
+   three-presses way out explained.
+4. **A Developer Mode reminder** inside HomeTV (Rebecca W1 (a)), if it can read the time left; else a date it keeps.
+5. **No root** until Rebecca picks it after the non-root test; then lasharor's base for Home and power-on.
 
 ## What it costs the household
 
