@@ -84,7 +84,7 @@ carry two copyright lines). Razdva122's also ships a font under the SIL OFL. Las
 app, borrowing MIT pieces, with the Home helper picked after the first call. The paragraph below was the first take.
 
 **First take:** HomeTV's screens (from hometv-tizen and `design_preview/`) on Razdva122's No-root base, as
-builder-4 did with AeroTizen: its installer and Home Helper, its MIT licence kept and credited. Less proven than
+HomeTV for Samsung does with AeroTizen: its installer and Home Helper, its MIT licence kept and credited. Less proven than
 AeroTizen (its own docs mark most models unverified; none is a UT80), so the first TV call checks it on his TV before
 anything is built on it. Whether to build on it is Rebecca's call (asked 22:18, as she decided AeroTizen for Samsung).
 

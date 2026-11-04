@@ -24,7 +24,7 @@ non-root test. (hometv-launcher's AGENTS.md still says no root; that rule is unc
 ## Her dad's TV (43UT8000AUA)
 
 From Rebecca's screenshot (only model, webOS version and firmware quoted): **43UT8000AUA, webOS 25, release
-10.3.1-3001, 229 hours on.** A 2024 UT80 LCD (US, ATSC tuner) that shipped with webOS 24 and has LG's webOS 25
+10.3.1-3001.** A 2024 UT80 LCD (US, ATSC tuner) that shipped with webOS 24 and has LG's webOS 25
 upgrade. On LG's platform: machine `k8lpn2`, OTA id `HE_DTV_W24P_AFADATAA`, webOS 25 software major 33; release
 10.3.1-3001 is software version **33.31.61**.
 

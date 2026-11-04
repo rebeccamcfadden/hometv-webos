@@ -1,6 +1,6 @@
 # LG (webOS) spike: what we know so far
 
-Written 2026-11-04 by builder-5, without the TV and without LG's emulator. Each answer says how sure it is and where
+Written 2026-11-04 without the TV and without LG's emulator. Each answer says how sure it is and where
 it comes from. Nothing here has been run on any TV. The companion notes: [privacy.md](privacy.md),
 [jailbreak.md](jailbreak.md), [launcher-replacement.md](launcher-replacement.md).
 
@@ -46,7 +46,7 @@ it comes from. Nothing here has been run on any TV. The companion notes: [privac
 
 ## Questions for Rebecca (her rule: features that may not work go to her)
 
-Asked through the Decision proxy on 2026-11-04, 22:03; answered above.
+Asked on 2026-11-04, 22:03; answered above.
 
 | # | Feature | What fails | Evidence | Cost of more research |
 |---|---|---|---|---|

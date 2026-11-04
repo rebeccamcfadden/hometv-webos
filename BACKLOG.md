@@ -37,6 +37,21 @@ Rebecca's decisions for the LG port, quoted with the time. Her Samsung answers d
 - **Rebecca, 22:36 (Samsung and LG):** features in v0 (the first install test: layout, look and feel), v1, v2…;
   updates follow if her dad likes it. Draft: [docs/versions.md](docs/versions.md), sorted with her and the lead.
 
+## Answers, 22:47-23:10 (Rebecca)
+
+- **Q-R1 (a)** a factory reset is OK as the full unroot, with the backup. **Q-R2 (a)** go ahead with the order
+  (Developer Mode app removed and a restart before root); stop if Homebrew Channel is missing after root. **Q-R3**
+  "depends on how long the preview installation takes": plan root for the first call and for a second one. **Q-R4
+  (a)** LG's firmware file on a USB stick first.
+- **Q-L1** she makes the LG developer account herself. **Q-L2 (a)** leave HomeTV installed after the first call.
+  **Q-L3** open: can our tool install what the laptop needs? (answered with options, 23:2x).
+- **23:02 versions:** v0 = backup and restore, debloat, the base UI (Home, app row), main theme, button helpers, slimmer
+  settings, first-run weather and region, updates, error reporting, screensaver, power-on; **no sample data, ever**;
+  v1 = everything needing API keys; v2 = more themes; v3 = extras. **23:05:** a **v-1** step first: a tool that checks
+  the TV so v0 will install properly. **23:08:** public repos clearly labelled WIP and untested. **23:1x:** this repo
+  goes public (after a readiness check), with a guide page for the check tool on its GitHub Pages and `hometv-lg.exe`
+  as a release asset.
+
 ## Next
 
 - docs/root-plan.md: the installer flow, the root's footprint and its undo, brick risk per step, "an update removed

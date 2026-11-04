@@ -27,7 +27,7 @@ answers (Q-R1 to Q-R4) and, if she picks it, a second call.
 
 1. ✍ **Confirm the TV:** Settings › All Settings › Support › TV Information: **Model** (43UT8000AUA?), **Software
    Version** (33.31.61?) and **webOS TV Version** (10.3.1-3001?). If the software is newer, LG has updated it: root
-   may no longer be possible; tell builder-5 before Part C.
+   may no longer be possible; tell the HomeTV team before Part C.
 2. ✍ **Is automatic update on?** Settings › All Settings › Support › Software Update › Allow Automatic Updates. Just
    note it; leave it as it is (Rebecca, 22:23).
 3. **Photos for the backup**, one per screen, taken with his phone: Picture (mode and Expert
