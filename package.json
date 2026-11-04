@@ -8,6 +8,8 @@
   "scripts": {
     "build": "node tools/build.mjs",
     "test": "node --test tests/",
-    "package": "node tools/build.mjs && npx -y -p @webos-tools/cli@3.2.6 ares-package dist/checks-app checks/service -o dist"
+    "package": "node tools/build.mjs && npx -y -p @webos-tools/cli@3.2.6 ares-package dist/checks-app checks/service -o dist",
+    "exe": "node tools/build-exe.mjs",
+    "check": "node tools/tv-check.mjs"
   }
 }

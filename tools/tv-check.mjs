@@ -1,6 +1,6 @@
 // Install step 1 (the laptop check) and step 3 (the settings backup), over LG's remote-control connection.
 //
-//   node tools/tv-check.mjs <tv address> [--backup] [--launch]
+//   node tools/tv-check.mjs <tv address> [--backup] [--launch]   (or: hometv-lg check …)
 //
 // Without flags: read-only checks (model and firmware, apps, inputs, sound output). --backup also reads the settings
 // the TV lets a paired app read. --launch then opens Netflix, YouTube and a YouTube video, asking first and asking
@@ -14,9 +14,11 @@ import { open } from './lib/ssap.mjs';
 import { readOnlyChecks, readSettings, launch, toast, LAUNCHES } from './lib/checks.mjs';
 
 const args = process.argv.slice(2);
-const host = args.find((a) => !a.startsWith('--'));
+const host = args.find((a) => !a.startsWith('--') && !/^\d+$/.test(a));
+const wsPortArg = args.indexOf('--ws-port');
+const wsPort = wsPortArg >= 0 ? Number(args[wsPortArg + 1]) : 0;
 if (!host || !/^[0-9A-Za-z.\-:]+$/.test(host)) {
-  console.error('Usage: node tools/tv-check.mjs <tv address> [--backup] [--launch]');
+  console.error('Usage: hometv-lg check <tv address> [--backup] [--launch]');
   process.exit(2);
 }
 const dir = process.env.HOMETV_DIR || path.join(os.homedir(), 'HomeTV');
@@ -28,12 +30,17 @@ const rl = readline.createInterface({ input: process.stdin, output: process.stdo
 const say = (s) => console.log(s);
 
 say('Connecting to the TV…');
-const tv = await open(host, { clientKey, onPrompt: () => say('Press "Allow" on the TV (the remote\'s OK button).') });
+const tv = await open(host, {
+  clientKey,
+  onPrompt: () => say('Press "Allow" on the TV (the remote\'s OK button).'),
+  // Tests only: a pretend TV on plain ws at this port.
+  ports: wsPort ? [{ url: 'ws://' + host + ':' + wsPort + '/', insecure: false }] : undefined
+});
 if (tv.clientKey && tv.clientKey !== clientKey) fs.writeFileSync(keyFile, tv.clientKey, { mode: 0o600 });
 
 const report = await readOnlyChecks(tv);
 const c = report.checks;
-say('Model: ' + (c.software.model_name || c.system.modelName || '?') + ', software ' +
+say('Model: ' + (c.system.modelName || c.software.model_name || '?') + ', software ' +
   (c.software.major_ver ? c.software.major_ver + '.' + c.software.minor_ver : '?'));
 say('Apps: ' + (c.apps.ok ? c.apps.count + '; streaming: ' + (c.apps.streaming.map((a) => a.name).join(', ') || 'none known') : c.apps.error));
 say('Inputs: ' + (c.inputs.ok ? c.inputs.devices.map((d) => d.label).join(', ') : c.inputs.error));

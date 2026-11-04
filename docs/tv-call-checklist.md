@@ -17,7 +17,7 @@ answers (Q-R1 to Q-R4) and, if she picks it, a second call.
 
 1. **An LG developer account** for the Developer Mode app (free, at webostv.developer.lge.com). Q-L1 below: hers, or a
    new one just for this.
-2. **Send him, a day ahead:** the HomeTV tool for Windows (`hometv-lg.exe`, to build: the laptop check in one file;
+2. **Send him, a day ahead:** the HomeTV tool for Windows (`hometv-lg.exe`, the laptop check in one file, built with `npm run exe`;
    Windows will warn that it's from an unknown publisher: More info › Run anyway) and **webOS Dev Manager**
    ([webosbrew/dev-manager-desktop](https://github.com/webosbrew/dev-manager-desktop/releases), free, Apache-2.0, the
    installer most LG app makers use), plus the HomeTV app file (`.ipk`). Laptop on the same Wi-Fi as the TV, plugged in.

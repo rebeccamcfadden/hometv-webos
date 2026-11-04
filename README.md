@@ -14,4 +14,5 @@ Private until it works (Rebecca, 2026-11-04).
 - [checks/](checks/README.md): the first TV call's test app (a Developer Mode app; not run on a TV yet).
 
 Nothing here has been run on a TV. `npm test`, `npm run build`, `node tools/dev.mjs` (a pretend TV in the browser),
-`npm run package` (the .ipk).
+`npm run package` (the .ipk), `npm run exe` (dist/hometv-lg.exe, the laptop tool in one Windows file:
+`hometv-lg check <tv address> [--backup] [--launch]`; try it against `node tests/fake-ssap.mjs`).
