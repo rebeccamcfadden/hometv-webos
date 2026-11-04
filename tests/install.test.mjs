@@ -57,6 +57,7 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
   const out = [];
   const asked = [];
   const slopbro = [];
+  const logins = [];
   const ctx = {
     host: '127.0.0.1', dir: laptop, ipk, kit,
     ssapPorts: [{ url: 'ws://127.0.0.1:' + ws + '/', insecure: false }],
@@ -69,7 +70,17 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
       for (const [re, a] of Object.entries(replies)) if (q.includes(re)) return a;
       return '';
     },
-    runSlopbro: async (k, host) => { slopbro.push(host); state.apps.push(HBC); return 0; }
+    runSlopbro: async (k, host) => { slopbro.push(host); state.apps.push(HBC); return 0; },
+    // a pretend Windows ssh (tools/lib/root-shell.mjs's shape): root when the key is the one the TV was given
+    rootShell: (o) => ({
+      async run(cmd) {
+        logins.push({ ...o, cmd });
+        const ak = path.join(t, 'tv', 'ssh', 'authorized_keys');
+        const ok = fs.existsSync(ak) && fs.existsSync(o.key + '.pub') &&
+          fs.readFileSync(ak, 'utf8').includes(fs.readFileSync(o.key + '.pub', 'utf8').trim());
+        return ok ? { code: 0, stdout: '0\n', stderr: '' } : { code: 255, stdout: '', stderr: 'Permission denied (publickey).' };
+      }
+    })
   };
   const done = async () => {
     tv.server.close();
@@ -77,7 +88,7 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
     if (tn) await tn.stop();
     fs.rmSync(t, { recursive: true, force: true });
   };
-  return { t, ctx, state, out, asked, slopbro, tn, rooted, laptop, done, text: () => out.join('\n') };
+  return { t, ctx, state, out, asked, slopbro, logins, tn, rooted, laptop, done, text: () => out.join('\n') };
 }
 
 // The answers a person gives on the happy path; the hooks do what the person does on the TV meanwhile.
@@ -165,7 +176,7 @@ test('the whole way: backup, Developer Mode, checks, root, Homebrew Channel, roo
     const st = loadState(s.laptop);
     for (const step of STEPS) assert.equal(st.steps[step.id].status, 'done', step.id);
     // step 1: a backup on the laptop, allowlisted
-    const backup = fs.readdirSync(s.laptop).find((f) => f.startsWith('lg-backup-'));
+    const backup = fs.readdirSync(s.laptop).find((f) => /^lg-backup-.*\.json$/.test(f));
     const b = fs.readFileSync(path.join(s.laptop, backup), 'utf8');
     assert.ok(!b.includes('SECRET123') && !b.includes('aa:bb:cc'));
     // step 4: the typed phrase, then SlopBro with the address
@@ -177,7 +188,7 @@ test('the whole way: backup, Developer Mode, checks, root, Homebrew Channel, roo
     assert.ok(!fs.existsSync(tv('tmp', 'hometv.ipk')));
     assert.ok(fs.existsSync(tv('initd', '10-hometv-home')) && fs.existsSync(tv('initd', '15-hometv-debloat')));
     assert.ok(fs.existsSync(tv('hometv', 'backup', 'home-appinfo.orig.json')));
-    const pub = fs.readFileSync(path.join(s.laptop, 'ssh', 'hometv-lg_ed25519.pub'), 'utf8').trim();
+    const pub = fs.readFileSync(path.join(s.laptop, 'lg-root-key.pub'), 'utf8').trim();
     assert.match(pub, /^ssh-ed25519 \S+ hometv-lg$/);
     assert.equal(fs.readFileSync(tv('ssh', 'authorized_keys'), 'utf8').trim(), pub);
     assert.ok(fs.existsSync(tv('prefs', 'webosbrew_telnet_disabled')) && fs.existsSync(tv('prefs', 'webosbrew_sshd_enabled')));
@@ -186,6 +197,10 @@ test('the whole way: backup, Developer Mode, checks, root, Homebrew Channel, roo
     assert.match(stub, /appInstallService\/dev\/install .*com\.ares\.defaultName/);
     assert.match(s.text(), /"Block system updates" is off \(left as it is\)/);
     assert.match(s.text(), /All steps done: HomeTV is Home\./);
+    // step 8 logs in with exactly the key and known-hosts file hometv-lg restore uses
+    assert.deepEqual(s.logins.map((l) => [l.key, l.knownHosts, l.cmd]),
+      [[path.join(s.laptop, 'lg-root-key'), path.join(s.laptop, 'lg-known-hosts'), 'id -u']]);
+    assert.match(fs.readFileSync(path.join(s.laptop, 'lg-root-key'), 'utf8'), /^-----BEGIN OPENSSH PRIVATE KEY-----\n/);
     noSecrets(s);
 
     // run again: everything is done, nothing runs twice
@@ -391,6 +406,17 @@ test('restart check: Telnet still open, or not HomeTV on screen, stops', { skip:
     assert.match(s.text(), /HomeTV didn't take over Home/);
     assert.match(s.text(), /root@<tv ip>/);
     noSecrets(s);
+  } finally {
+    await s.done();
+  }
+});
+
+test('restart check: SSH answers but the key doesn\'t log in', { skip: !SH, timeout: 180000 }, async () => {
+  const s = await happySetup();
+  s.ctx.rootShell = () => ({ run: async () => ({ code: 255, stdout: '', stderr: 'Permission denied (publickey).' }) });
+  try {
+    assert.deepEqual(await runInstall(s.ctx), { stopped: 'restart-check' });
+    assert.match(s.text(), /doesn't log in as root/);
   } finally {
     await s.done();
   }

@@ -112,7 +112,8 @@ test('double-clicked: asks for the address until it looks right, runs the full c
         const timer = setTimeout(() => { p.kill(); reject(new Error('timed out:\n' + text)); }, 20000);
         p.stdout.on('data', (d) => {
           text += d;
-          if (/address and press Enter: $/.test(text) && !text.includes('[sent bad]')) { text += '[sent bad]'; p.stdin.write('the tv\n'); }
+          if (/\[1\]: $/.test(text)) p.stdin.write('\n'); // the menu: Enter = check
+          else if (/address and press Enter: $/.test(text) && !text.includes('[sent bad]')) { text += '[sent bad]'; p.stdin.write('the tv\n'); }
           else if (/Try again\.\s*\n\s*Type the TV's address and press Enter: $/.test(text)) p.stdin.write('127.0.0.1\n');
           else if (/\[Y\/n\] $/.test(text)) p.stdin.write('n\n');
           else if (/Press Enter to close\. $/.test(text)) p.stdin.write('\n');

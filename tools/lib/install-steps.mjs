@@ -10,11 +10,12 @@ import sea from 'node:sea';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { open } from './ssap.mjs';
-import { readOnlyChecks, readSettings } from './checks.mjs';
+import { backup, describe, WARNING } from './backup.mjs';
+import { sshShell, isRoot } from './root-shell.mjs';
 import { reach } from './reach.mjs';
 import { PINNED, sha256 } from './fetch.mjs';
 import { telnetShell, pushFile, portOpen, q } from './telnet.mjs';
-import { laptopKey } from './sshkey.mjs';
+import { laptopKey, keyPaths } from './sshkey.mjs';
 
 export const ROOT_SW = '33.31.61';
 const APP = 'com.hometv.app';
@@ -34,7 +35,7 @@ export const TV_PATHS = {
 
 const RESTART = 'unplug the TV from the wall, wait 30 seconds, plug it back in and turn it on (the remote\'s power ' +
   'button isn\'t a restart: Quick Start+ keeps the TV half-awake)';
-const KEY_FILE = '%USERPROFILE%\\HomeTV\\ssh\\hometv-lg_ed25519';
+const KEY_FILE = '%USERPROFILE%\\HomeTV\\lg-root-key';
 const yes = (a) => /^\s*y/i.test(a || '');
 
 /** Takes out anything that identifies the TV or the laptop's user: addresses, MACs, the home folder. */
@@ -46,16 +47,6 @@ export function scrub(text, host) {
   return s
     .replace(/\b(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}\b/g, '<ip>')
     .replace(/\b([0-9a-f]{2}[:-]){5}[0-9a-f]{2}\b/gi, '<mac>');
-}
-
-// --- Step 1's backup, in one function so tools/lib/backup.mjs (W-backup: backup(tv, dir, opts)) can take its place.
-export async function runBackup(tv, dir) {
-  const report = await readOnlyChecks(tv);
-  report.settings = await readSettings(tv);
-  const name = 'lg-backup-' + report.at.slice(0, 19).replace(/[:T]/g, '-') + '.json';
-  fs.writeFileSync(path.join(dir, name), JSON.stringify(report, null, 2));
-  const read = Object.values(report.settings).flatMap((c) => Object.values(c)).filter((v) => v.ok).length;
-  return { name, settingsRead: read };
 }
 
 async function withTv(ctx, fn) {
@@ -147,8 +138,11 @@ export const STEPS = [
       'before anything changes. Nothing on the TV changes.',
     undo: 'Nothing to undo.',
     async run(ctx) {
-      const b = await withTv(ctx, (tv) => (ctx.backup || runBackup)(tv, ctx.dir));
-      return { note: 'saved ' + b.name + ' in the HomeTV folder (' + b.settingsRead + ' settings read; the rest are photographed)' };
+      // tools/lib/backup.mjs (docs/backup.md): the same backup as hometv-lg check --backup
+      const b = await withTv(ctx, (tv) => backup(tv, ctx.dir));
+      for (const line of describe(b.summary)) ctx.say('  ' + line);
+      ctx.say('  ' + WARNING);
+      return { note: 'saved ' + path.basename(b.file) + ' in the HomeTV folder' };
     }
   },
   {
@@ -397,11 +391,21 @@ export const STEPS = [
       if (await portOpen(ctx.host, ctx.telnetPort || 23)) {
         return stop('Telnet is still on: anyone on this Wi-Fi can get a root shell.', 'In Homebrew Channel > Settings, switch Telnet off, then restart the TV.');
       }
-      if (!(await portOpen(ctx.host, ctx.sshPort || 22))) {
+      const sshPort = ctx.sshPort || 22;
+      if (!(await portOpen(ctx.host, sshPort))) {
         return stop('HomeTV is Home, but SSH isn\'t answering, so the laptop has no way in.',
           'In Homebrew Channel > Settings, switch SSH Server on, then restart the TV. Tell the HomeTV team.');
       }
-      return { note: 'HomeTV is Home (root edition); Telnet closed, SSH with the laptop\'s key' };
+      // A real login with the key (tools/lib/root-shell.mjs, as hometv-lg restore uses it); the TV's host key is
+      // trusted this first time and kept in lg-known-hosts.
+      const { key, knownHosts } = keyPaths(ctx.dir);
+      const shell = (ctx.rootShell || sshShell)({ host: ctx.host, port: sshPort, key, knownHosts });
+      if (!(await isRoot(shell))) {
+        return stop('SSH answers, but the laptop\'s key doesn\'t log in as root.',
+          'Check that Windows\' OpenSSH client is installed (Settings > System > Optional features), then run this again ' +
+          'with --from restart-check. Tell the HomeTV team if it stays.');
+      }
+      return { note: 'HomeTV is Home (root edition); Telnet closed, SSH logs in with the laptop\'s key' };
     }
   }
 ];

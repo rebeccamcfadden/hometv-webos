@@ -30,12 +30,17 @@ export function makeKey() {
   };
 }
 
-/** The key pair in <dir>/ssh, made once and kept. Returns the paths and the public line. */
+/** Where the laptop keeps its half: the same paths hometv-lg restore and check use (tools/restore.mjs). */
+export function keyPaths(dir) {
+  return { key: process.env.HOMETV_ROOT_KEY || path.join(dir, 'lg-root-key'), knownHosts: path.join(dir, 'lg-known-hosts') };
+}
+
+/** The key pair (lg-root-key and lg-root-key.pub in the HomeTV folder), made once and kept. */
 export function laptopKey(dir) {
-  const d = path.join(dir, 'ssh');
-  const file = path.join(d, 'hometv-lg_ed25519');
-  if (!fs.existsSync(file) || !fs.existsSync(file + '.pub')) {
-    fs.mkdirSync(d, { recursive: true });
+  const { key: file } = keyPaths(dir);
+  if (fs.existsSync(file) && !fs.existsSync(file + '.pub')) throw new Error(path.basename(file) + '.pub is missing next to the key');
+  if (!fs.existsSync(file)) {
+    fs.mkdirSync(path.dirname(file), { recursive: true });
     const k = makeKey();
     fs.writeFileSync(file, k.privatePem, { mode: 0o600 });
     fs.writeFileSync(file + '.pub', k.publicLine + '\n');

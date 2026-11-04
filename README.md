@@ -23,7 +23,7 @@ on a TV.
 | [docs/install.md](docs/install.md) | How HomeTV v0 gets onto an LG TV: Developer Mode (renew about every 1,000 hours) or rooted (research only) |
 | [docs/backup.md](docs/backup.md) | The settings backup and `hometv-lg restore`: what is saved, where, what restore writes, its limits |
 | [docs/launchers.md](docs/launchers.md), [docs/launcher-replacement.md](docs/launcher-replacement.md) | Other LG home screens compared, and ways to replace LG's Home |
-| [tools/](tools/tv-check.mjs) | `hometv-lg check`: the read-only laptop check over LG's remote-control connection |
+| [tools/](tools/tv-check.mjs) | `hometv-lg check`: the read-only laptop check over LG's remote-control connection; `hometv-lg install`: the guided install, step by step ([docs/install.md](docs/install.md#the-laptop-tools-install-steps)) |
 | [checks/](checks/README.md) | The test app for the first call (a Developer Mode app) |
 | [root/](root/README.md) | Research: HomeTV's root edition scripts, adapted from lasharor/cleanyourtv-WebOS; untested |
 | [app/](app/SOURCE.md) | HomeTV's LG app: the screens copied from hometv-tizen, with LG's platform files (`src/bridge.ts`, `src/platform.ts`, `src/pageChecks.ts`, `src/webos/`) |
