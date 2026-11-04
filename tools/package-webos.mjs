@@ -1,5 +1,5 @@
-// Builds HomeTV's LG app (.ipk): the page from `vite build` (dist/app), its appinfo.json and icons, and HomeTV's
-// service (service/). Uses LG's packager from @webos-tools/cli (pinned, run through npx); nothing is installed on a TV.
+// Builds HomeTV's LG app (.ipk): the loader and page from `npm run build:app` (dist/app), its appinfo.json and icons,
+// and HomeTV's service (service/). docs/updates.md: what a new .ipk changes, against a page update. Uses LG's packager from @webos-tools/cli (pinned, run through npx); nothing is installed on a TV.
 // Usage: npm run package:app  [-- --allow-sample (a v1 preview build, never for a TV)] [-- --stage-only]
 //
 // As hometv-tizen's tools/package-tizen.mjs: a page holding the sample catalogue (a v1 build) is refused for a TV.
@@ -9,6 +9,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { png } from './lib/png.mjs';
+import { appVersion } from './page-build.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -37,11 +38,15 @@ export function appinfo(version) {
 function main() {
   const page = path.join(root, 'dist', 'app');
   const js = path.join(page, 'assets', 'app.js');
-  if (!fs.existsSync(js)) throw new Error('no dist/app: run `npx vite build` first (npm run package:app does)');
+  if (!fs.existsSync(js)) throw new Error('no dist/app: run `npm run build:app` first (npm run package:app does)');
   if (sampleIn(fs.readFileSync(js, 'utf8')) && !args.includes('--allow-sample')) {
     throw new Error('this build holds the sample catalogue (a v1 build): never for a TV. --allow-sample for a preview only.');
   }
-  const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+  if (!fs.existsSync(path.join(page, 'shell-config.js'))) {
+    throw new Error('dist/app has no loader (shell-config.js): run `npm run build:app` (npm run package:app does)');
+  }
+  // The .ipk's version is the app's (package.json "appVersion"); the page inside has its own ("version").
+  const version = appVersion();
   const out = path.join(root, 'dist', 'hometv-app');
   fs.rmSync(out, { recursive: true, force: true });
   fs.cpSync(page, out, { recursive: true });

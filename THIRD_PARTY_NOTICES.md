@@ -45,12 +45,20 @@ library and Matheus Caldeira's cleanyourtv-ui, both MIT; the full notice is at t
 - home-assistant-libs/aiowebostv (Apache-2.0): the names of LG's remote-control permissions in `tools/lib/ssap.mjs`.
 - webosbrew/dev-manager-desktop (Apache-2.0): where Developer Mode's session is read, for the checks app's time-left check.
 - webosbrew/webos-homebrew-channel (MIT): its `elevate-service` is run (not copied) by `root/10-hometv-home`, so
-  HomeTV's service can write the heartbeat.
+  HomeTV's service can write the heartbeat. Its repository format (read in its source) is what `tools/hbc-repo.mjs`
+  writes, and `tests/hbc-repo.test.mjs` reads it back the way its source does.
+- webosbrew/apps-repo (Apache-2.0): the field names of a repository's packages and manifests (`repogen/`).
+
+## TweetNaCl (public domain, The Unlicense)
+
+`vendor/tweetnacl/` is tweetnacl@1.0.3 from npm, unmodified (https://github.com/dchest/tweetnacl-js); its licence is
+beside it. The page updater uses it to check signatures and hashes.
 
 ## HomeTV's screens
 
 `app/` (all but the LG platform files) is copied from [rebeccamcfadden/hometv-tizen](https://github.com/rebeccamcfadden/hometv-tizen)
-(MIT, same author); `app/SOURCE.md` names the commit.
+(MIT, same author); `app/SOURCE.md` names the commit. The page-update loader (`app/loader/`) and its tools
+(`tools/page-*.mjs`, `tests/fake-browser.mjs`, `tests/page-updates.test.mjs`) are ported from the same repository.
 
 ## The shared package
 

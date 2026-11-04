@@ -1,0 +1,3 @@
+# Public keys a downloaded HomeTV page must be signed with (Ed25519, base64 of 32 bytes), one per line.
+# Made by `node tools/page-key.mjs` on the project lead's PC; the private key never enters this repo.
+# Empty: the app is built with page updates off. docs/updates.md says how to add, change or remove a key.
