@@ -11,13 +11,16 @@ import { h } from '../shell/dom';
 import { focusable, type FocusOpts } from '../shell/focus';
 import { shell, type TabId } from '../shell/app';
 import { icon, type IconName } from './icons';
+import { inputsMenu, paintNetIcon, topBarButton, wifiMenu } from '../screens/navMenus';
+import { settingsMenu } from '../screens/quickSettings';
 import '@hometv/core/tokens.css';
 import './widgets.css';
 
 /**
  * The page's sections (Home, Movies, TV Shows, Search). OK on one switches to it; focusing it only highlights it. OK on
- * the page you are already on does nothing. The device icons of design_preview's nav (Wi-Fi, Inputs, quick settings)
- * aren't ported.
+ * the page you are already on does nothing. On the right, the device icons: Wi-Fi, Inputs and Settings, each opening
+ * its menu (screens/navMenus.ts, screens/quickSettings.ts). design_preview's phone-remote icon is left out (the phone
+ * remote is on the back burner on Samsung).
  */
 export function navBar(active: TabId | null): HTMLElement {
   // Movies, TV Shows and Search are v1 (they need API keys): not in a v0 build (features.ts).
@@ -49,7 +52,24 @@ export function navBar(active: TabId | null): HTMLElement {
     return focusable(el, { group: 'nav', key: `nav-${id}`, isDefault: id === active, onOk: open });
   };
   tabsRoot = h('div.nav-left', h('div.nav-tabs', tabs.map(([id, label]) => section(id, label))), V1 ? section('search', null) : null);
-  return h('div.nav', tabsRoot);
+  return h('div.nav', tabsRoot, deviceIcons());
+}
+
+/** Wi-Fi, Inputs and Settings, at the nav's right. The Wi-Fi icon follows the connection (crossed out offline). */
+function deviceIcons(): HTMLElement {
+  const device = (name: IconName, label: string, onOk: () => void) =>
+    focusable(h('div.nav-icon', { 'aria-label': label, html: icon(name, 28) }), { group: 'device', key: `dev-${name}`, onOk });
+  const wifi = device('wifi', 'Wi-Fi', () => shell.push(wifiMenu(topBarButton('dev-wifi'))));
+  paintNetIcon(wifi);
+  const inputs = device('input', 'Inputs', () => {
+    const from = shell.top();
+    // The TV answers in a moment; the menu opens only if nothing else happened meanwhile.
+    inputsMenu(topBarButton('dev-input')).then((menu) => {
+      if (shell.top() === from) shell.push(menu);
+    });
+  });
+  const settings = device('settings', 'Settings', () => shell.push(settingsMenu(topBarButton('dev-settings'))));
+  return h('div.nav-device', wifi, inputs, settings);
 }
 
 export const guide = (left: string, right: string) => h('div.guide', h('span', left), h('span.guide-right', right));

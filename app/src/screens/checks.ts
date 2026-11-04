@@ -6,6 +6,7 @@ import { h } from '../shell/dom';
 import { focusable } from '../shell/focus';
 import { shell, type Screen } from '../shell/app';
 import { topBar } from './home';
+import { showReport } from './report';
 
 interface CheckDef {
   label: string;
@@ -88,6 +89,7 @@ export function showChecks() {
       }),
     );
   });
+  list.appendChild(focusable(h('button.button.wide', 'Report a problem'), { key: 'report', group: 'checks', onOk: showReport }));
   el.appendChild(h('p.hint', '↗ opens another app. Back: Home.'));
 
   open = { label: 'Checks', el };

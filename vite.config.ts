@@ -1,4 +1,5 @@
 import { defineConfig, type Plugin } from 'vite';
+import fs from 'node:fs';
 import path from 'node:path';
 
 // HomeTV's page for LG (dist/app, then tools/package-webos.mjs makes the .ipk). Built as hometv-tizen builds it: one
@@ -16,6 +17,7 @@ const classicScript = (): Plugin => ({
 });
 
 const V1 = process.env.HOMETV_V1 === '1';
+const VERSION = (JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf8')) as { version: string }).version;
 
 export default defineConfig({
   root: 'app',
@@ -29,7 +31,7 @@ export default defineConfig({
       '@v1': path.resolve(__dirname, V1 ? 'app/src/v1.ts' : 'app/src/v1-off.ts'),
     },
   },
-  define: { __HOMETV_V1__: JSON.stringify(V1) },
+  define: { __HOMETV_V1__: JSON.stringify(V1), __HOMETV_VERSION__: JSON.stringify(VERSION) },
   server: { port: 5181, strictPort: true },
   build: {
     outDir: '../dist/app',

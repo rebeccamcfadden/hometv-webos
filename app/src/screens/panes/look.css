@@ -1,0 +1,35 @@
+/* Settings › Performance and Screensaver (panes/look.ts), from design_preview's screens.css at 2bf3c2d. Chromium 56:
+   margins for gap. */
+.perf-rows {
+  display: flex;
+  flex-direction: column;
+  margin-top: 22px;
+}
+.perf-row + .perf-row {
+  margin-top: 12px;
+}
+.perf-row {
+  display: flex;
+  align-items: center;
+  min-height: 84px;
+  padding: 12px 20px 12px 26px;
+  border-radius: var(--radius-l);
+  background: var(--surface);
+}
+.perf-text {
+  flex: 1;
+  min-width: 0;
+  margin-right: 16px;
+}
+.perf-row .perf-title {
+  margin-bottom: 0;
+}
+.perf-sub {
+  margin-top: 4px;
+  font-size: 18px;
+  color: var(--text-2);
+}
+.perf-ctl {
+  flex: none;
+  display: flex;
+}

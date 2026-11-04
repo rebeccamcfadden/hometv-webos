@@ -1,0 +1,30 @@
+/* Home's update notice (ui/updateNotice.ts), from design_preview's .import-pill.update-notice (screens.css at
+   2bf3c2d): bottom centre, above where the toast sits, never in the way. */
+.update-notice {
+  position: absolute;
+  bottom: 110px;
+  left: 50%;
+  z-index: 90;
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 22px;
+  border-radius: var(--radius-pill);
+  background: var(--toast-bg);
+  border: var(--line-w) solid var(--accent-soft);
+  color: var(--text-1);
+  font-size: var(--t-small);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, 12px);
+  transition:
+    opacity var(--fast) ease,
+    transform var(--fast) ease;
+}
+.update-notice.is-shown {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.update-notice > span {
+  margin-right: 12px;
+}

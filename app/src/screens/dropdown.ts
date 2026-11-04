@@ -1,7 +1,8 @@
-// The glass dropdown, ported from design_preview's screens/dropdown.ts as far as the library and All apps need it: a
-// menu hung under a button (Sort) or from a card (All apps' hold-OK menu). It closes on Back, on OK on a row, on a
-// click outside it, or when the D-pad moves past its edge; focus returns to the button or card. Rows a status, dots,
-// ticks or a header (design_preview's settings and Wi-Fi menus) aren't needed here yet.
+// The glass dropdown, ported from design_preview's screens/dropdown.ts: a menu hung under a button (Sort, the nav's
+// Wi-Fi, Inputs and Settings) or from a card (the hold-OK menus of All apps and Home). It closes on Back, on OK on a
+// row, on a click outside it, or when the D-pad moves past its edge; focus returns to the button or card. Rows may have
+// a status, a green dot, a chevron, position dots that OK steps (Motion), and a line above them; the menu may have a
+// header (Wi-Fi). The title menu's ticks aren't needed yet.
 
 import { shell, STAGE_H, STAGE_W, type Screen } from '../shell/app';
 import { h } from '../shell/dom';
@@ -11,6 +12,18 @@ import { icon, type IconName } from '../ui/icons';
 export interface MenuRow {
   label: string;
   icon?: IconName;
+  /** Right-hand note, e.g. "Connected"; a function for a value that changes while the menu is open. */
+  status?: string | (() => string);
+  /** A chevron after the status: the row opens a Launcher settings page. */
+  chevron?: boolean;
+  /** Small position dots after the status, for a value that OK steps through: [how many, which is on]. */
+  dots?: () => [number, number];
+  /** OK steps the value in place and the menu stays open (Motion). */
+  cycle?: () => void;
+  /** Draws the status with the green dot (a connected input). */
+  good?: boolean;
+  /** A line between groups, drawn above this row. */
+  divider?: boolean;
   /** The choice in force (the library's Sort menu): a check at the right, and the menu's first focus. */
   checked?: boolean;
   onOk?: () => void;
@@ -22,7 +35,12 @@ const SAFE_Y = 54;
 /** The gap between a card and the menu hung from it. */
 const GAP = 14;
 
-export function dropdown(label: string, anchor: HTMLElement | null, rows: MenuRow[], opts: { onCard?: boolean } = {}): Screen & { close(): void } {
+export function dropdown(
+  label: string,
+  anchor: HTMLElement | null,
+  rows: MenuRow[],
+  opts: { onCard?: boolean; header?: HTMLElement; className?: string } = {},
+): Screen & { close(): void } {
   let top = 130;
   let right = 96;
   if (anchor) {
@@ -36,25 +54,45 @@ export function dropdown(label: string, anchor: HTMLElement | null, rows: MenuRo
   rows.forEach((r, i) => {
     if (r.checked) first = i;
   });
-  const rowEls = rows.map((r, i) =>
-    focusable(
-      h(
-        'div.menu-row',
-        r.icon ? h('span.menu-icon', { html: icon(r.icon, 28) }) : null,
-        h('span.menu-label', r.label),
-        r.checked ? h('span.menu-check', { html: icon('check', 28) }) : null,
-      ),
+  const statusOf = (r: MenuRow): HTMLElement | null => {
+    const text = typeof r.status === 'function' ? r.status() : r.status;
+    const dots = r.dots ? r.dots() : null;
+    if (!text && !r.chevron && !dots && !r.checked) return null;
+    const dotEls: HTMLElement[] = [];
+    if (dots) for (let k = 0; k < dots[0]; k++) dotEls.push(h(k === dots[1] ? 'i.on' : 'i'));
+    return h(
+      'span.menu-status' + (r.good ? '.is-good' : ''),
+      r.good ? h('span.menu-dot') : null,
+      text || null,
+      dots ? h('span.dots', dotEls) : null,
+      r.chevron ? h('span.chev', { html: icon('chevRight', 22) }) : null,
+      r.checked ? h('span.menu-check', { html: icon('check', 28) }) : null,
+    );
+  };
+
+  const rowEls = rows.map((r, i) => {
+    const el: HTMLElement = focusable(
+      h('div.menu-row', r.icon ? h('span.menu-icon', { html: icon(r.icon, 28) }) : null, h('span.menu-label', r.label), statusOf(r)),
       {
         group: 'menu',
         key: `m-${i}`,
         isDefault: i === first,
         onOk: () => {
+          if (r.cycle) {
+            r.cycle();
+            const old = el.querySelector('.menu-status');
+            const next = statusOf(r);
+            if (old) el.removeChild(old);
+            if (next) el.appendChild(next);
+            return;
+          }
           close();
           if (r.onOk) r.onOk();
         },
       },
-    ),
-  );
+    );
+    return [r.divider ? h('div.menu-divider') : null, el];
+  });
 
   const catcher = h('div.menu-catcher');
   // A card's menu remembers the card's row or grid, nearest first, for when the card has gone on closing.
@@ -73,7 +111,8 @@ export function dropdown(label: string, anchor: HTMLElement | null, rows: MenuRo
     }
   };
   catcher.addEventListener('click', close);
-  const panel = h('div.menu' + (opts.onCard ? '.menu--card' : ''), { style: `top:${top}px;right:${right}px` }, rowEls);
+  const cls = (opts.className ? '.' + opts.className : '') + (opts.onCard ? '.menu--card' : '');
+  const panel = h('div.menu' + cls, { style: `top:${top}px;right:${right}px` }, opts.header || null, rowEls);
   const el = h('div.screen.screen--full', catcher, panel);
   if (!opts.onCard && anchor) anchor.classList.add('is-open');
   let placed = false;

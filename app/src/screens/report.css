@@ -1,0 +1,62 @@
+/* "Report a problem" (screens/report.ts). Chromium 56: flex with margins, no grid or gap. */
+.report-page {
+  box-sizing: border-box;
+  padding: var(--safe-y) var(--safe-x) 0;
+}
+.report-page .page-title {
+  margin-top: 36px;
+  font-size: 56px;
+}
+.report-lead {
+  max-width: 1400px;
+  margin: 16px 0 28px;
+  font-size: 24px;
+  line-height: 1.4;
+  color: var(--text-2);
+}
+.report-cols {
+  display: flex;
+  align-items: flex-start;
+}
+.report-left {
+  flex: 1;
+  min-width: 0;
+  margin-right: 48px;
+}
+.report-count {
+  font-size: 22px;
+  color: var(--text-2);
+  margin-bottom: 12px;
+}
+.report-text {
+  margin: 0;
+  height: 520px;
+  overflow: hidden;
+  padding: 20px 24px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: var(--line-w) solid var(--line);
+  font-family: Consolas, 'DejaVu Sans Mono', monospace;
+  font-size: 21px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  color: var(--text-1);
+}
+.report-actions {
+  margin-top: 20px;
+}
+.report-qr {
+  width: 480px;
+  flex: none;
+}
+.report-qr .qr {
+  display: block;
+  border-radius: 12px;
+}
+.report-qrnote,
+.report-noqr {
+  margin-top: 14px;
+  font-size: 20px;
+  line-height: 1.4;
+  color: var(--text-2);
+}

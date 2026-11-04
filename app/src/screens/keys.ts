@@ -11,7 +11,7 @@
 import { h, replace } from '../shell/dom';
 import { focusable } from '../shell/focus';
 import { shell, type Screen } from '../shell/app';
-import { encodeQr, dark } from '../qr';
+import { qrCanvas } from '../ui/qrCanvas';
 import { KEY_INFO, keyStatus, keysValue, type KeyEntry, type KeyId } from '@hometv/core/keys.ts';
 import { topBar } from './home';
 import { bridge } from '../bridge';
@@ -107,25 +107,6 @@ async function findService(): Promise<{ base: string } | { problem: string }> {
 /** The address the QR holds: the page, with the code after the # so the phone keeps it to itself. */
 export function pageUrl(address: string, port: number, code: string): string {
   return `http://${address}:${port}/keys#${code.replace(/[\s-]/g, '').toUpperCase()}`;
-}
-
-/** The QR as a canvas: black modules on white, with the standard light border of 4. */
-function qrCanvas(text: string, px: number): HTMLCanvasElement {
-  const qr = encodeQr(text);
-  const modules = qr.size + 8;
-  const scale = Math.max(1, Math.floor(px / modules));
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = modules * scale;
-  canvas.className = 'qr';
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return canvas;
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#000';
-  for (let y = 0; y < qr.size; y++) {
-    for (let x = 0; x < qr.size; x++) if (dark(qr, x, y)) ctx.fillRect((x + 4) * scale, (y + 4) * scale, scale, scale);
-  }
-  return canvas;
 }
 
 let open: Screen | null = null;
