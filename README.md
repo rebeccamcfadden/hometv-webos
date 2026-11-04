@@ -26,8 +26,9 @@ on a TV.
 | [tools/](tools/tv-check.mjs) | `hometv-lg check`: the read-only laptop check over LG's remote-control connection; `hometv-lg install`: the guided install, step by step ([docs/install.md](docs/install.md#the-laptop-tools-install-steps)) |
 | [checks/](checks/README.md) | The test app for the first call (a Developer Mode app) |
 | [root/](root/README.md) | Research: HomeTV's root edition scripts, adapted from lasharor/cleanyourtv-WebOS; untested |
-| [app/](app/SOURCE.md) | HomeTV's LG app: the screens copied from hometv-tizen, with LG's platform files (`src/bridge.ts`, `src/platform.ts`, `src/pageChecks.ts`, `src/webos/`) |
+| [app/](app/SOURCE.md) | HomeTV's LG app: the screens copied from hometv-tizen, with LG's platform files (`src/bridge.ts`, `src/platform.ts`, `src/pageChecks.ts`, `src/webos/`) and the loader for page updates (`loader/`) |
 | [service/](service/service.js) | HomeTV's LG service: the heartbeat the root edition's watchdog reads |
+| [docs/updates.md](docs/updates.md) | Updates without the laptop: signed page updates, and the Homebrew Channel repository for a new .ipk |
 
 ## Build and test
 
@@ -38,8 +39,10 @@ npm test            # all tests, against pretend TVs
 npm run build       # the test app, dist/checks-app
 node tools/dev.mjs  # the test app in a browser with a pretend TV: http://localhost:5190/
 npm run package     # the test app as an .ipk (LG's ares-package, fetched by npx)
-npm run dev:app     # HomeTV's page in a browser (preview: no TV): http://localhost:5181/
+npm run dev:app     # HomeTV's page in a browser (preview: no TV, no loader): http://localhost:5181/
 npm run package:app # HomeTV as an .ipk (v0; refuses a v1 build with the sample catalogue)
+node tools/page-release.mjs --key <key outside the repo>   # a signed page update (docs/updates.md)
+npm run hbc-repo    # the Homebrew Channel repository for that .ipk, in dist/hbc (publishes nothing)
 npm run exe         # dist/hometv-lg.exe, the laptop check in one Windows file
 node tests/fake-ssap.mjs   # a pretend TV for trying hometv-lg check by hand
 ```

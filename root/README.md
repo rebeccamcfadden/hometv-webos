@@ -25,5 +25,6 @@ that ends root, or Homebrew Channel's failsafe start) leaves LG's Home as it was
 Tested on a PC only, with stub commands (`tests/root.test.mjs`). The heartbeat: HomeTV's page calls its service
 (`service/service.js`) every 10 seconds while it shows, and the service touches `/tmp/hometv-alive`. Elevation only
 changes HomeTV's own service registration (`/var/luna-service2-dev`); removing the HomeTV app removes it. The
-settings backup and restore run from the laptop, not from here ([../docs/backup.md](../docs/backup.md)). Not here
-yet: Homebrew Channel's update list.
+settings backup and restore run from the laptop, not from here ([../docs/backup.md](../docs/backup.md)). HomeTV's own
+updates on a rooted TV (Homebrew Channel's repository, and a new .ipk reaching Home after the next restart):
+[../docs/updates.md](../docs/updates.md).

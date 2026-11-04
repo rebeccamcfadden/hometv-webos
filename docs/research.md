@@ -182,8 +182,11 @@ except where marked.
 
 ## 6. How updates reach the TV
 
+Built since (pretend TV only): [updates.md](updates.md).
+
 - **The app shell:** only by reinstalling from the computer (or Android installer) over Developer Mode. Razdva122's
-  on-TV updates need root.
+  on-TV updates need root; on a rooted TV, Homebrew Channel installs a new .ipk from a repository (HomeTV's:
+  `tools/hbc-repo.mjs`).
 - **The pages:** as on Samsung (hometv-tizen's page-update approach), the packaged app can fetch a newer, signed page when
   online, keep it, and fall back to the one inside the app. LG also has "hosted" apps (a shell that loads a web
   address), but that one doesn't open offline.

@@ -56,10 +56,18 @@ export const platform = {
   online: (): boolean => navigator.onLine !== false,
 
   /**
-   * The page works: tells HomeTV's service it's alive now and every 10 s while it shows, so the rooted edition's
-   * watchdog (root/watchdog.sh) knows HomeTV, not a blank screen, is LG's Home. (Page updates will hook in here too.)
+   * The page works: tells the installed app's loader (app/loader/boot.js), which then keeps this page as the good one
+   * and looks for a newer signed one ten seconds later (docs/updates.md); and tells HomeTV's service it's alive now and
+   * every 10 s while it shows, so the rooted edition's watchdog (root/watchdog.sh) knows HomeTV, not a blank screen,
+   * is LG's Home.
    */
   started(): void {
+    const boot = (window as unknown as { HomeTVBoot?: { started?(): void } }).HomeTVBoot;
+    try {
+      if (boot && boot.started) boot.started();
+    } catch (e) {
+      // The loader's trouble never stops Home or the heartbeat.
+    }
     if (!onWebOS() || heartbeat !== null) return;
     beat();
     heartbeat = window.setInterval(beat, HEARTBEAT_MS);
