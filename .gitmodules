@@ -1,0 +1,5 @@
+[submodule "vendor/hometv-launcher"]
+	path = vendor/hometv-launcher
+	url = https://github.com/rebeccamcfadden/hometv-launcher.git
+	branch = main
+	shallow = true
