@@ -347,3 +347,63 @@ button {
   font-size: 18px;
   color: #7f8aa3;
 }
+
+/* Home's tile menu › Move (screens/home.ts): the tile lifted, with arrows, while ← → move it. */
+.tile.is-moving {
+  z-index: 2;
+  transform: translateY(-14px) scale(1.08);
+  box-shadow: 0 0 0 4px #b9d4ff, 0 24px 48px rgba(0, 0, 0, 0.5);
+}
+.tile .move-arrow {
+  position: absolute;
+  top: 60px;
+  color: #b9d4ff;
+}
+.tile .move-arrow--l {
+  left: -34px;
+}
+.tile .move-arrow--r {
+  right: -34px;
+}
+.approw-empty {
+  font-size: 24px;
+  color: #aab6cf;
+  padding-top: 40px;
+}
+.movehint {
+  font-size: 22px;
+  color: #b9d4ff;
+  margin-top: -24px;
+}
+
+/* An input shown full screen (screens/navMenus.ts): the TV's video plane under a see-through page. */
+html.is-watching,
+html.is-watching body,
+html.is-watching #stage {
+  background: transparent;
+}
+html.is-watching .lastaction {
+  display: none;
+}
+.input-watch-note {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 14px 24px;
+  border-radius: 14px;
+  font-size: 22px;
+  background: rgba(0, 0, 0, 0.6);
+  animation: watch-note 5s forwards;
+}
+.input-watch-note.is-gone {
+  display: none;
+}
+@keyframes watch-note {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}

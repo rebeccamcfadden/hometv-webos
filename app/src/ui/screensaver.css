@@ -1,0 +1,70 @@
+/* F36: the clock screensaver (ui/screensaver.ts), from design_preview's styles/base.css at 2bf3c2d. Changes for
+   Chromium 56: top/left/right/bottom for inset; the glow's gradient is set by the script (no color-mix()). */
+.saver {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 200;
+  /* Light text on its dark screen whatever the theme: Midnight's. */
+  --text-1: #f4f5f7;
+  --text-2: #adb5c0;
+  display: none;
+  background: #000;
+  color: var(--text-1);
+  cursor: none;
+}
+.saver.is-shown {
+  display: block;
+  animation: saver-in 1200ms ease-out;
+}
+@keyframes saver-in {
+  from {
+    opacity: 0;
+  }
+}
+.saver-glow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+}
+.saver[data-back='black'] .saver-glow {
+  display: none;
+}
+.saver-clock {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  transition: opacity 1200ms ease-out;
+}
+.saver-clock.is-out {
+  opacity: 0;
+  transition-duration: 900ms;
+}
+.saver-time {
+  font-family: var(--font-display);
+  font-size: 150px;
+  font-weight: var(--display-weight);
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+.saver-ampm {
+  margin-left: 20px;
+  font-family: var(--font-display);
+  font-size: 44px;
+  color: var(--text-2);
+}
+.saver-date {
+  margin-top: 16px;
+  font-size: 34px;
+  color: var(--text-2);
+}
+#stage[data-motion='off'] .saver.is-shown,
+#stage[data-motion='off'] .saver-clock {
+  animation: none;
+  transition: none;
+}

@@ -12,6 +12,7 @@ export interface LunaReply {
 interface Bridge {
   onservicecallback: (msg: string) => void;
   call(uri: string, params: string): void;
+  cancel?(): void;
 }
 
 type BridgeCtor = new () => Bridge;
@@ -52,6 +53,41 @@ export function luna(uri: string, params: Record<string, unknown> = {}, timeoutM
     };
     bridge.call(uri, JSON.stringify(params));
   });
+}
+
+/**
+ * A call with `subscribe: true`: `onReply` gets the answer now and again whenever the service has news. Returns a
+ * function that stops it. Does nothing outside a webOS TV. Unchecked on a real TV (written after webOSTV.js's subscribe).
+ */
+export function lunaSubscribe(uri: string, params: Record<string, unknown>, onReply: (r: LunaReply) => void): () => void {
+  const Ctor = ctor();
+  if (!Ctor) return () => {};
+  const bridge = new Ctor();
+  pending.push(bridge);
+  let stopped = false;
+  bridge.onservicecallback = (msg: string) => {
+    if (stopped) return;
+    try {
+      onReply(JSON.parse(msg) as LunaReply);
+    } catch (e) {
+      onReply({ returnValue: false, errorText: String(msg) });
+    }
+  };
+  try {
+    bridge.call(uri, JSON.stringify({ ...params, subscribe: true }));
+  } catch (e) {
+    // Not subscribed; the stop function below still cleans up.
+  }
+  return () => {
+    stopped = true;
+    const i = pending.indexOf(bridge);
+    if (i >= 0) pending.splice(i, 1);
+    try {
+      if (bridge.cancel) bridge.cancel();
+    } catch (e) {
+      // Already gone.
+    }
+  };
 }
 
 export const lunaError = (r: LunaReply): string =>

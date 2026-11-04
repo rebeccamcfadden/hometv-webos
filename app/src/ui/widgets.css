@@ -404,6 +404,36 @@
   color: var(--on-accent);
   transform: scale(1.05);
 }
+/* The device icons at the nav's right: Wi-Fi, Inputs, Settings (design_preview's base.css; margins for gap). */
+.nav-device {
+  display: flex;
+  margin-left: auto;
+  padding: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: var(--line-w) solid var(--line);
+}
+.nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  color: var(--text-1);
+}
+.nav-icon + .nav-icon {
+  margin-left: 8px;
+}
+.nav-icon.is-focused {
+  background: var(--accent);
+  color: var(--on-accent);
+  transform: scale(1.05);
+}
+/* The icon a menu hangs from stays highlighted while it is open. */
+.nav-icon.is-open:not(.is-focused) {
+  background: rgba(var(--tint-rgb), 0.14);
+}
 
 /* ---- Page furniture ---- */
 .page-title {
@@ -526,6 +556,108 @@
 }
 .menu-row.is-focused .menu-check {
   color: var(--on-active);
+}
+
+/* Rows with a status, dots or a chevron, lines between groups, and the Wi-Fi menu's header (design_preview's
+   screens.css). */
+.menu-status {
+  display: flex;
+  align-items: center;
+  margin-left: 24px;
+  font-size: var(--t-min);
+  color: var(--text-3);
+}
+.menu-status > * + * {
+  margin-left: 8px;
+}
+.menu-dot {
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--good);
+}
+.menu-dot.is-warn {
+  background: var(--star);
+}
+.menu-status .menu-dot {
+  margin-right: 0;
+}
+.menu-status .menu-check {
+  margin-left: 0;
+}
+.menu-divider {
+  height: 1px;
+  margin: 8px 22px;
+  background: var(--line-strong);
+}
+.menu-row.is-focused .menu-icon,
+.menu-row.is-focused .menu-status {
+  color: var(--on-active);
+}
+.menu-header {
+  display: flex;
+  align-items: center;
+  padding: 18px 22px 20px;
+  margin-bottom: 8px;
+  border-bottom: var(--line-w) solid var(--line-strong);
+}
+.menu-header-icon {
+  margin-right: 18px;
+  color: var(--good);
+}
+.menu-header-icon.is-warn {
+  color: var(--star);
+}
+.menu-header-title {
+  font-size: 28px;
+  font-weight: 600;
+}
+.menu-header-sub {
+  display: flex;
+  align-items: center;
+  margin-top: 4px;
+  font-size: var(--t-min);
+  color: var(--text-2);
+}
+/* The nav's Settings menu (design final-quick-settings). */
+.menu--settings {
+  width: 600px;
+  background: var(--menu-solid);
+}
+.menu--settings .menu-status {
+  font-size: 19px;
+  color: var(--text-2);
+}
+.chev {
+  display: inline-flex;
+  margin-left: 8px;
+  color: var(--text-3);
+}
+.dots {
+  display: inline-flex;
+  margin-left: 10px;
+}
+.dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(var(--tint-rgb), 0.22);
+}
+.dots i + i {
+  margin-left: 5px;
+}
+.dots i.on {
+  background: var(--accent);
+}
+.menu-row.is-focused .chev {
+  color: var(--on-accent);
+}
+.menu-row.is-focused .dots i {
+  background: rgba(var(--on-accent-rgb), 0.25);
+}
+.menu-row.is-focused .dots i.on {
+  background: var(--on-accent);
 }
 
 /* ---- Filters drawer (screens/filters.ts) ---- */

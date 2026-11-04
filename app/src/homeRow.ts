@@ -55,3 +55,23 @@ export function toggleOnRow(row: RowEntry[], entry: RowEntry, max: number): { ro
   if (row.length >= max) return { row, result: 'full' };
   return { row: row.concat([{ id: entry.id, name: entry.name }]), result: 'added' };
 }
+
+/** Home's tile menu › Remove from Home: the row without the app. An empty row is allowed, as in All apps. */
+export const removeFromRow = (row: RowEntry[], id: string): RowEntry[] => row.filter((e) => e.id !== id);
+
+/**
+ * Home's tile menu › Move: the app one place left (-1) or right (+1), swapping with its neighbour. At an end, or for an
+ * app not on the row, the row as it is.
+ */
+export function moveInRow(row: RowEntry[], id: string, step: -1 | 1): RowEntry[] {
+  let at = -1;
+  row.forEach((e, i) => {
+    if (e.id === id) at = i;
+  });
+  const to = at + step;
+  if (at < 0 || to < 0 || to >= row.length) return row;
+  const out = row.slice();
+  out[at] = row[to];
+  out[to] = row[at];
+  return out;
+}

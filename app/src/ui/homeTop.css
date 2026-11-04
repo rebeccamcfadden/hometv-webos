@@ -1,0 +1,70 @@
+/* Home's top bar (ui/homeTop.ts), from design_preview's .home-hero (screens.css at 2bf3c2d): the greeting and date on
+   the left, the clock with the weather under it on the right, sized for the top of Samsung's Home. Chromium 56: margins,
+   not flex gap. */
+
+.topbar.home-top {
+  height: auto;
+  align-items: flex-start;
+  text-shadow: var(--text-shadow);
+}
+.ht-greeting {
+  font-family: var(--font-display);
+  font-size: 50px;
+  font-weight: var(--display-weight);
+  line-height: 1.1;
+}
+.ht-date {
+  margin-top: 8px;
+  font-size: 25px;
+  color: var(--text-2);
+}
+.home-top .topright {
+  align-items: flex-start;
+}
+.home-top .pill {
+  margin-top: 14px;
+}
+.ht-clock {
+  margin-left: 32px;
+  text-align: right;
+}
+.ht-time {
+  font-family: var(--font-display);
+  font-size: 64px;
+  font-weight: var(--display-weight);
+  line-height: 1;
+}
+.ht-ampm {
+  margin-left: 12px;
+  font-family: var(--font-display);
+  font-size: 26px;
+  color: var(--text-2);
+}
+.ht-wx {
+  min-height: 34px;
+  margin-top: 12px;
+}
+.ht-weather {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 22px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.ht-wicon {
+  margin-right: 10px;
+}
+.ht-temp {
+  margin-right: 12px;
+  font-size: 26px;
+  color: var(--text-1);
+}
+.ht-place::before,
+.ht-stale::before {
+  content: '·';
+  margin: 0 10px;
+}
+.ht-stale {
+  color: var(--star);
+}

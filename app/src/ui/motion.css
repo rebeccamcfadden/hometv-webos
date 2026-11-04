@@ -1,0 +1,15 @@
+/* Launcher settings' Motion (prefs.ts; main.ts sets data-motion on the stage), from design_preview's styles/base.css at
+   2bf3c2d: Reduced drops the scale-ups and turns the menus' drop into a fade, Off stops every animation. */
+#stage[data-motion='off'] *,
+#stage[data-motion='off'] *::before,
+#stage[data-motion='off'] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+#stage[data-motion='reduced'] .is-focused,
+#stage[data-motion='reduced'] .is-focused * {
+  transform: none !important;
+}
+#stage[data-motion='reduced'] .menu {
+  animation-name: fade-in;
+}

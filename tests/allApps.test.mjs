@@ -4,7 +4,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { HOME_ROW_KEY, loadRow, onRow, saveRow, toggleOnRow } from '../app/src/homeRow.ts';
+import { HOME_ROW_KEY, loadRow, moveInRow, onRow, removeFromRow, saveRow, toggleOnRow } from '../app/src/homeRow.ts';
 import { isTvUtility, loadMoves, moveApp, saveMoves, UTILITY_MOVES_KEY } from '../app/src/tvUtilities.ts';
 
 /** localStorage's two calls, over a Map. */
@@ -70,6 +70,34 @@ test('a broken or odd saved row falls back to the default, drops bad entries and
   };
   assert.deepEqual(loadRow(throwing, DEFAULT, 7), DEFAULT);
   assert.doesNotThrow(() => saveRow(throwing, DEFAULT));
+});
+
+test('Home’s tile menu: Move swaps with a neighbour and is saved; the ends stay put', () => {
+  const s = memory();
+  const row = [
+    { id: 'netflix', name: 'Netflix' },
+    { id: 'youtube', name: 'YouTube' },
+    { id: 'app:FakeTwtch1.Twitch', name: 'Twitch' },
+  ];
+  let r = moveInRow(row, 'netflix', 1);
+  assert.deepEqual(r.map((e) => e.id), ['youtube', 'netflix', 'app:FakeTwtch1.Twitch']);
+  r = moveInRow(r, 'netflix', 1);
+  assert.deepEqual(r.map((e) => e.id), ['youtube', 'app:FakeTwtch1.Twitch', 'netflix']);
+  assert.equal(moveInRow(r, 'netflix', 1), r, 'the right end');
+  assert.equal(moveInRow(r, 'youtube', -1), r, 'the left end');
+  assert.equal(moveInRow(r, 'hulu', 1), r, 'not on the row');
+  assert.deepEqual(row.map((e) => e.id), ['netflix', 'youtube', 'app:FakeTwtch1.Twitch'], 'the row it was given is unchanged (Back puts it back)');
+  saveRow(s, r);
+  assert.deepEqual(loadRow(s, DEFAULT, 7).map((e) => e.id), ['youtube', 'app:FakeTwtch1.Twitch', 'netflix']);
+});
+
+test('Home’s tile menu: Remove from Home takes only that app off, and is saved', () => {
+  const s = memory();
+  const r = removeFromRow(DEFAULT, 'netflix');
+  assert.deepEqual(r, [{ id: 'youtube', name: 'YouTube' }]);
+  assert.deepEqual(removeFromRow(DEFAULT, 'hulu'), DEFAULT);
+  saveRow(s, removeFromRow(r, 'youtube'));
+  assert.deepEqual(loadRow(s, DEFAULT, 7), [], 'an empty row stays empty');
 });
 
 test('TV Utilities: Samsung’s own apps go in, watch apps and the household’s apps stay out', () => {

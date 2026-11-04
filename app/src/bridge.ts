@@ -6,6 +6,7 @@
 // Samsung's 'tv' and 'fake-tv' (a TizenBrew module asking its service) have no LG twin: HomeTV is always its own app.
 
 import { HOME_APPS, keyForName } from './apps';
+import { recordError } from './errors';
 import { pageChecks } from './pageChecks';
 import type { OpenPlan } from './titleLinks';
 import { platform } from './platform';
@@ -107,6 +108,17 @@ async function open(id: string, params?: Record<string, string> | null): Promise
   return r.returnValue ? '' : lunaError(r);
 }
 
+/** Opens an app by Home key or "app:" id, with the toast on a refusal; the callers write the error log. */
+async function launchApp(key: string, name?: string): Promise<{ ok: boolean; id: string | null; error?: string }> {
+  if (mode === 'preview') return { ok: true, id: null };
+  await loadApps();
+  const id = idFor(key, name);
+  if (!id) return { ok: false, id: null, error: 'not on this TV' };
+  const error = await open(id);
+  if (error) toast(`The TV didn’t open it (${error}).`);
+  return error ? { ok: false, id, error } : { ok: true, id };
+}
+
 export const bridge = {
   /** Keys, buttons, names, online state and the key page's TV side (platform.ts, docs/platform.md). */
   platform,
@@ -137,6 +149,13 @@ export const bridge = {
     return HOME_APPS.map((t) => ({ key: t.key, name: t.name, installed: !!installedFor(t.key) }));
   },
 
+  /** The TV's own id for a Home row entry (App info): "app:" entries carry it; Home's tiles have it once the TV listed its apps. */
+  appId(key: string): string | null {
+    if (key.indexOf(APP_PREFIX) === 0) return key.slice(APP_PREFIX.length);
+    const app = mode === 'app' ? installedFor(key) : null;
+    return app ? app.id : null;
+  },
+
   /** The TV's own artwork for a tile, best first: LG's large icon, then the smaller ones. */
   artwork(key: string): string[] {
     const app = mode === 'app' ? installedFor(key) : null;
@@ -154,13 +173,9 @@ export const bridge = {
 
   /** Opens an app: a Home key, or "app:" and the TV's id. `name` finds an app that isn't on Home's row. */
   async launch(key: string, name?: string): Promise<{ ok: boolean; id: string | null; error?: string }> {
-    if (mode === 'preview') return { ok: true, id: null };
-    await loadApps();
-    const id = idFor(key, name);
-    if (!id) return { ok: false, id: null, error: 'not on this TV' };
-    const error = await open(id);
-    if (error) toast(`The TV didn’t open it (${error}).`);
-    return error ? { ok: false, id, error } : { ok: true, id };
+    const r = await launchApp(key, name);
+    if (!r.ok) recordError('launch_failed', { app: key, reason: r.error, mode });
+    return r;
   },
 
   /**
@@ -176,7 +191,8 @@ export const bridge = {
       const params = titleParams(plan.app.key, plan.url, plan.payload);
       if (params && !(await open(id, params))) return { ok: true, id, linked: true };
     }
-    const r = await bridge.launch(plan.app.key, plan.app.name);
+    const r = await launchApp(plan.app.key, plan.app.name);
+    if (!r.ok) recordError('title_failed', { app: plan.app.key, reason: r.error, mode });
     return { ok: r.ok, id: r.id, linked: false, error: r.error };
   },
 

@@ -64,6 +64,8 @@ class Shell {
   private toastEl!: HTMLElement;
   private toastTimer = 0;
   private lastEl: HTMLElement | null = null;
+  /** Layers over every screen that the stack leaves alone (the screensaver). */
+  private overlays: HTMLElement[] = [];
   private listeners: (() => void)[] = [];
   private okTimer = 0;
   private okDown = false;
@@ -198,7 +200,14 @@ class Shell {
     this.focus(this.restoreTarget(s));
   }
 
-  toast(text: string, bad = false) {
+  /** Puts `el` over every screen, above the toast; the stack's changes leave it in place. */
+  overlay(el: HTMLElement) {
+    this.overlays.push(el);
+    this.stage.appendChild(el);
+  }
+
+  /** A message at the foot of the screen for `ms` (longer for one a person has to read, like where a setting is). */
+  toast(text: string, bad = false, ms = 2400) {
     this.toastEl.textContent = text;
     this.toastEl.classList.add('is-shown');
     this.toastEl.classList.toggle('is-bad', bad);
@@ -209,7 +218,7 @@ class Shell {
     }
     this.lastEl.textContent = 'Last: ' + text;
     clearTimeout(this.toastTimer);
-    this.toastTimer = window.setTimeout(() => this.toastEl.classList.remove('is-shown'), 2400);
+    this.toastTimer = window.setTimeout(() => this.toastEl.classList.remove('is-shown'), ms);
   }
 
   private visible(): Screen[] {
@@ -228,7 +237,7 @@ class Shell {
     const show = this.visible();
     const children = Array.prototype.slice.call(this.stage.children) as HTMLElement[];
     for (const child of children) {
-      if (child !== this.toastEl && child !== this.lastEl && !show.some((s) => s.el === child)) this.stage.removeChild(child);
+      if (child !== this.toastEl && child !== this.lastEl && this.overlays.indexOf(child) < 0 && !show.some((s) => s.el === child)) this.stage.removeChild(child);
     }
     for (const s of show) this.stage.insertBefore(s.el, this.toastEl);
     this.listeners.forEach((fn) => fn());
