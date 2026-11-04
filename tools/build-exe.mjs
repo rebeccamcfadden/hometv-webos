@@ -10,7 +10,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
 fs.mkdirSync(dist, { recursive: true });
 
-const files = ['tools/hometv-lg.mjs', 'tools/tv-check.mjs', 'tools/lib/ws.mjs', 'tools/lib/ssap.mjs', 'tools/lib/checks.mjs', 'tools/lib/reach.mjs'];
+const files = ['tools/hometv-lg.mjs', 'tools/tv-check.mjs', 'tools/get.mjs', 'tools/lib/ws.mjs', 'tools/lib/ssap.mjs', 'tools/lib/checks.mjs', 'tools/lib/reach.mjs', 'tools/lib/fetch.mjs'];
 const assets = {};
 for (const f of files.slice(1)) assets[f.replace(/^tools\//, '')] = path.join(root, f);
 
