@@ -118,6 +118,17 @@
       if (!r.lastPhone) return { state: 'ask', text: up + '; no phone yet' };
       return { state: 'ok', text: up + '; phone reached it at ' + r.lastPhone.at + '; notes: ' + r.notes.join(' | ') };
     } },
+    { id: 'inputs', label: 'Remote: can the app see it? (Home helper)', run: async function () {
+      var r = await luna(SERVICE + 'inputs', {});
+      if (!r.returnValue) return { state: 'fail', text: errText(r) };
+      var names = r.names ? r.names.join(', ') : 'device list unreadable';
+      var open = r.nodes.filter(function (n) { return /:open$/.test(n); }).length;
+      var remote = r.names && r.names.some(function (n) { return /M-RCU/.test(n); });
+      return {
+        state: open && remote ? 'ok' : 'fail',
+        text: open + ' of ' + r.nodes.length + ' input nodes open to the app (' + r.nodes.join(' ') + '); devices: ' + names
+      };
+    } },
     { id: 'devmode', label: 'Developer Mode: time left', run: async function () {
       var r = await luna(SERVICE + 'devmode', {});
       if (!r.returnValue) return { state: 'fail', text: errText(r) };

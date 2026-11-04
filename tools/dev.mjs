@@ -66,6 +66,9 @@ async function luna(uri, params) {
     phone.state.report = params.results || {};
     return { returnValue: true };
   }
+  if (uri === 'luna://com.hometv.checks.service/inputs') {
+    return { returnValue: true, names: ['PRETEND remote'], nodes: ['event0:EACCES'] };
+  }
   if (uri === 'luna://com.hometv.checks.service/devmode') {
     return { returnValue: true, readable: false, reason: 'ENOENT (a PC has no Developer Mode session)' };
   }

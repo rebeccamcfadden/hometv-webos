@@ -89,6 +89,36 @@ service.register('report', function (message) {
   message.respond({ returnValue: true });
 });
 
+service.register('inputs', function (message) {
+  // Read-only: the input devices' names, and whether this service may open each event node. Nothing is read from
+  // them and nothing is grabbed; this is what an on-TV Home helper would need (key 773 is Home on LG's remote).
+  var names = [];
+  try {
+    String(fs.readFileSync('/proc/bus/input/devices', 'utf8')).split('\n').forEach(function (line) {
+      var m = /^N: Name="(.*)"$/.exec(line);
+      if (m) names.push(m[1]);
+    });
+  } catch (e) {
+    names = null;
+  }
+  var nodes = [];
+  var list = [];
+  try { list = fs.readdirSync('/dev/input'); } catch (e) { list = []; }
+  list.filter(function (n) { return /^event\d+$/.test(n); }).forEach(function (n) {
+    var ok = false;
+    var code = '';
+    try {
+      var fd = fs.openSync('/dev/input/' + n, 'r');
+      fs.closeSync(fd);
+      ok = true;
+    } catch (e) {
+      code = e && e.code || 'error';
+    }
+    nodes.push(n + (ok ? ':open' : ':' + code));
+  });
+  message.respond({ returnValue: true, names: names, nodes: nodes });
+});
+
 service.register('devmode', function (message) {
   var token;
   try {

@@ -11,6 +11,7 @@ setting; deleting the app (or letting Developer Mode run out) removes it. **Not 
 | YouTube video (two forms), Netflix title (old form) | Title links (W2): the person at the TV says whether the title opened |
 | Start the phone page | Whether the app's background service can run a web server on port 8766 (W5) |
 | Phone page: did the phone reach it? | Whether a phone on the Wi-Fi reached it (QR on screen, a code, a test note) and whether the service is still up (after standby, too) |
+| Remote: can the app see it? | Whether the app's own service may open the remote's input device (`LGE M-RCU`): what the no-root Home helpers rely on (W3). Read-only: names from `/proc/bus/input/devices`, each `/dev/input/event*` opened and closed, nothing read or grabbed |
 | Developer Mode: time left | Whether the app can read Developer Mode's session and ask LG for the time left (W1's reminder) |
 | Send these results to the phone page | The results on the phone at `/report`, to copy rather than read out |
 
@@ -29,7 +30,7 @@ npm run package     # dist/com.hometv.checks_0.1.0_all.ipk (LG's ares-package, f
 
 - `app/`: the screen (plain JS for Chromium 68+; Luna calls through `PalmServiceBridge`, which LG's `webOSTV.js`
   wraps). The QR code is hometv-tizen's `qr.ts` (from the Android launcher's `Qr.java`, MIT), stripped to JS at build.
-- `service/`: `service.js` (LG's `webos-service`: start, status, stop, report, devmode) and `phone.js` (the web server;
+- `service/`: `service.js` (LG's `webos-service`: start, status, stop, report, inputs, devmode) and `phone.js` (the web server;
   ES5, Node built-ins only, tested on the PC). The phone page accepts only a 6-character code shown on the TV; ten
   wrong codes make a new one; notes are capped at 200 characters and the last ten.
 - **Developer Mode's time left:** the service tries to read `/var/luna/preferences/devmode_enabled` (where webosbrew's
