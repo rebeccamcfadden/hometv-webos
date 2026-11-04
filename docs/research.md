@@ -36,7 +36,7 @@ Sent through the Decision proxy; listed here so the note stands alone.
 
 | # | Feature | What fails | Evidence | Cost of more research |
 |---|---|---|---|---|
-| W1 | **HomeTV staying installed** | Developer Mode runs out after ~1,000 h and uninstalls HomeTV and its keys | LG's Developer Mode guide, quoted below | (a) a reminder inside HomeTV plus the Extend button (a minute with the remote, every month): ~1 day; (b) automatic renewal from a phone or PC: ~1-2 days, plus a TV check; (c) root: see [jailbreak.md](jailbreak.md) |
+| W1 | **HomeTV staying installed** | Developer Mode runs out after ~1,000 h and uninstalls HomeTV and its keys | LG's Developer Mode guide, quoted below | (a) a reminder inside HomeTV plus the Extend button (a minute with the remote, every month): ~1 day; (b) automatic renewal from a phone or PC: ~1-2 days, plus a TV check; (c) root: see [jailbreak.md](jailbreak.md) (against AGENTS.md's no-root rule) |
 | W2 | **"Watch on" opening the title** | Only YouTube (and maybe Netflix) open a title | Home Assistant, homebridge and Jellyfin reports; no documented form for the others | ~1 hour of build plus ~15 minutes of checks on a TV call |
 | W3 | **The Home key going to HomeTV** | LG keeps the Home key | LG's docs; every project works around it | Test the on-TV helper (Razdva122's, or LG-TV-HA-Home-Launcher's) on the family's model: ~1 day plus a call |
 | W4 | **Opening at power-on** | No app can start at power-on without root (LG, April 2026) | LG developer forum, quoted below | No no-root way known; only "start on the last input" settings |
