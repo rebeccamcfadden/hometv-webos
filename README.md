@@ -1,7 +1,7 @@
 # HomeTV on LG webOS (spike)
 
 Research spike: can [HomeTV](https://github.com/rebeccamcfadden/hometv-launcher) run on an LG TV (webOS), and how.
-Local only for now; nothing is published.
+Private until it works (Rebecca, 2026-11-04).
 
 - [docs/research.md](docs/research.md): what works, what doesn't, the questions for Rebecca, risks.
 - [docs/privacy.md](docs/privacy.md): LG's tracking and ad settings per year, DNS blocking, undo.

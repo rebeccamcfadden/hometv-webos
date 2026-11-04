@@ -4,12 +4,12 @@ Rebecca's decisions for the LG port, quoted with the time. Her Samsung answers d
 
 ## Decided
 
-None yet.
+- **Rebecca, 21:54-22:09 (Q1-Q5):** her dad's LG is available for a TV call at most once a week; model unknown, the
+  first call reads it; a Windows laptop at the house; the TV is in the US; the repo is
+  `rebeccamcfadden/hometv-webos`, private until it works.
 
 ## Open (asked 2026-11-04 through the Decision proxy; work\feedback.md "[builder-5] webOS")
 
-- Q1-Q5 (21:53): the TV's availability for tests, its model and year, a computer at the house, the country, the
-  GitHub repo's name and visibility (local only until then).
 - W1-W6 (22:03): features that may not work on LG ([docs/research.md](docs/research.md), Questions table):
   Developer Mode running out, title links, the Home key, power-on, servers on the TV, in-app updates.
 

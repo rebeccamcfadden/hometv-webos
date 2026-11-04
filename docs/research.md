@@ -158,7 +158,7 @@ except where marked.
 - **The web engine by year** (LG's [chart](https://webostv.developer.lge.com/develop/specifications/web-api-and-web-engine)):
   2016-2017 Chromium 38, 2018-2019 53, 2020 68, 2021 79, 2022 87, 2023 94, 2024 108, 2025 120, 2026 132. The
   Samsung build targets Chromium 56; **a 2016-2019 LG needs older still** (Chromium 38/53: no CSS grid on 38, careful
-  ES5 output). The family TV's year decides the build target (Q2 to Rebecca).
+  ES5 output). The family TV's year decides the build target (unknown until the first call reads it).
 - **Memory:** LG publishes no figure. Third-party notes say 1.5-3 GB on recent sets, with backgrounded apps reclaimed
   quickly. The fork's 1 GB-TV rules (no blur, no autoplaying video) fit as they are.
 - **Unknown:** start time and scrolling on the family's TV.
