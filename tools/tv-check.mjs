@@ -1,9 +1,11 @@
 // Install step 1 (the laptop check) and step 3 (the settings backup), over LG's remote-control connection.
 //
-//   node tools/tv-check.mjs <tv address> [--backup] [--launch] [--reach]   (or: hometv-lg check …)
+//   node tools/tv-check.mjs <tv address> [--backup [--root]] [--launch] [--reach]   (or: hometv-lg check …)
 //
 // Without flags: read-only checks (model and firmware, apps, inputs, sound output) and what v0 needs (root status for
-// the software, Developer Mode app, Homebrew Channel). --backup also reads the settings the TV lets a paired app read.
+// the software, Developer Mode app, Homebrew Channel). --backup also saves a backup of what the TV lets a paired app
+// read (settings, apps, inputs) in %USERPROFILE%\HomeTV\backups, apart from the report (tools/lib/backup.mjs); with
+// --root, also what a rooted TV's shell can read (docs/backup.md).
 // --launch then opens Netflix, YouTube and a YouTube video, asking first and asking what happened. --reach checks the
 // TV can reach this laptop (needed for root). The TV shows "Allow" the first time; the key it gives is kept in
 // %USERPROFILE%\HomeTV (never in the repo). The report goes there too, without the TV's or laptop's address, serial
@@ -13,7 +15,9 @@ import os from 'node:os';
 import path from 'node:path';
 import readline from 'node:readline/promises';
 import { open } from './lib/ssap.mjs';
-import { readOnlyChecks, readSettings, launch, toast, readiness, LAUNCHES } from './lib/checks.mjs';
+import { readOnlyChecks, launch, toast, readiness, LAUNCHES } from './lib/checks.mjs';
+import { backup, describe, WARNING } from './lib/backup.mjs';
+import { sshShell } from './lib/root-shell.mjs';
 import { reach } from './lib/reach.mjs';
 
 const args = process.argv.slice(2);
@@ -25,7 +29,7 @@ const wsPort = wsPortArg >= 0 ? Number(args[wsPortArg + 1]) : Number(process.env
 const reachAddrArg = args.indexOf('--reach-address');
 const reachAddr = reachAddrArg >= 0 ? args[reachAddrArg + 1] : process.env.HOMETV_TEST_REACH_ADDRESS || '';
 if (!host || !/^[0-9A-Za-z.\-:]+$/.test(host)) {
-  console.error('Usage: hometv-lg check <tv address> [--backup] [--launch] [--reach]');
+  console.error('Usage: hometv-lg check <tv address> [--backup [--root]] [--launch] [--reach]');
   process.exit(2);
 }
 const dir = process.env.HOMETV_DIR || path.join(os.homedir(), 'HomeTV');
@@ -52,9 +56,18 @@ say('Apps: ' + (c.apps.ok ? c.apps.count + '; streaming: ' + (c.apps.streaming.m
 say('Inputs: ' + (c.inputs.ok ? c.inputs.devices.map((d) => d.label).join(', ') : c.inputs.error));
 
 if (args.includes('--backup')) {
-  report.settings = await readSettings(tv);
-  const got = Object.values(report.settings).flatMap((cat) => Object.values(cat)).filter((v) => v.ok).length;
-  say('Settings read for the backup: ' + got + ' (the rest are photographed).');
+  let shell = null;
+  if (args.includes('--root')) {
+    const rootKey = process.env.HOMETV_ROOT_KEY || path.join(dir, 'lg-root-key');
+    if (fs.existsSync(rootKey)) shell = sshShell({ host, key: rootKey, knownHosts: path.join(dir, 'lg-known-hosts') });
+    else say('No root key at ' + rootKey + ': the backup is taken without root.');
+  }
+  const b = await backup(tv, path.join(dir, 'backups'), { shell });
+  // The report keeps only the allowlisted settings, as before; the full backup is a separate file, never sent.
+  report.settings = b.data.ssap.settings;
+  for (const line of describe(b.summary)) say(line);
+  say('Backup: ' + b.file);
+  say(WARNING);
 }
 
 if (args.includes('--launch')) {

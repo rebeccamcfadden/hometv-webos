@@ -1,6 +1,6 @@
-// The laptop check (install step 1) and the settings backup (step 3), over LG's remote-control connection. Read-only
-// except launching apps the person agrees to, and one message on the screen. Every value kept is on an allowlist: no
-// serial number, device id, MAC or IP address ever goes into the report.
+// The laptop check (install step 1), over LG's remote-control connection; the settings backup (step 3) is in
+// backup.mjs. Read-only except launching apps the person agrees to, and one message on the screen. Every value kept
+// is on an allowlist: no serial number, device id, MAC or IP address ever goes into the report.
 
 export const STREAMING = {
   netflix: 'Netflix', 'youtube.leanback.v4': 'YouTube', amazon: 'Prime Video',
@@ -57,30 +57,6 @@ export async function readOnlyChecks(tv) {
   c.soundOutput = sound.returnValue === false ? { ok: false, error: sound.errorText } : { ok: true, soundOutput: sound.soundOutput };
 
   return report;
-}
-
-// Settings the TV lets a paired app read, for the backup. Each key is asked for alone, so one the TV doesn't know
-// doesn't hide the others; what fails is recorded as such. The list is a start, to be confirmed on the test TV.
-export const BACKUP_SETTINGS = [
-  { category: 'picture', keys: ['pictureMode', 'backlight', 'brightness', 'contrast', 'color', 'sharpness', 'colorTemperature', 'energySaving'] },
-  { category: 'sound', keys: ['soundMode', 'soundOutput'] },
-  { category: 'option', keys: ['country', 'localeInfo', 'audioGuidance', 'quickStartMode'] },
-  { category: 'general', keys: ['homeAutoLaunch', 'powerOnScreen', 'alwaysReady'] },
-  { category: 'aiPicture', keys: ['ai_Picture'] }
-];
-
-export async function readSettings(tv, list = BACKUP_SETTINGS) {
-  const out = {};
-  for (const { category, keys } of list) {
-    out[category] = {};
-    for (const key of keys) {
-      const r = await tv.request('settings/getSystemSettings', { category, keys: [key] });
-      out[category][key] = r.returnValue === false || !r.settings || !(key in r.settings)
-        ? { ok: false, error: r.errorText || 'not returned' }
-        : { ok: true, value: r.settings[key] };
-    }
-  }
-  return out;
 }
 
 export async function launch(tv, l) {
