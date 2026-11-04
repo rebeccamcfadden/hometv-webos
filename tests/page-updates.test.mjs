@@ -615,7 +615,7 @@ test('platform.started() tells the loader, and still starts the heartbeat', asyn
       platform.started();
       platform.started();
       assert.equal(told, 2, 'the loader ignores repeats itself');
-      assert.deepEqual(calls, ['luna://com.hometv.app.service/alive'], 'one heartbeat now, despite the loader’s throw');
+      assert.deepEqual(calls.filter((u) => /hometv\.app\.service/.test(u)), ['luna://com.hometv.app.service/alive'], 'one heartbeat now, despite the loader’s throw');
       assert.deepEqual(intervals, [10000]);
     } finally {
       globalThis.setInterval = realSetInterval;

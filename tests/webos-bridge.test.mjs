@@ -135,7 +135,7 @@ test('the heartbeat starts once and tells HomeTV’s service the page is alive',
     globalThis.setInterval = real;
   }
   assert.deepEqual(timers, [10000]);
-  assert.deepEqual(calls.map((c) => c.uri), ['luna://com.hometv.app.service/alive']);
+  assert.deepEqual(calls.map((c) => c.uri).filter((u) => /hometv\.app\.service/.test(u)), ['luna://com.hometv.app.service/alive']);
 });
 
 test('LG keys: Back is 461, colours sent without sign-up', () => {

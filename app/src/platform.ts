@@ -314,9 +314,27 @@ export const platform = {
     return { year: d.getFullYear(), month: d.getMonth(), date: d.getDate(), weekday: d.getDay(), hours: d.getHours(), minutes: d.getMinutes(), hour24: null };
   },
 
-  /** Page updates for Settings › About. TODO: null until LG's page loader exists (the loader worker's branch). */
+  /**
+   * Page updates for Settings › About, from the installed app's loader (app/loader/boot.js status(), as on Samsung).
+   * Null without the loader (a preview, the Simulator without the loader).
+   */
   pageUpdates(): PageUpdates | null {
-    return null;
+    type BootStatus = { shell?: string; page?: string; updates?: string; next?: string | null; lastCheck?: { at: string; result?: string } };
+    const boot = (window as unknown as { HomeTVBoot?: { status?(): BootStatus } }).HomeTVBoot;
+    if (!boot || !boot.status) return null;
+    try {
+      const s = boot.status();
+      return {
+        app: String(s.shell || ''),
+        page: String(s.page || ''),
+        on: !!s.updates && s.updates !== 'off',
+        next: s.next || null,
+        checkedAt: s.lastCheck ? Date.parse(s.lastCheck.at) || null : null,
+        failed: !!s.lastCheck && /^failed/.test(s.lastCheck.result || ''),
+      };
+    } catch (e) {
+      return null;
+    }
   },
 
   /**
@@ -332,6 +350,8 @@ export const platform = {
     } catch (e) {
       // The loader's trouble never stops Home or the heartbeat.
     }
+    // Luna is async, osVersion() isn't: read it now so the problem report has it.
+    platform.osVersion();
     if (!onWebOS() || heartbeat !== null) return;
     beat();
     heartbeat = window.setInterval(beat, HEARTBEAT_MS);
