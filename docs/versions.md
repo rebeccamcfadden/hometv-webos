@@ -23,8 +23,8 @@ TV? Is root (steps 5-7) on the first call, or a second call once the unroot path
 | **2. Install unrooted**: LG developer account, Developer Mode, HomeTV from the laptop; opened from its tile | S | Yes | Packaging works (test app) |
 | **Checks screen**: the key page reached from a phone, can the app see the remote (for the Home key), Developer Mode time left | S | Yes | Built (test app, pretend TV) |
 | **3. Backup**: the settings the laptop can read saved to a file, photos of the rest, his apps, the privacy switches as they were | S | Yes | Not built |
-| **4. Unroot path** written and checked on paper (what root changes, how each part is undone, what a factory reset and an LG update do, USB recovery), and what only the TV can prove | M | No (paper); Yes (proof) | Research running |
-| **5. Before root**: HomeTV and the Developer Mode app removed (a rooted TV must not have it) | S | Yes | Not built |
+| **4. Unroot path** written and checked on paper (what root changes, how each part is undone, what a factory reset and an LG update do, USB recovery), and what only the TV can prove | M | No (paper); Yes (proof) | Written ([root-plan.md](root-plan.md)) |
+| **5. Before root**: HomeTV and the Developer Mode app removed, a restart (a rooted TV must not have it; removing it after root lost Homebrew Channel on his exact firmware, slopbro #22) | S | Yes | Not built |
 | **6. Root**, if his firmware still allows it (SlopBro), Homebrew Channel; SSH key set, Telnet off | S | Yes, with Rebecca's go | Not built |
 | **7. HomeTV through Homebrew Channel**, on the Home key and at power-on (lasharor's / Hearth's methods, credited) | M | Yes | Not built |
 | **If root isn't possible or not wanted**: HomeTV stays the Developer Mode app (Extend monthly) | S | No | Packaging works |

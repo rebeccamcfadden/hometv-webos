@@ -7,6 +7,7 @@ Private until it works (Rebecca, 2026-11-04).
 - [docs/privacy.md](docs/privacy.md): LG's tracking and ad settings per year, DNS blocking, undo.
 - [docs/jailbreak.md](docs/jailbreak.md): Developer Mode and root options, safest first.
 - [docs/launcher-replacement.md](docs/launcher-replacement.md): replacing LG's Home, per tier, and the projects to build on.
+- [docs/root-plan.md](docs/root-plan.md): rooting his LG with a way back: the steps, the backup, what root changes, the undo levels, when an update ends root.
 - [docs/launchers.md](docs/launchers.md): five LG home screens compared (Rebecca picked (a), 22:39: our own launcher with the best pieces).
 - [docs/versions.md](docs/versions.md): v0 / v1 / v2 draft, to sort with Rebecca.
 - [checks/](checks/README.md): the first TV call's test app (a Developer Mode app; not run on a TV yet).

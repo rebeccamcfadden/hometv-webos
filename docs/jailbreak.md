@@ -5,6 +5,8 @@ no exploit steps. **Rebecca, 22:1x: for hometv-webos, explore both rooting and n
 test without root first, before she decides whether to root.** So: no root on any TV until she picks it, after a
 non-root test. (hometv-launcher's AGENTS.md still says no root; that rule is unchanged there.)
 
+**Since 22:35 the plan is root-first, with the way back prepared first: [root-plan.md](root-plan.md).**
+
 ## The short version
 
 - **First: LG's Developer Mode plus HomeTV.** It's LG's own switch for app makers, undone by deleting the apps, and
