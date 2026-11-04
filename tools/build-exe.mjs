@@ -10,9 +10,12 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const dist = path.join(root, 'dist');
 fs.mkdirSync(dist, { recursive: true });
 
-const files = ['tools/hometv-lg.mjs', 'tools/tv-check.mjs', 'tools/get.mjs', 'tools/lib/ws.mjs', 'tools/lib/ssap.mjs', 'tools/lib/checks.mjs', 'tools/lib/reach.mjs', 'tools/lib/fetch.mjs'];
+const files = ['tools/hometv-lg.mjs', 'tools/tv-check.mjs', 'tools/get.mjs', 'tools/lib/ws.mjs', 'tools/lib/ssap.mjs', 'tools/lib/checks.mjs', 'tools/lib/reach.mjs', 'tools/lib/fetch.mjs',
+  'tools/install.mjs', 'tools/lib/install-steps.mjs', 'tools/lib/telnet.mjs', 'tools/lib/sshkey.mjs'];
 const assets = {};
 for (const f of files.slice(1)) assets[f.replace(/^tools\//, '')] = path.join(root, f);
+// HomeTV's root scripts, which hometv-lg install copies to a rooted TV (read with node:sea's getAsset)
+for (const f of fs.readdirSync(path.join(root, 'root'))) if (f !== 'README.md') assets['root/' + f] = path.join(root, 'root', f);
 
 const config = {
   main: path.join(root, files[0]),

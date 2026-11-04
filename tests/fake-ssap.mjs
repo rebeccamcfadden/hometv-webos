@@ -70,6 +70,24 @@ export const HANDLERS = {
   'system.launcher/close': () => ({ returnValue: true })
 };
 
+// A pretend TV whose apps and screen change as a test goes on (hometv-lg install): state.apps (app ids),
+// state.foreground (the app on screen), state.minor (the software's minor version).
+export function tvWithState(state) {
+  return {
+    ...HANDLERS,
+    'com.webos.service.update/getCurrentSWInformation': () => ({
+      ...HANDLERS['com.webos.service.update/getCurrentSWInformation'](), minor_ver: state.minor || '31.61'
+    }),
+    'com.webos.applicationManager/listLaunchPoints': () => ({ returnValue: true, launchPoints: state.apps.map((id) => ({ id, title: id })) }),
+    'com.webos.applicationManager/getForegroundAppInfo': () => ({ returnValue: true, appId: state.foreground, windowId: 'x' }),
+    'com.webos.applicationManager/launch': (p) => {
+      if (!state.apps.includes(p.id) || (state.noOpen || []).includes(p.id)) return { returnValue: false, errorText: 'not installed' };
+      state.foreground = p.id;
+      return { returnValue: true };
+    }
+  };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const tv = fakeTv(HANDLERS);
   tv.server.listen(Number(process.env.PORT || 0), '127.0.0.1', () => console.log('pretend TV on port ' + tv.server.address().port));
