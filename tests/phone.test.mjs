@@ -81,10 +81,12 @@ test('notes are capped at 200 characters and the last 10', async () => {
   });
 });
 
-test('the report needs the code', async () => {
+test('the report needs the code; a malformed one is refused, not a crash', async () => {
   await withServer(async (base, state) => {
     state.report = { info: { state: 'ok', text: '43UT8000AUA' } };
     assert.equal((await fetch(base + '/report?code=NOPE22')).status, 403);
+    assert.equal((await fetch(base + '/report?code=%')).status, 403);
+    assert.equal((await fetch(base + '/report?code=%E0%A4%A')).status, 403);
     const r = await fetch(base + '/report?code=ABC234');
     assert.equal(r.status, 200);
     assert.deepEqual(await r.json(), state.report);

@@ -93,6 +93,14 @@ function createPhoneServer(options) {
   }
 
   function handle(req, res) {
+    try {
+      route(req, res);
+    } catch (e) {
+      try { send(res, 400, 'text/plain; charset=utf-8', 'bad request'); } catch (e2) { /* already answered */ }
+    }
+  }
+
+  function route(req, res) {
     var path = String(req.url || '/').split('?')[0];
     if (req.method === 'GET' && path === '/') {
       send(res, 200, 'text/html; charset=utf-8', PAGE);
@@ -101,7 +109,9 @@ function createPhoneServer(options) {
     if (req.method === 'GET' && path === '/report') {
       var q = String(req.url).split('?')[1] || '';
       var m = /(?:^|&)code=([^&]*)/.exec(q);
-      if (!m || !sameCode(decodeURIComponent(m[1]), state.code)) { wrongCode(res); return; }
+      var given = null;
+      try { given = m ? decodeURIComponent(m[1]) : null; } catch (e) { given = null; }
+      if (!given || !sameCode(given, state.code)) { wrongCode(res); return; }
       send(res, 200, 'application/json; charset=utf-8', JSON.stringify(state.report || {}, null, 2));
       return;
     }

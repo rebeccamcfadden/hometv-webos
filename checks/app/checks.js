@@ -137,15 +137,23 @@
     var code = document.getElementById('phone-code');
     var seen = document.getElementById('phone-seen');
     var canvas = document.getElementById('qr');
-    if (!r.running) { help.textContent = 'Not running.'; return; }
+    if (!r.running) {
+      help.textContent = 'Not running.';
+      canvas.hidden = true;
+      delete canvas.dataset.link;
+      url.textContent = '';
+      code.textContent = '';
+      return;
+    }
     var addr = (r.addresses || [])[0];
     if (!addr) { help.textContent = 'The service found no network address.'; return; }
     var link = 'http://' + addr + ':' + r.port + '/#' + r.code;
     help.textContent = 'Scan with the phone camera (same Wi-Fi), or type:';
     url.textContent = 'http://' + addr + ':' + r.port + '/';
     code.textContent = 'Code: ' + r.code;
-    seen.textContent = r.lastPhone ? 'Phone reached the TV at ' + r.lastPhone.at : 'Waiting for the phone…';
-    if (window.HomeTvQr && !canvas.dataset.link) {
+    seen.textContent = r.lastPhone ? 'Phone reached the TV at ' + r.lastPhone.at +
+      (r.notes && r.notes.length ? '; last note: ' + r.notes[r.notes.length - 1] : '') : 'Waiting for the phone…';
+    if (window.HomeTvQr && canvas.dataset.link !== link) {
       drawQr(canvas, link);
       canvas.dataset.link = link;
     }
@@ -153,10 +161,7 @@
     if (!phone.timer) {
       phone.timer = setInterval(function () {
         if (document.hidden) return;
-        luna(SERVICE + 'status', {}).then(function (s) {
-          if (s.returnValue) seen.textContent = s.lastPhone ? 'Phone reached the TV at ' + s.lastPhone.at +
-            (s.notes.length ? '; last note: ' + s.notes[s.notes.length - 1] : '') : 'Waiting for the phone…';
-        });
+        luna(SERVICE + 'status', {}).then(function (s) { if (s.returnValue) showPhone(s); });
       }, 2000);
     }
   }
