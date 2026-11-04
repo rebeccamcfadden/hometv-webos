@@ -20,8 +20,6 @@ pretend TV only; HomeTV's own LG app not built yet.
 | [docs/jailbreak.md](docs/jailbreak.md) | Developer Mode and root options, safest first, with their risks |
 | [docs/root-plan.md](docs/root-plan.md) | Research: rooting with a way back (backup, what root changes, undo levels, an LG update ending root) |
 | [docs/launchers.md](docs/launchers.md), [docs/launcher-replacement.md](docs/launcher-replacement.md) | Other LG home screens compared, and ways to replace LG's Home |
-| [docs/tv-call-checklist.md](docs/tv-call-checklist.md) | The first call with a test TV: laptop check, HomeTV unrooted, backup |
-| [docs/versions.md](docs/versions.md) | What goes in v-1, v0, v1, v2 (a draft) |
 | [tools/](tools/tv-check.mjs) | `hometv-lg check`: the read-only laptop check over LG's remote-control connection |
 | [checks/](checks/README.md) | The test app for the first call (a Developer Mode app) |
 | [root/](root/README.md) | Research: HomeTV's root edition scripts, adapted from lasharor/cleanyourtv-WebOS; untested |

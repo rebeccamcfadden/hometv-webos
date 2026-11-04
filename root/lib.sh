@@ -1,7 +1,7 @@
 #!/bin/sh
 # Shared by HomeTV's root scripts. Every path can be pointed elsewhere for the tests (tests/root.test.mjs); on the TV
 # none of these variables is set. Adapted from lasharor/cleanyourtv-WebOS (MIT, see root/README.md).
-export PATH=/usr/bin:/usr/sbin:/bin:/sbin:$PATH
+export PATH=${HOMETV_PATH:-/usr/bin:/usr/sbin:/bin:/sbin:$PATH}
 D=${HOMETV_DIR:-/media/developer/hometv}
 H=${HOMETV_HOME_APP:-/usr/palm/applications/com.webos.app.home}
 MOUNTS=${HOMETV_MOUNTS:-/proc/mounts}

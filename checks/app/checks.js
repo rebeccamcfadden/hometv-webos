@@ -1,5 +1,5 @@
 /*
- * HomeTV checks for LG webOS: one button per check, for the first call on a family TV. Runs as a Developer Mode app.
+ * HomeTV checks for LG webOS: one button per check, for the first call on a test TV. Runs as a Developer Mode app.
  * Calls LG's Luna services through PalmServiceBridge (what LG's webOSTV.js wraps). Results are kept in localStorage,
  * so they survive opening Netflix and coming back, and can be sent to the phone page.
  */

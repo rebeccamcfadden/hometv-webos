@@ -95,6 +95,39 @@ test('the command line: pairs, keeps the key, writes an allowlisted report with 
   }
 });
 
+test('double-clicked: asks for the address until it looks right, runs the full check, says where the report is', async () => {
+  const { spawn } = await import('node:child_process');
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hometv-guided-'));
+  try {
+    await withTv(async (port) => {
+      const out = await new Promise((resolve, reject) => {
+        const p = spawn(process.execPath, ['tools/hometv-lg.mjs'], {
+          env: { ...process.env, HOMETV_DIR: dir, HOMETV_NO_EXPLORER: '1', HOMETV_TEST_WS_PORT: String(port), HOMETV_TEST_REACH_ADDRESS: '127.0.0.1' }
+        });
+        let text = '';
+        const timer = setTimeout(() => { p.kill(); reject(new Error('timed out:\n' + text)); }, 20000);
+        p.stdout.on('data', (d) => {
+          text += d;
+          if (/address and press Enter: $/.test(text) && !text.includes('[sent bad]')) { text += '[sent bad]'; p.stdin.write('the tv\n'); }
+          else if (/Try again\.\s*\n\s*Type the TV's address and press Enter: $/.test(text)) p.stdin.write('127.0.0.1\n');
+          else if (/\[Y\/n\] $/.test(text)) p.stdin.write('n\n');
+          else if (/Press Enter to close\. $/.test(text)) p.stdin.write('\n');
+        });
+        p.on('exit', () => { clearTimeout(timer); resolve(text); });
+      });
+      assert.match(out, /doesn't look like four numbers/);
+      assert.match(out, /TV reaches the laptop: yes/);
+      assert.match(out, /Send the report file/);
+      assert.equal(fs.readdirSync(dir).filter((f) => f.startsWith('lg-check-')).length, 1);
+    });
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('launch reports success and failure; an unknown method is an error, not a hang', async () => {
   await withTv(async (port) => {
     const tv = await open('127.0.0.1', { ports: [{ url: 'ws://127.0.0.1:' + port + '/' }] });

@@ -20,10 +20,10 @@ const args = process.argv.slice(2);
 const VALUED = ['--ws-port', '--reach-address'];
 const host = args.find((a, i) => !a.startsWith('--') && !VALUED.includes(args[i - 1]));
 const wsPortArg = args.indexOf('--ws-port');
-const wsPort = wsPortArg >= 0 ? Number(args[wsPortArg + 1]) : 0;
+const wsPort = wsPortArg >= 0 ? Number(args[wsPortArg + 1]) : Number(process.env.HOMETV_TEST_WS_PORT || 0);
 // Tests only: the address the TV should use for this laptop.
 const reachAddrArg = args.indexOf('--reach-address');
-const reachAddr = reachAddrArg >= 0 ? args[reachAddrArg + 1] : '';
+const reachAddr = reachAddrArg >= 0 ? args[reachAddrArg + 1] : process.env.HOMETV_TEST_REACH_ADDRESS || '';
 if (!host || !/^[0-9A-Za-z.\-:]+$/.test(host)) {
   console.error('Usage: hometv-lg check <tv address> [--backup] [--launch] [--reach]');
   process.exit(2);
@@ -33,7 +33,6 @@ fs.mkdirSync(dir, { recursive: true });
 const keyFile = path.join(dir, 'lg-client-key');
 const clientKey = fs.existsSync(keyFile) ? fs.readFileSync(keyFile, 'utf8').trim() : undefined;
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 const say = (s) => console.log(s);
 
 say('Connecting to the TV…');
@@ -59,6 +58,7 @@ if (args.includes('--backup')) {
 }
 
 if (args.includes('--launch')) {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   report.launches = {};
   for (const l of LAUNCHES) {
     const go = (await rl.question(l.label + ' on the TV now? [y/N] ')).trim().toLowerCase() === 'y';
@@ -68,6 +68,7 @@ if (args.includes('--launch')) {
     report.launches[l.id] = { ...r, seen };
     if (r.ok) await rl.question('Press Back or Home on the remote to leave it, then Enter here. ');
   }
+  rl.close();
 }
 
 if (args.includes('--reach')) {
@@ -83,7 +84,6 @@ say('For v0: root ' + rd.root + '; Developer Mode app ' + (rd.developerModeApp ?
 
 await toast(tv, 'HomeTV check finished. Thank you!');
 tv.close();
-rl.close();
 
 const file = path.join(dir, 'lg-check-' + report.at.slice(0, 19).replace(/[:T]/g, '-') + '.json');
 fs.writeFileSync(file, JSON.stringify(report, null, 2));

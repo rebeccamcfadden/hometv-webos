@@ -1,6 +1,6 @@
 // Builds dist/hometv-lg.exe: Node's own single-executable build (`--build-sea`), with the laptop tool's modules in
 // its read-only virtual file system. The exe is this PC's Node with the tool inside (~90 MB); it needs no Node on
-// the family's laptop. Unsigned: Windows shows "unknown publisher".
+// the target laptop. Unsigned: Windows shows "unknown publisher".
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';

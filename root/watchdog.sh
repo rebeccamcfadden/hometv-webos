@@ -8,7 +8,10 @@
   EVERY=${HOMETV_WATCH_SECS:-10}
   LIMIT=${HOMETV_WATCH_LIMIT:-6}
   bad=0
+  n=0
   while [ -f "$D/decide.js" ] && [ ! -e "$D/DISABLE" ]; do
+    n=$((n + 1))
+    [ -n "$HOMETV_WATCH_MAX" ] && [ $n -gt "$HOMETV_WATCH_MAX" ] && break   # tests only
     sleep "$EVERY"
     replaced || break
     [ "$(foreground)" = com.webos.app.home ] || { bad=0; continue; }

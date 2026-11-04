@@ -1,15 +1,15 @@
 # LG home screens: what each one does, and a plan to pick from
 
-For Rebecca (her 22:23 ask), 2026-11-04. Five open-source LG webOS home screens, read from their source and GitHub's
+Written 2026-11-04. Five open-source LG webOS home screens, read from their source and GitHub's
 data today; nothing run on a TV. For each: how it gets the Home key and power-on, how a household installs it, its
 licence, how active it is, how well it's built, and what HomeTV would take from it. Then four plans.
 
-Her dad's TV for reference: 43UT8000AUA, a 2024 LCD (US) on webOS 25, release 10.3.1-3001, Chromium 120, Node 16.
-Automatic updates stay on (22:23), so root may go away.
+The test TV for reference: 43UT8000AUA, a 2024 LCD (US) on webOS 25, release 10.3.1-3001, Chromium 120, Node 16.
+Automatic updates stay on, so root may go away.
 
 ## The short version
 
-- **None of the five has been tested on his model** (or any UT80). The nearest: lasharor's, reported working on two
+- **None of the five has been tested on the test TV's model** (or any UT80). The nearest: lasharor's, reported working on two
   sibling 2024 LCDs (43UT7590PUA, 65UT7000PUA) on webOS 25, **with root**.
 - **Without root, only Razdva122's gets the Home key** (a native helper that intercepts the remote's Home press on the
   TV). Hearth works without root as a home screen you open; zzeppieri's might catch Home without root, untested.
@@ -17,8 +17,8 @@ Automatic updates stay on (22:23), so root may go away.
 - **Every one of them is weeks old and written largely with AI help.** Two have real tests and CI (lasharor's,
   Razdva122's), one has tests without CI (Hearth), two have none (OpenLauncher, zzeppieri's).
 - **Recommended plan (A):** HomeTV as **its own** Developer Mode app (our screens, from hometv-tizen), borrowing MIT
-  pieces with credit, and choosing the Home-key helper after the first call has shown what his TV allows. If Rebecca
-  later picks root, lasharor's is the base for that.
+  pieces with credit, and choosing the Home-key helper after the first call has shown what the test TV allows. If root
+  is picked later, lasharor's is the base for that.
 
 ## The five
 
@@ -64,7 +64,7 @@ Automatic updates stay on (22:23), so root may go away.
   sources. Releases not signed yet.
 - **Tested:** **43UT7590PUA and 65UT7000PUA on webOS 25 (firmware 33.31.75) work** (community reports
   [#10](https://github.com/lasharor/cleanyourtv-WebOS/issues/10), [#11](https://github.com/lasharor/cleanyourtv-WebOS/issues/11)):
-  the closest to his TV (33.31.61).
+  the closest to the test TV (33.31.61).
 - **For HomeTV:** the root route, if ever picked. Its per-TV decision table, mount safety and security design are
   worth copying in any plan (MIT).
 
@@ -98,7 +98,7 @@ Automatic updates stay on (22:23), so root may go away.
 - **Licence:** MIT. **Activity:** five days in July 2026, nothing since. **Quality:** careful code, **no tests, no
   CI**, one OLED on webOS 24.
 - **For HomeTV:** its small Luna-call wrapper (`src/service/luna.ts`) and the idea of watching the remote from an
-  app's own service (cheaper than a native helper, if his TV allows it).
+  app's own service (cheaper than a native helper, if the test TV allows it).
 
 ### Shantil-K/OpenLauncher
 
@@ -111,7 +111,7 @@ Automatic updates stay on (22:23), so root may go away.
 
 ## Side by side
 
-| | Home key, no root | Power-on | Install for the family | Licence | Activity | Tests | Nearest to his TV |
+| | Home key, no root | Power-on | Install for the household | Licence | Activity | Tests | Nearest to the test TV |
 |---|---|---|---|---|---|---|---|
 | **Razdva122** | **Yes** (native helper, experimental) | Root only | Windows installer, laptop off after | MIT | Very high, one person, AI-heavy | Many + CI | C5 webOS 25: open bug |
 | **lasharor** | No (root only) | **Root** | Root, then on-TV manager | MIT | Very high, a few people | Many + CI | **UT7590, UT7000 on webOS 25: work** |
@@ -132,18 +132,18 @@ Automatic updates stay on (22:23), so root may go away.
 
 ## Plans to pick from
 
-| | Plan | What his TV gets | Cost to build | Risk | Undo |
+| | Plan | What the test TV gets | Cost to build | Risk | Undo |
 |---|---|---|---|---|---|
-| **A (recommended)** | **HomeTV as its own Developer Mode app**, our code plus the MIT pieces above. The Home key: chosen after the first call. If the test app shows an app's own service can open the remote's device, our own small watcher (zzeppieri's way, tested on his TV); if not, Razdva122's native Helper, forked only for that part, pointed at HomeTV | HomeTV with its own tile, opens offline, apps and YouTube titles open from it, key page and phone notes; Home key if the helper works on his TV; no power-on | ~3-4 days for the first version (screens exist), +1-2 days for the helper | Low; we own the code; the helper is the experimental part, off by default | Delete the app |
-| B | **Fork Razdva122** (as AeroTizen for Samsung): our screens in its launcher, keep its Helper and Windows installer | The same as A, plus its installer and renewal (beta) | ~4-5 days, then keeping up with a project releasing several times a day | Medium: a 2-week-old, one-person, AI-heavy base untested on his model; #96 on webOS 25 | Its uninstall; delete the apps |
+| **A (recommended)** | **HomeTV as its own Developer Mode app**, our code plus the MIT pieces above. The Home key: chosen after the first call. If the test app shows an app's own service can open the remote's device, our own small watcher (zzeppieri's way, tested on the test TV); if not, Razdva122's native Helper, forked only for that part, pointed at HomeTV | HomeTV with its own tile, opens offline, apps and YouTube titles open from it, key page and phone notes; Home key if the helper works on the test TV; no power-on | ~3-4 days for the first version (screens exist), +1-2 days for the helper | Low; we own the code; the helper is the experimental part, off by default | Delete the app |
+| B | **Fork Razdva122** (as AeroTizen for Samsung): our screens in its launcher, keep its Helper and Windows installer | The same as A, plus its installer and renewal (beta) | ~4-5 days, then keeping up with a project releasing several times a day | Medium: a 2-week-old, one-person, AI-heavy base untested on the test TV's model; #96 on webOS 25 | Its uninstall; delete the apps |
 | C | **Recommend Razdva122 or Hearth as they are** for now, HomeTV later | Their home screen, not HomeTV's catalogue or prices | ~0.5 day (an install guide) | As B, but nothing of ours to maintain | Their uninstall |
-| D | **Root with lasharor** (only if root still works on his firmware, after a non-root test) | The full thing: Home key and power-on, no 41-day timer | A non-root test first, then ~2-3 days to swap our screens into its launcher | Higher: root, LG updates blocked for good to keep it ([jailbreak.md](jailbreak.md)); conflicts with her 22:23 "leave updates on" | Remove its start scripts; restart |
+| D | **Root with lasharor** (only if root still works on the test TV's firmware, after a non-root test) | The full thing: Home key and power-on, no 41-day timer | A non-root test first, then ~2-3 days to swap our screens into its launcher | Higher: root, LG updates blocked for good to keep it ([jailbreak.md](jailbreak.md)); conflicts with the decision to leave automatic updates on | Remove its start scripts; restart |
 
-**Why A:** none of the bases is proven on his model, all are weeks old, and the parts HomeTV needs most (the screens,
+**Why A:** none of the bases is proven on the test TV's model, all are weeks old, and the parts HomeTV needs most (the screens,
 the key page, phone notes, page updates) are already ours from Samsung. The only hard LG-specific part is the Home key,
 and that's exactly what the first call's test app checks (the "Remote: can the app see it?" button), so the choice
 between our own watcher and Razdva122's helper can be made on evidence. Developer Mode's timer is handled the same way
-in every no-root plan (W1: a reminder now, renewal later; Razdva122's renewal is a reference).
+in every no-root plan (a reminder now, renewal later; Razdva122's renewal is a reference).
 
 ## Sources
 

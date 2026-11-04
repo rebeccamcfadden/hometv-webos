@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HomeTV check for LG TVs</title>
+<style>
+  body { font: 18px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2328; background: #fff; margin: 0; }
+  main { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
+  h1 { font-size: 1.9rem; margin: 0.5rem 0 0.25rem; }
+  h2 { font-size: 1.3rem; margin: 2rem 0 0.5rem; border-bottom: 1px solid #d0d7de; padding-bottom: 0.25rem; }
+  .warn { background: #fff8c5; border: 1px solid #d4a72c; border-radius: 8px; padding: 0.75rem 1rem; }
+  ol > li { margin: 0 0 1rem; }
+  .path { font-weight: 600; }
+  code, .cmd { font-family: ui-monospace, Consolas, monospace; font-size: 0.92em; background: #f6f8fa; border-radius: 6px; }
+  code { padding: 0.1em 0.35em; word-break: break-all; }
+  .cmd { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border: 1px solid #d0d7de; overflow-x: auto; }
+  .cmd span { flex: 1; white-space: pre; }
+  button { font: inherit; font-size: 0.9rem; padding: 0.3rem 0.8rem; border-radius: 6px; border: 1px solid #1f6feb; background: #1f6feb; color: #fff; cursor: pointer; }
+  .download { display: inline-block; font-size: 1.1rem; font-weight: 600; color: #fff; background: #1a7f37; padding: 0.6rem 1.2rem; border-radius: 8px; text-decoration: none; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+  td, th { border: 1px solid #d0d7de; padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+  .small { color: #59636e; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<main>
+<p class="warn"><strong>Work in progress, not tested on a real TV yet.</strong> Only use this if the person who sent you
+this link asked you to. It changes nothing on the TV.</p>
+
+<h1>HomeTV check for LG TVs</h1>
+<p>A small program for a Windows laptop. It looks at your LG TV over your home Wi-Fi and writes a short report, so the
+person helping you can see whether HomeTV will work on it. About 10 minutes.</p>
+
+<h2>What it does, and doesn't</h2>
+<ul>
+  <li><strong>It reads</strong> the TV's model, software version, the apps and inputs it has, its sound output and a few
+    picture and sound settings.</li>
+  <li><strong>It may open</strong> Netflix and YouTube on the TV, only if you say yes, to see they open.</li>
+  <li><strong>It opens the TV's web browser</strong> for a few seconds, to check the TV can reach the laptop.</li>
+  <li><strong>It changes nothing</strong> on the TV: no settings, nothing installed, no accounts.</li>
+  <li><strong>It sends nothing anywhere.</strong> The report stays on your laptop until you send it yourself.</li>
+</ul>
+
+<h2>What you need</h2>
+<ul>
+  <li>A Windows laptop on the <strong>same Wi-Fi</strong> as the TV.</li>
+  <li>The TV switched on, and its remote.</li>
+  <li>About 10 minutes. No accounts or passwords.</li>
+</ul>
+
+<h2>Steps</h2>
+<ol>
+  <li>
+    <p><strong>Download the program</strong> (about 96 MB):</p>
+    <p><a class="download" href="https://github.com/rebeccamcfadden/hometv-webos/releases/download/check-lg-v1/hometv-lg.exe">Download hometv-lg.exe</a></p>
+    <p class="small">File: <code>hometv-lg.exe</code>, release <code>check-lg-v1</code>. SHA-256: <code id="sha">SHA256_PLACEHOLDER</code>.
+      To check it (optional): open Command Prompt in your Downloads folder and run the line below; the long code it shows
+      should match.</p>
+    <div class="cmd"><span id="c1">certutil -hashfile hometv-lg.exe SHA256</span><button onclick="copy('c1', this)">Copy</button></div>
+  </li>
+  <li>
+    <p><strong>Open it:</strong> double-click <code>hometv-lg.exe</code> in your Downloads folder.</p>
+    <p>Windows will probably say <span class="path">"Windows protected your PC"</span>, because the program isn't
+      signed by a company. Click <span class="path">More info</span>, then <span class="path">Run anyway</span>.</p>
+  </li>
+  <li>
+    <p><strong>Find the TV's address.</strong> On the TV, press the <span class="path">Settings</span> button
+      (the gear), then go to:</p>
+    <p class="path">All Settings › General › Network › Wi-Fi Connection › your network › Advanced Wi-Fi Settings › IP Address</p>
+    <p>It's four numbers with dots, like <code>192.168.1.50</code>. (If the TV uses a cable, it's under Wired
+      Connection instead.)</p>
+  </li>
+  <li>
+    <p><strong>Type the address</strong> into the black window and press Enter.</p>
+  </li>
+  <li>
+    <p><strong>The TV asks to "Allow"</strong> this laptop. Press <strong>OK</strong> on the remote.</p>
+    <p>Windows may ask whether to allow the program on <strong>private networks</strong>: click
+      <span class="path">Allow</span>.</p>
+  </li>
+  <li>
+    <p><strong>Netflix and YouTube:</strong> if you said yes, the window asks before opening each one. Answer
+      <code>y</code>, look at the TV, type what happened (for example "Netflix opened" or "an error"), then press
+      <strong>Back</strong> on the remote and Enter on the laptop.</p>
+  </li>
+  <li>
+    <p><strong>The TV's browser opens for a few seconds</strong> with the words "HomeTV: the TV reached the laptop".
+      You can press Back.</p>
+  </li>
+  <li>
+    <p><strong>Done.</strong> The window says <span class="path">Done</span> and a folder opens with a file named like
+      <code>lg-check-2026-11-05-18-30-00.json</code>. <strong>Send that file to the person who sent you this link</strong>,
+      as an attachment to an email or a message. Then press Enter to close the window.</p>
+  </li>
+</ol>
+
+<h2>What's in the report</h2>
+<table>
+  <tr><th>In it</th><th>Not in it</th></tr>
+  <tr>
+    <td>The TV's model and software version; its apps (names); its inputs (names like HDMI 1); its sound output; some
+      picture and sound settings; whether Netflix, YouTube and the browser opened, and what you typed about them.</td>
+    <td>The TV's serial number or device id; the TV's or laptop's address; your Wi-Fi name; any account, email or
+      password.</td>
+  </tr>
+</table>
+<p class="small">The report is a plain text file (JSON): you can open it with Notepad to see everything in it before
+  sending it.</p>
+
+<h2>If something goes wrong</h2>
+<ul>
+  <li><strong>"could not reach the TV":</strong> check the TV is on and on the same Wi-Fi, and that the address is
+    typed exactly. Then double-click the program again.</li>
+  <li><strong>No "Allow" on the TV, or it went away:</strong> run the program again and press OK as soon as it appears.</li>
+  <li><strong>"TV reaches the laptop: no":</strong> that's fine for now; send the report anyway.</li>
+</ul>
+
+<h2>Afterwards</h2>
+<p>You can delete <code>hometv-lg.exe</code> and the <code>HomeTV</code> folder in your user folder. The TV remembers
+  that it allowed this laptop; that only lets this laptop read the TV and open apps, nothing else.</p>
+
+<p class="small">Typing instead of double-clicking: open Command Prompt in your Downloads folder and run this, with your
+  TV's address in place of the example:</p>
+<div class="cmd"><span id="c2">hometv-lg.exe check 192.168.1.50 --backup --reach --launch</span><button onclick="copy('c2', this)">Copy</button></div>
+
+<p class="small">HomeTV for LG is open source: <a href="https://github.com/rebeccamcfadden/hometv-webos">github.com/rebeccamcfadden/hometv-webos</a>.</p>
+</main>
+<script>
+  function copy(id, btn) {
+    var text = document.getElementById(id).textContent;
+    var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); };
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, done);
+    else { var r = document.createRange(); r.selectNode(document.getElementById(id)); getSelection().removeAllRanges(); getSelection().addRange(r); document.execCommand('copy'); done(); }
+  }
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # LG TV: turning off tracking, analytics and ads
 
-Research for Rebecca, 2026-11-04. Nothing here has been run on any TV. Upstream's guide
+Research done 2026-11-04. Nothing here has been run on any TV. Upstream's guide
 ([cleanyour.tv/not-android](https://cleanyour.tv/not-android)) already covers LG's main switches for 2020-2026 and a
 short DNS table; this goes further: every webOS year back to 2017, which agreements are optional, Always Ready and
 Quick Start+, LG Channels, a longer DNS table with what each name does, and what can be scripted. Every step says
@@ -150,15 +150,15 @@ It replaces the DNS check this note planned to build.
 |---|---|---|
 | **Set the privacy switches** | LG's remote connection (SSAP, port 3000/3001, the TV's "Allow" prompt) can only **read** settings (`settings/getSystemSettings`); writing (`com.webos.settingsservice/setSystemSettings`) is a privileged internal call (Home Assistant's `aiowebostv`, webosbrew's notes) | **Not possible** without root |
 | **Press the keys through the menus** | SSAP's remote-key socket | **No**: menus differ by year, a script can't see the screen |
-| **A read-only check** | Read the settings over SSAP and say which are back on (after an update or reset) | **Yes**: small, safe. Could live in HomeTV's Settings later (a question for Rebecca then) |
-| **A guided checklist** | This page's tables, for the family's year only, with a photo per step | **Yes**: fits a family call |
+| **A read-only check** | Read the settings over SSAP and say which are back on (after an update or reset) | **Yes**: small, safe. Could live in HomeTV's Settings later (an open question for later) |
+| **A guided checklist** | This page's tables, for the TV's year only, with a photo per step | **Yes**: fits a TV call |
 | **A DNS check** | Ask the home's DNS for the tracking names (blocked?) and the never-block names (still there?) | **Yes, already exists**: upstream's phone check ([cleanyour.tv/not-android#check](https://cleanyour.tv/not-android#check)) |
-| **Root: block firmware updates, stop LG's ad services** | Homebrew Channel's own "Block system updates" switch (verified in its source); lasharor's optional debloat | **Not for a family TV**: see [jailbreak.md](jailbreak.md). Blocking updates also blocks security fixes |
+| **Root: block firmware updates, stop LG's ad services** | Homebrew Channel's own "Block system updates" switch (verified in its source); lasharor's optional debloat | **Not recommended for a household's TV**: see [jailbreak.md](jailbreak.md). Blocking updates also blocks security fixes |
 
 **Avoid:** brand-new "LG debloat" or "own your TV" root scripts outside webosbrew that turned up in searches. They're
 unreviewed, run as root, and two of them match this research's wording suspiciously closely.
 
-**Recommendation:** the checklist for the family's year, Perflyst's list (or AdGuard's DNS typed into the TV) as the
+**Recommendation:** the checklist for the TV's year, Perflyst's list (or AdGuard's DNS typed into the TV) as the
 one network step, and a read-only check later. No key-pressing script.
 
 ## What can't be removed

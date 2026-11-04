@@ -1,19 +1,19 @@
 # HomeTV checks (the first TV call's test app)
 
-A Developer Mode app with one button per check, for the first call on her dad's LG. Nothing in it changes a TV
-setting; deleting the app (or letting Developer Mode run out) removes it. **Not run on any TV yet: Rebecca's go first.**
+A Developer Mode app with one button per check, for the first call on a test TV. Nothing in it changes a TV
+setting; deleting the app (or letting Developer Mode run out) removes it. **Not run on any TV yet.**
 
 | Check | What it answers |
 |---|---|
 | About this TV | Model, firmware, SDK and Chromium version, from LG's public `getSystemInfo` (no serial number asked for) |
 | List the installed apps | Whether an app may list apps (`listApps`), and which streaming apps are there |
 | Open Netflix … Hulu | Whether `luna://com.webos.applicationManager/launch` opens each app, by id (HBO Max: new id, then old) |
-| YouTube video (two forms), Netflix title (old form) | Title links (W2): the person at the TV says whether the title opened |
-| Start the phone page | Whether the app's background service can run a web server on port 8766 (W5) |
+| YouTube video (two forms), Netflix title (old form) | Title link checks: the person at the TV says whether the title opened |
+| Start the phone page | Whether the app's background service can run a web server on port 8766 |
 | Phone page: did the phone reach it? | Whether a phone on the Wi-Fi reached it (QR on screen, a code, a test note) and whether the service is still up (after standby, too) |
-| Remote: can the app see it? | Whether the app's own service may open the remote's input device (`LGE M-RCU`): what the no-root Home helpers rely on (W3). Read-only: names from `/proc/bus/input/devices`, each `/dev/input/event*` opened and closed, nothing read or grabbed |
+| Remote: can the app see it? | Whether the app's own service may open the remote's input device (`LGE M-RCU`): what the no-root Home helpers rely on. Read-only: names from `/proc/bus/input/devices`, each `/dev/input/event*` opened and closed, nothing read or grabbed |
 | For v0: LG's Home kind, free space | Whether LG's Home is the flutter or web app HomeTV's root edition takes over (`root/`), and the free space where apps go. Read-only: LG Home's `appinfo.json` (id and type) and `df` |
-| Developer Mode: time left | Whether the app can read Developer Mode's session and ask LG for the time left (W1's reminder) |
+| Developer Mode: time left | Whether the app can read Developer Mode's session and ask LG for the time left (for the in-app reminder) |
 | Send these results to the phone page | The results on the phone at `/report`, to copy rather than read out |
 
 Results stay on the TV (localStorage), so they survive opening Netflix and coming back.

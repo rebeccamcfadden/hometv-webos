@@ -60,7 +60,7 @@ export async function readOnlyChecks(tv) {
 }
 
 // Settings the TV lets a paired app read, for the backup. Each key is asked for alone, so one the TV doesn't know
-// doesn't hide the others; what fails is recorded as such. The list is a start, to be confirmed on his TV.
+// doesn't hide the others; what fails is recorded as such. The list is a start, to be confirmed on the test TV.
 export const BACKUP_SETTINGS = [
   { category: 'picture', keys: ['pictureMode', 'backlight', 'brightness', 'contrast', 'color', 'sharpness', 'colorTemperature', 'energySaving'] },
   { category: 'sound', keys: ['soundMode', 'soundOutput'] },
@@ -92,7 +92,7 @@ export async function toast(tv, message) {
   return tv.request('system.notifications/createToast', { message });
 }
 
-// What v0 will need, from what the laptop check read (v-1, Rebecca 23:05). Root status is dated: re-check
+// What v0 will need, from what the laptop check read (v-1). Root status is dated: re-check
 // CanI.RootMy.TV before root (docs/jailbreak.md).
 export const ROOTABLE = {
   '33.31.61': 'SlopBro: the newest version known to work (CanI.RootMy.TV, read 2026-11-04)'
