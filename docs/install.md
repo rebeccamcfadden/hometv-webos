@@ -116,7 +116,7 @@ Why it works this way:
   root password (`alpine`). It goes in `lg-root-key` (`HOMETV_ROOT_KEY` names another), made once and kept; on
   Windows only this account may read it, as Windows' ssh requires. From Windows:
   `ssh -i %USERPROFILE%\HomeTV\lg-root-key root@<tv ip>`.
-- **"Block system updates" is left as it is** (Rebecca's call). What it does, from `startup.sh`: while the flag
+- **"Block system updates" is left as it is** (a decision for later). What it does, from `startup.sh`: while the flag
   `/var/luna/preferences/webosbrew_block_updates` exists, each start copies `/etc/hosts` to `/tmp`, mounts the copy
   over it in memory and points `snu.lge.com`, `su-dev.lge.com`, `su.lge.com` and `su-ssl.lge.com` at the TV itself
   (IPv4 and IPv6), so the TV can't reach those update servers: automatic updates and the menu's update check should
