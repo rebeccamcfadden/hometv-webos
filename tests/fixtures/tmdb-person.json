@@ -1,0 +1,17 @@
+{
+  "id": 500,
+  "name": "Star Person",
+  "profile_path": "/p500.jpg",
+  "combined_credits": {
+    "cast": [
+      { "media_type": "movie", "id": 31, "title": "Small", "poster_path": "/po31.jpg", "vote_count": 10, "character": "A" },
+      { "media_type": "movie", "id": 32, "title": "Big", "poster_path": "/po32.jpg", "vote_count": 9000, "character": "B" },
+      { "media_type": "tv", "id": 33, "name": "Chat Show", "poster_path": "/po33.jpg", "vote_count": 99999, "genre_ids": [10767], "character": "Self" },
+      { "media_type": "movie", "id": 34, "title": "Archive", "poster_path": "/po34.jpg", "vote_count": 99998, "character": "Himself (archive)" }
+    ],
+    "crew": [
+      { "media_type": "movie", "id": 32, "title": "Big", "poster_path": "/po32.jpg", "vote_count": 9000, "job": "Producer" },
+      { "media_type": "movie", "id": 35, "title": "Directed", "poster_path": "/po35.jpg", "vote_count": 500, "job": "Director" }
+    ]
+  }
+}

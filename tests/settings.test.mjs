@@ -96,7 +96,7 @@ test('the v1 stand-in reads the region from Settings: Sweden until one is chosen
   assert.ok(data.pickServices().some((x) => x.id === 'hulu'));
   assert.ok(!data.pickServices().some((x) => x.id === 'svtplay'));
   assert.ok(data.settings.get().services.every((id) => data.pickServices().some((x) => x.id === id)), 'its own first ticks');
-  assert.equal(data.CURRENCY, 'kr', 'the sample prices stay in kronor');
+  assert.equal(data.currency(), '$', 'the United States shows dollars');
   ls.prefs.set({ region: 'se' });
   assert.ok(data.pickServices().some((x) => x.id === 'svtplay'));
 });

@@ -55,6 +55,6 @@ test('with no link, or a link the app can’t take, the app opens on its home', 
   assert.equal(openPlan('netflix', { payload: 'm=1' }).how, 'app');
 });
 
-test('the mock catalogue has no title links yet', () => {
+test('no title has a service link yet (TMDB has none)', () => {
   assert.equal(linkFor({ id: 'arrival' }, 'prime'), undefined);
 });

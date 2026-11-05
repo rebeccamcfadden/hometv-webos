@@ -5,6 +5,13 @@ import { libraryScreen } from './screens/library';
 // Fills routes.person, so Cast & crew and Search's People results open the person page.
 import './screens/person';
 import { searchScreen } from './screens/search';
+import { routes } from './screens/routes';
+import { showAccount } from './screens/account';
+import { accounts } from './account/tv';
+
+// The TMDB account: its button on the API keys page, and its lists' changes recorded from the start.
+routes.account = showAccount;
+accounts();
 
 export const v1Tabs: Partial<Record<TabId, () => Screen>> = {
   movies: () => libraryScreen('movie'),

@@ -2,8 +2,9 @@
 import { SERVICES } from '@hometv/core/services.ts';
 import type { Quality, Title } from '@hometv/core/types.ts';
 import { cheapest, cheapestStore, kr, offersByService, type ServiceOffers } from '../data/offers';
+import { markFirst } from '../data/settings';
 
-/** "4K costs 10–30 kr more here", from the store's HD and 4K prices; null when it has no 4K or no difference. */
+/** "4K costs 10–30 kr more here" ("$1.00–$3.00" in the US), from the store's HD and 4K prices; null when it has no 4K or no difference. */
 export function fourKNote(s: ServiceOffers): string | null {
   const diffs: number[] = [];
   for (const o of [s.rent, s.buy]) {
@@ -12,9 +13,11 @@ export function fourKNote(s: ServiceOffers): string | null {
     if (hd !== undefined && uhd !== undefined && uhd > hd) diffs.push(uhd - hd);
   }
   if (!diffs.length) return null;
-  const lo = Math.min.apply(null, diffs);
-  const hi = Math.max.apply(null, diffs);
-  return `4K costs ${lo === hi ? lo : `${lo}–${hi}`} kr more here`;
+  const cents = (n: number) => Math.round(n * 100) / 100;
+  const lo = cents(Math.min.apply(null, diffs));
+  const hi = cents(Math.max.apply(null, diffs));
+  const range = lo === hi ? kr(lo) : markFirst() ? `${kr(lo)}–${kr(hi)}` : `${lo}–${kr(hi)}`;
+  return `4K costs ${range} more here`;
 }
 
 /**

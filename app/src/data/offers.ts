@@ -3,14 +3,17 @@
 // Samsung stand-in with one region (decided 2026-11-04), so pickServices() is that region's list only. The
 // card functions (cardLine, cardOffer, availability) are what Movies and TV Shows' cards use too.
 import type { Offer, OfferType, Quality, ServiceId, Title } from '@hometv/core/types.ts';
-import { featureOn, settings, pickServices, pickStores } from './settings';
+import { currency, featureOn, markFirst, settings, pickServices, pickStores } from './settings';
 import { DEFAULT_PRICE_SOURCE, HOME_APPS, PRICE_SOURCE, SERVICES } from '@hometv/core/services.ts';
 
-// Offer rules. Prices are Swedish kronor, as the launcher's real catalogue has them (V2 Phase 2): a rent or buy
-// offer keeps a price per picture quality, and a store no price source priced has none at all.
+// Offer rules. A rent or buy offer keeps a price per picture quality, in the region's own money (kronor in Sweden,
+// dollars in the US), and a store no price source priced has none at all.
 
-/** "39 kr". */
-export const kr = (n: number) => `${n} kr`;
+/** "39 kr", "49.50 kr", or in the US "$3.99": whole amounts drop their decimals, except in dollars. */
+export const kr = (n: number) => {
+  if (markFirst()) return `${currency()}${n.toFixed(2)}`;
+  return `${Number.isInteger(n) ? n : n.toFixed(2)} ${currency()}`;
+};
 
 const QUALITIES: Quality[] = ['SD', 'HD', '4K'];
 
@@ -246,8 +249,10 @@ export const qualitiesOf = (s: ServiceOffers): Quality[] =>
 
 /** The caption under Where to watch: "Availability: JustWatch · Prices: Apple", naming the sources that priced it. */
 export function attribution(t: Title): string {
-  const sources = new Set<string>();
-  for (const o of offersOf(t)) if (cheapest(o) !== undefined) sources.add(PRICE_SOURCE[o.service] ?? DEFAULT_PRICE_SOURCE);
+  // A live title says which sources its shown prices came from (live/prices/merge.ts); the sample catalogue's are by store.
+  const live = (t as { priceSources?: string[] }).priceSources;
+  const sources = new Set<string>(live || []);
+  if (!live) for (const o of offersOf(t)) if (cheapest(o) !== undefined) sources.add(PRICE_SOURCE[o.service] ?? DEFAULT_PRICE_SOURCE);
   return `Availability: JustWatch${sources.size ? ` · Prices: ${[...sources].join(' / ')}` : ''}`;
 }
 

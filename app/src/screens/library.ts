@@ -1,66 +1,105 @@
-// Movies and TV Shows (V1: the household's imported watchlists), ported from design_preview's screens/library.ts. The
-// list chips (All lists, My list, each imported list), Sort (A–Z, recently added, newest, oldest, highest rated),
-// Filters (availability, score, genre, length, watch state) and the poster grid, eight across. OK on a card opens the
-// title page.
+// Movies and TV Shows (V1), ported from design_preview's screens/library.ts and reading the live catalogue
+// (live/live.ts): the list chips (My list, then TMDB's Trending, Popular, Top rated and Now playing or On the air), Sort
+// (TMDB's order, A–Z, recently added, newest, oldest, highest rated), Filters (score, genre, watch state) and the poster
+// grid, eight across. OK on a card opens the title page.
 //
-// For a weak TV: the grid is drawn only when what it shows changes (a list, a filter, the sort), never on a focus move;
-// D-pad moves inside it go by index (shell/grid.ts); posters load only near the screen (ui/widgets.ts posterArt).
+// For a weak TV: the grid is drawn only when what it shows changes (a list, a filter, the sort, an answer arriving),
+// never on a focus move; D-pad moves inside it go by index (shell/grid.ts); posters load only near the screen
+// (ui/widgets.ts posterArt). Home never waits on this page: it reads what has arrived, and the cache behind it shows the
+// last catalogue at once, offline too. Without a TMDB key the page says so and points to the key page; there is no
+// sample catalogue.
 //
-// Not here yet, and why: the loading and "offline, nothing saved" states and "needs a TMDB account" wait for the TMDB
-// client and the account (the catalogue is bundled mock data, always there); the card styles of design_preview's dev
-// bar are left out (F46's poster card was chosen); Pick for me (screens/pick.ts) isn't in this port.
+// The Availability and Length filters read each title's details (a list entry has neither), loaded a few at a time
+// while one is on (live.prefetch); until a title's details arrive it doesn't pass. TMDB account lists wait for the
+// sign-in (M3); the card styles of design_preview's dev bar are left out
+// (F46's poster card was chosen); Pick for me (screens/pick.ts) isn't in this port.
 
 import './library.css';
-import { bridge } from '../bridge';
 import type { Kind, Title } from '@hometv/core/types.ts';
-import { TITLES } from '../data/catalog';
-import { lists } from '../data/lists';
-import { isOwnIncluded, offersOf, subscribedCount } from '../data/offers';
+import { FAVORITES_LIST, FIRST_LIST, HOUSEHOLD_LISTS, lists, SEEN_LIST } from '../data/lists';
+import { isOwnIncluded, offersOf } from '../data/offers';
 import { store } from '../data/store';
+import { live } from '../live/live';
+import { parseId } from '../live/tmdb';
 import { shell, type Key, type Screen } from '../shell/app';
 import { h, replace } from '../shell/dom';
 import { columnsOf, gridMove } from '../shell/grid';
 import { icon } from '../ui/icons';
 import { button, chip, guide, miniCard, navBar } from '../ui/widgets';
+import { bridge } from '../bridge';
 import { dropdown } from './dropdown';
 import { activeCount, applyFilters, defaultFilters, filterDefs, summary } from './filterDefs';
 import { filtersDrawer } from './filters';
-import { recentRanks, SORTS, sortTitles, type SortId } from './librarySort';
+import { defaultSort, recentRanks, SORTS, sortsFor, sortTitles, type SortId } from './librarySort';
+import { showKeys } from './keys';
 import { titlePage } from './title';
+import type { Phase } from '../live/source';
+import { accounts } from '../account/tv';
 
-/** 'all', or a list id from data/lists.ts. */
+/** 'my', or a TMDB list id from data/lists.ts. */
 type ListChoice = string;
 
-const inList = (t: Title, l: ListChoice) => {
-  if (l === 'all') return lists.saved(t);
-  const shown = lists.byId(l);
-  return !!shown && shown.has(t);
-};
-const listName = (l: ListChoice) => {
-  const shown = l === 'all' ? undefined : lists.byId(l);
-  return shown ? shown.name : 'All lists';
-};
+/** The titles on one of the household's lists (data/store.ts). */
+const householdIds = (l: ListChoice) => (l === FAVORITES_LIST ? store.favoriteIds() : l === SEEN_LIST ? store.seenIds() : store.myListIds());
+const emptyHint = (l: ListChoice) =>
+  l === FAVORITES_LIST ? 'Add titles with Favorite on a title page.' : l === SEEN_LIST ? 'Mark titles seen on a title page.' : 'Add titles with + My list on a title page.';
 
-/** F2: an hour away, the page starts again with no filters, All lists and A–Z. */
+/** F2: an hour away, the page starts again with no filters, the first list and its order. */
 const AWAY_MS = 60 * 60 * 1000;
+
+/** Filters that need a title's details (where to watch, runtime), which a list entry doesn't carry. */
+const NEEDS_DETAILS = ['availability', 'runtime'];
 
 const isOffline = () => !bridge.platform.online();
 const isDir = (k: Key): k is 'up' | 'down' | 'left' | 'right' => k === 'up' || k === 'down' || k === 'left' || k === 'right';
 
+interface Pool {
+  phase: Phase;
+  titles: Title[];
+  stale: boolean;
+}
+
 export function libraryScreen(kind: Kind): Screen {
   const noun = kind === 'movie' ? 'movies' : 'shows';
   const heading = kind === 'movie' ? 'Movies' : 'TV Shows';
-  // The availability filter counts the household's own offers, as design_preview's does (data/offers.ts).
-  const defs = filterDefs(kind, { isSeen: store.isSeen, included: isOwnIncluded, rentable: (t) => offersOf(t).some((o) => o.type === 'rent') });
+  const defs = filterDefs(kind, {
+    isSeen: store.isSeen,
+    included: isOwnIncluded,
+    rentable: (t) => offersOf(t).some((o) => o.type === 'rent'),
+  });
   // F2: the page starts with no filters each time HomeTV starts.
   const filters = defaultFilters();
-  let list: ListChoice = 'all';
-  // F4: the Sort button's order; A–Z by default.
-  let sort: SortId = 'az';
+  let list: ListChoice = FIRST_LIST;
+  // F4: the Sort button's order; TMDB's own on its lists, recently added on My list.
+  let sort: SortId = defaultSort(false);
   /** When the page was left, or null while it shows. */
   let leftAt: number | null = null;
 
-  const pool = () => TITLES.filter((t) => t.kind === kind && lists.saved(t));
+  const listName = (l: ListChoice) => {
+    const shown = lists.byId(kind, l);
+    return shown ? shown.name : 'Trending';
+  };
+
+  /** The titles on the chosen list so far, and where the answer stands. */
+  const pool = (): Pool => {
+    if (HOUSEHOLD_LISTS.indexOf(list) >= 0) {
+      const ids = householdIds(list).filter((id) => {
+        const p = parseId(id);
+        return !!p && p.kind === kind;
+      });
+      const titles: Title[] = [];
+      let phase: Phase = 'ready';
+      for (const id of ids) {
+        const t = live.title(id);
+        if (t) titles.push(t);
+        else if (phase === 'ready') phase = live.need(id).phase;
+        else live.need(id);
+      }
+      return { phase: titles.length ? 'ready' : phase, titles, stale: false };
+    }
+    const v = live.list(kind, list);
+    return { phase: v.phase, titles: v.value, stale: v.stale };
+  };
 
   const chipsEl = h('div.chips', { 'data-scroll': 'x', 'data-scroll-pad': 48 });
   const scopeEl = h('span.lib-scope-slot');
@@ -72,7 +111,7 @@ export function libraryScreen(kind: Kind): Screen {
   const listStatus = h('div.lib-list-status');
   const grid = h('div.lib-grid');
 
-  /** Pick for me shows: there is something on the lists to pick from. */
+  /** Pick for me shows: there is something on the list to pick from. */
   let pickable = false;
   /** True while onShow renders: the shell focuses the page next. */
   let showing = false;
@@ -99,24 +138,29 @@ export function libraryScreen(kind: Kind): Screen {
     replace(grid, build());
   };
 
+  const notice = (title: string, note: string, action?: HTMLElement) => h('div.empty', h('div.empty-title', title), h('div.empty-note', note), action || '');
+
   const render = () => {
-    const all = pool();
+    const mine = HOUSEHOLD_LISTS.indexOf(list) >= 0;
+    const view = pool();
+    // Before the key has been read, "no key" is only "not yet".
+    const phase: Phase = view.phase === 'nokey' && live.hasKey() ? 'loading' : view.phase;
+    const all = view.titles;
     pickable = all.length > 0;
     pickBtn.style.display = pickable ? '' : 'none';
-    // A list gone since falls back to All lists.
-    if (list !== 'all' && !lists.byId(list)) list = 'all';
-    const choices: ListChoice[] = ['all'].concat(lists.all().map((l) => l.id));
+    // The order a list doesn't offer falls back to the list's own.
+    if (!sortsFor(mine).some((s) => s.id === sort)) sort = defaultSort(mine);
     replace(
       chipsEl,
-      h('span.chips-label', 'Imported watchlists'),
-      choices.map((c) =>
-        chip(`${listName(c)} · ${all.filter((t) => inList(t, c)).length}`, {
-          selected: c === list,
+      h('span.chips-label', 'Lists'),
+      lists.all(kind).map((c) =>
+        chip(c.name, {
+          selected: c.id === list,
           group: 'lists',
-          key: `list-${c}`,
-          isDefault: c === list,
+          key: `list-${c.id}`,
+          isDefault: c.id === list,
           onOk: () => {
-            list = c;
+            list = c.id;
             render();
             shell.refocus();
           },
@@ -136,7 +180,7 @@ export function libraryScreen(kind: Kind): Screen {
           dropdown(
             'Sort',
             sortBtn,
-            SORTS.map((s) => ({
+            sortsFor(mine).map((s) => ({
               label: s.label,
               checked: s.id === sort,
               onOk: () => {
@@ -159,42 +203,52 @@ export function libraryScreen(kind: Kind): Screen {
       }),
     );
 
-    const inChosen = all.filter((t) => inList(t, list));
-    const recent =
-      sort === 'recent'
-        ? recentRanks((list === 'all' ? ['my'].concat(lists.imported().map((l) => l.id)) : [list]).map((id) => lists.order(id, all)))
-        : undefined;
-    const shown = sortTitles(applyFilters(defs, filters, inChosen), sort, recent);
+    const recent = sort === 'recent' ? recentRanks([householdIds(list)]) : undefined;
+    // Availability and Length read details, which a list entry hasn't: while one is on, the list's titles load a few at
+    // a time and are judged as they arrive (the ones still loading don't pass).
+    const needing = defs.some((d) => NEEDS_DETAILS.indexOf(d.id) >= 0 && (filters[d.id] || 0) !== 0);
+    const judged = needing ? all.map((t) => live.title(t.id) || t) : all;
+    if (needing) live.prefetch(all.map((t) => t.id));
+    const waiting = needing ? live.prefetching(all.map((t) => t.id)) : 0;
+    const shown = sortTitles(applyFilters(defs, filters, judged), sort, recent);
     replace(listTitle, listName(list));
-    const count = shown.length === inChosen.length ? `${shown.length} ${noun}` : `${shown.length} of ${inChosen.length} ${noun}`;
+    const count = shown.length === all.length ? `${shown.length} ${noun}` : `${shown.length} of ${all.length} ${noun}`;
     const offline = isOffline();
-    replace(
-      listStatus,
-      offline ? `${count} · prices may be out of date` : shown.length === inChosen.length ? `${count} · Across your services` : `${count} · Filtered`,
-    );
-    const watchlists = lists.watchlists();
-    const services = subscribedCount();
+    const old = view.stale || (offline && all.length > 0);
+    replace(listStatus, phase !== 'ready' ? '' : waiting ? `Checking ${waiting} titles… · ${count}` : old ? `${count} · as last loaded` : shown.length === all.length ? `${count} · From TMDB` : `${count} · Filtered`);
     replace(
       scopeEl,
       offline
-        ? h('span.offline-pill', h('span', { html: icon('wifiOff', 24) }), 'Offline · showing your lists as saved')
-        : h('span.lib-scope-text', `${watchlists} imported watchlist${watchlists === 1 ? '' : 's'} · All ${services} services`),
+        ? h('span.offline-pill', h('span', { html: icon('wifiOff', 24) }), all.length ? 'Offline · showing the last catalogue' : 'Offline')
+        : h('span.lib-scope-text', live.hasKey() ? 'Movies and shows from TMDB' : 'Add a TMDB key to see movies and shows'),
     );
-    replace(contextEl, `Your collection · ${lists.names()}`);
+    replace(contextEl, mine ? `Your collection · ${listName(list)}` : 'Browse TMDB');
 
-    if (!inChosen.length) {
-      drawGrid(`empty:${list}`, () => [
-        h(
-          'div.empty',
-          h('div.empty-title', `Nothing on ${list === 'all' ? 'your lists' : listName(list)} yet`),
-          h('div.empty-note', 'Add titles with + My list on a title page.'),
+    if (phase === 'nokey') {
+      drawGrid('nokey', () => [
+        notice(
+          'Add a TMDB key',
+          `${heading} come from TMDB. Add your free TMDB key on the key page, and they appear here.`,
+          button('Add TMDB key', { small: true, key: 'add-key', primary: true, onOk: () => showKeys() }),
         ),
       ]);
+    } else if (phase === 'loading' && !all.length) {
+      drawGrid(`loading:${list}`, () => [notice(`Loading ${noun}…`, mine ? 'Looking up your list.' : 'Asking TMDB.')]);
+    } else if (phase === 'offline' && !all.length) {
+      drawGrid(`offline:${list}`, () => [notice('Offline, and nothing saved yet', `${heading} show here once the TV is online.`)]);
+    } else if (phase === 'error' && !all.length) {
+      drawGrid(`error:${list}`, () => [
+        notice('TMDB can’t be reached', 'Check the TV’s network.', button('Try again', { small: true, key: 'retry', onOk: () => live.retry() })),
+      ]);
+    } else if (!all.length) {
+      drawGrid(`empty:${list}`, () => [
+        notice(mine ? `Nothing on ${listName(list)} yet` : `No ${noun} on ${listName(list)}`, mine ? emptyHint(list) : 'Try another list.'),
+      ]);
     } else if (!shown.length) {
-      drawGrid(`hidden:${list}:${inChosen.length}:${summary(defs, filters)}`, () => [
+      drawGrid(`hidden:${list}:${all.length}:${summary(defs, filters)}`, () => [
         h(
           'div.empty',
-          h('div.empty-title', `Your filters hide all ${inChosen.length} ${noun}`),
+          h('div.empty-title', `Your filters hide all ${all.length} ${noun}`),
           h('div.empty-note', summary(defs, filters)),
           button('Clear filters', {
             small: true,
@@ -231,7 +285,7 @@ export function libraryScreen(kind: Kind): Screen {
     navBar(kind === 'movie' ? 'movies' : 'tv'),
     page,
     h('div.bottom-fade'),
-    guide('Illustrative services, scores & availability', 'OK for title details'),
+    guide('Movie and TV data from TMDB; scores are TMDB’s', 'OK for title details'),
   );
 
   render();
@@ -240,8 +294,10 @@ export function libraryScreen(kind: Kind): Screen {
     render();
     shell.refocus();
   };
-  // A title page changes My list or Seen while this page shows under it (onShow redraws on the way back).
+  // A title page changes My list or Seen while this page shows under it (onShow redraws on the way back); the
+  // catalogue answering, or the key changing, draws again too.
   store.on(redraw);
+  live.on(redraw);
   window.addEventListener('online', redraw);
   window.addEventListener('offline', redraw);
 
@@ -254,11 +310,13 @@ export function libraryScreen(kind: Kind): Screen {
       // Nothing in the grid: Pick for me when there is something to pick, else the selected list chip.
       (pickable ? pickBtn : (chipsEl.querySelector('.chip.is-selected') as HTMLElement | null)),
     onShow: () => {
+      // The key page may have just closed: read the key again.
+      live.checkKey();
       // F2: back on the page after more than an hour away, what was set on it starts again, from the top.
       if (leftAt !== null && Date.now() - leftAt > AWAY_MS) {
         for (const d of defs) filters[d.id] = 0;
-        list = 'all';
-        sort = 'az';
+        list = FIRST_LIST;
+        sort = defaultSort(false);
         screen.memory = {};
         screen.lastFocus = null;
         screen.lastFocusKey = undefined;
@@ -266,6 +324,8 @@ export function libraryScreen(kind: Kind): Screen {
       }
       leftAt = null;
       showing = true;
+      // Signed in to TMDB: My list, Favorites and Seen sync while a list page shows (account/account.ts).
+      accounts().shown();
       try {
         render();
       } finally {
@@ -277,7 +337,7 @@ export function libraryScreen(kind: Kind): Screen {
     },
     // Back on the first chip, the row returns to its start so its label shows again.
     onFocus(f) {
-      if (f.getAttribute('data-key') === 'list-all') chipsEl.scrollLeft = 0;
+      if (f.getAttribute('data-key') === `list-${FIRST_LIST}`) chipsEl.scrollLeft = 0;
     },
     onKey(key, f) {
       if (!f || !isDir(key)) return false;

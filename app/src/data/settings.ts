@@ -27,8 +27,11 @@ interface Household {
   features: Record<FeatureId, boolean>;
 }
 
-/** The card pill's currency: kronor, as the sample catalogue's prices are (design_preview: kr in Sweden, $ in the US). */
-export const CURRENCY = 'kr';
+/** The card pill's currency mark: kronor in Sweden, dollars in the US (prices are in the region's own money). */
+export const currency = (): string => (region() === 'us' ? '$' : 'kr');
+
+/** Whether the region's price is written with the mark before it. */
+export const markFirst = (): boolean => region() === 'us';
 
 /** design_preview's first ticks: the services whose app is on the TV, and every store, so prices show from the start. */
 const defaults = (): Household => ({

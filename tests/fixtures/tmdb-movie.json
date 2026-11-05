@@ -1,0 +1,57 @@
+{
+  "id": 603,
+  "title": "The Fixture",
+  "original_title": "The Fixture",
+  "release_date": "1999-03-30",
+  "runtime": 136,
+  "overview": "A hand-written movie.",
+  "vote_average": 8.2649,
+  "backdrop_path": "/bd603.jpg",
+  "poster_path": "/po603.jpg",
+  "genres": [{ "id": 28, "name": "Action" }, { "id": 878, "name": "Science Fiction" }, { "id": 99999, "name": "Unknown" }],
+  "credits": {
+    "cast": [
+      { "id": 6384, "name": "Actor One", "character": "Hero", "profile_path": "/a1.jpg" },
+      { "id": 2975, "name": "Actor Two", "character": "", "profile_path": null }
+    ],
+    "crew": [
+      { "id": 9340, "name": "Director One", "job": "Director" },
+      { "id": 9341, "name": "Writer One", "job": "Screenplay" },
+      { "id": 9341, "name": "Writer One", "job": "Writer" },
+      { "id": 9342, "name": "Caterer", "job": "Catering" }
+    ]
+  },
+  "release_dates": {
+    "results": [
+      { "iso_3166_1": "GB", "release_dates": [{ "type": 3, "certification": "15" }] },
+      { "iso_3166_1": "US", "release_dates": [{ "type": 1, "certification": "PG" }, { "type": 3, "certification": "R" }] }
+    ]
+  },
+  "videos": {
+    "results": [
+      { "site": "Vimeo", "type": "Trailer", "key": "vimeo1234" },
+      { "site": "YouTube", "type": "Teaser", "key": "teaser12345" },
+      { "site": "YouTube", "type": "Trailer", "key": "plain12345", "official": false },
+      { "site": "YouTube", "type": "Trailer", "key": "official123", "official": true }
+    ]
+  },
+  "recommendations": {
+    "results": [
+      { "id": 604, "title": "Sequel", "release_date": "2003-05-15", "poster_path": "/po604.jpg", "genre_ids": [28], "vote_average": 7 },
+      { "id": 605, "title": "Adult", "adult": true, "poster_path": "/po605.jpg" }
+    ]
+  },
+  "similar": { "results": [{ "id": 700, "title": "Not used", "poster_path": "/po700.jpg" }] },
+  "watch/providers": {
+    "results": {
+      "SE": {
+        "link": "https://example.invalid/se",
+        "flatrate": [{ "provider_id": 8, "display_priority": 2 }, { "provider_id": 337, "display_priority": 1 }, { "provider_id": 99999, "display_priority": 0 }],
+        "ads": [{ "provider_id": 192, "display_priority": 1 }],
+        "rent": [{ "provider_id": 76, "display_priority": 1 }, { "provider_id": 2, "display_priority": 2 }],
+        "buy": [{ "provider_id": 2, "display_priority": 1 }]
+      },
+      "US": { "flatrate": [{ "provider_id": 1899, "display_priority": 1 }] }
+    }
+  }
+}

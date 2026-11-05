@@ -1,0 +1,23 @@
+/* The TMDB account screen (screens/account.ts): the API keys page's layout, with a heading and lines beside the QR. */
+.account .keycols {
+  margin-top: 40px;
+}
+.acct-head {
+  font-size: 44px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+.acct-lines {
+  max-width: 1100px;
+}
+.acct-line {
+  font-size: 26px;
+  color: #aab6cf;
+  margin: 0 0 14px;
+}
+.account .lowerrow {
+  margin-top: 36px;
+}
+.account .lowerrow .button + .button {
+  margin-left: 24px;
+}

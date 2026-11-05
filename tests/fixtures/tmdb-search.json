@@ -1,0 +1,13 @@
+{
+  "results": [
+    { "media_type": "movie", "id": 11, "title": "Star Fixture", "release_date": "1977-05-25", "poster_path": "/po11.jpg", "genre_ids": [12, 878], "vote_average": 8.2 },
+    { "media_type": "tv", "id": 12, "name": "Star Series", "first_air_date": "2010-01-01", "backdrop_path": "/bd12.jpg", "genre_ids": [10759], "vote_average": 7.1 },
+    { "media_type": "movie", "id": 13, "title": "No Artwork" },
+    { "media_type": "movie", "id": 14, "title": "Adult One", "adult": true, "poster_path": "/po14.jpg" },
+    {
+      "media_type": "person", "id": 500, "name": "Star Person", "known_for_department": "Acting", "profile_path": "/p500.jpg",
+      "known_for": [{ "media_type": "movie", "id": 21, "title": "Known Film", "poster_path": "/po21.jpg" }]
+    },
+    { "media_type": "person", "id": 501, "name": "No Photo", "profile_path": null, "known_for": [] }
+  ]
+}

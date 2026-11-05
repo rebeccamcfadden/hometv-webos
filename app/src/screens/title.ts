@@ -2,13 +2,16 @@
 // a popup over the page that opened it, with the essentials and actions on top and tabs for the rest (Overview,
 // Episodes, Where to watch, Cast & crew, More like this). Watch and the services open the title in its app through
 // the bridge (screens/opening.ts); rent and buy go through the store's dialog (rent.ts).
-// Not ported: the loading skeletons and a tab's Retry, which come with data that loads (the TMDB client); the mock
-// catalogue is on the TV. The art is the poster: the mock catalogue has no landscape art on Samsung (data/posters.ts).
+// The page opens at once on the title as the list or search showed it, and asks TMDB for the rest (runtime or seasons,
+// rating, cast, where to watch, trailer, More like this); when that arrives the page draws again, on the same tab and
+// focus. A show's episodes load a season at a time. The art is the poster (data/posters.ts). Not ported: a tab's Retry.
 
 import { SERVICES } from '@hometv/core/services.ts';
 import { bridge } from '../bridge';
 import type { ServiceId, Title } from '@hometv/core/types.ts';
-import { TITLES } from '../data/catalog';
+import { live } from '../live/live';
+import type { LiveSeason, LivePerson, LiveTitle } from '../live/types';
+import { imageUrl, PROFILE_SIZE } from '../live/tmdb';
 import {
   attribution,
   bestOffer,
@@ -37,27 +40,35 @@ import { openPerson } from './routes';
 import { openPlan } from '../titleLinks';
 import './title.css';
 
-/** Up to eight titles that share genres with `t`, best first. */
+/** The titles TMDB suggests for `t` that are known so far, up to eight. */
 export function similar(t: Title): Title[] {
-  return TITLES.filter((o) => o.id !== t.id)
-    .map((o) => ({ o, s: o.genres.filter((g) => t.genres.indexOf(g) >= 0).length * 2 + (o.kind === t.kind ? 1 : 0) + o.score / 10 }))
-    .filter((x) => x.s >= 2)
-    .sort((a, b) => b.s - a.s)
-    .slice(0, 8)
-    .map((x) => x.o);
+  const out: Title[] = [];
+  for (const id of (t as LiveTitle).similar || []) {
+    const o = live.title(id);
+    if (o && o.id !== t.id && out.length < 8) out.push(o);
+  }
+  return out;
 }
 
 const isOffline = () => !bridge.platform.online();
 
-/** The title page. `moreLike` opens it on More like this, with focus on that tab. */
-export function titlePage(t: Title, opts: { moreLike?: boolean } = {}): Screen {
-  store.pushViewed(t.id);
+/** What the page keeps when it draws again for the details: the season and tab the person is on. */
+interface PageState {
+  season: number;
+  want: string;
+}
+
+const detailed = (t: Title) => !!(t as LiveTitle).detailed;
+
+/** The title page, on `t` as it is now. */
+function buildPage(t: Title, opts: { moreLike?: boolean }, state: PageState, togglePaints: (() => void)[]): { popup: HTMLElement; tick: () => boolean } {
   const isShow = t.kind === 'show';
   const tabs = isShow
     ? ['Overview', 'Episodes', 'Where to watch', 'Cast & crew', 'More like this']
     : ['Overview', 'Where to watch', 'Cast & crew', 'More like this'];
   let active = '';
-  let season = t.next ? t.next.season : 1;
+  let season = state.season;
+  const full = detailed(t);
   const offer = bestOffer(t);
   const svcName = offer ? SERVICES[offer.service].name : '';
   const next = t.next ? `S${t.next.season} E${t.next.episode}` : '';
@@ -88,7 +99,6 @@ export function titlePage(t: Title, opts: { moreLike?: boolean } = {}): Screen {
     },
   });
 
-  const togglePaints: (() => void)[] = [];
   const toggle = (
     key: string,
     icOff: IconName,
@@ -129,8 +139,9 @@ export function titlePage(t: Title, opts: { moreLike?: boolean } = {}): Screen {
       key: 'trailer',
       onOk: () => {
         if (isOffline()) return shell.toast('Offline: the trailer needs the internet');
-        // The mock catalogue has no trailer's video id (TMDB's videos): YouTube opens on its home.
-        openWith(openPlan('youtube'), `Opening YouTube for the ${t.name} trailer…`);
+        // TMDB's trailer is a YouTube video id; without one (or before the details arrive), YouTube opens on its home.
+        const video = (t as LiveTitle).trailer;
+        openWith(openPlan('youtube', video ? { payload: `v=${video}` } : undefined), `Opening YouTube for the ${t.name} trailer…`);
       },
     }),
   );
@@ -238,7 +249,14 @@ export function titlePage(t: Title, opts: { moreLike?: boolean } = {}): Screen {
     );
   };
 
+  /** A tab whose data hasn't arrived: loading, or why it won't. */
+  const waiting = (what: string) => {
+    const p = live.need(t.id).phase;
+    return h('div.pv-empty', p === 'nokey' ? 'Add a TMDB key on the key page to see this.' : p === 'offline' ? `Offline: ${what} isn’t saved for this title yet.` : p === 'error' ? `TMDB can’t be reached for ${what}.` : `Loading ${what}…`);
+  };
+
   const whereToWatch = () => {
+    if (!full) return waiting('where to watch');
     const list = offersByService(t);
     const best = cheapestStore(list);
     return h(
@@ -252,30 +270,45 @@ export function titlePage(t: Title, opts: { moreLike?: boolean } = {}): Screen {
 
   const cast = () => {
     const people = t.cast.concat(t.crew);
-    if (!people.length) return h('div.pv-empty', 'No cast information for this title yet.');
+    if (!people.length) return full ? h('div.pv-empty', 'No cast information for this title yet.') : waiting('the cast');
     return h(
       'div.pv-row',
       { 'data-scroll': 'x', 'data-scroll-pad': 0 },
-      people.map((c, i) => personCard(c.name, c.role, { group: 'cast', key: `cast-${i}`, isDefault: i === 0, onOk: () => openPerson(c.name) })),
+      people.map((c, i) =>
+        personCard(c.name, c.role, { group: 'cast', key: `cast-${i}`, isDefault: i === 0, onOk: () => openPerson(c.name, (c as LivePerson).id), photo: imageUrl((c as LivePerson).photo, PROFILE_SIZE) }),
+      ),
     );
   };
 
-  const more = () =>
-    h(
+  const more = () => {
+    const list = similar(t);
+    if (!list.length) return full ? h('div.pv-empty', 'Nothing similar to suggest yet.') : waiting('more like this');
+    return h(
       'div.pv-row',
       { 'data-scroll': 'x', 'data-scroll-pad': 0 },
-      similar(t).map((o, i) => miniCard(o, { group: 'similar', key: `sim-${o.id}`, isDefault: i === 0, onOk: () => shell.push(titlePage(o)) })),
+      list.map((o, i) => miniCard(o, { group: 'similar', key: `sim-${o.id}`, isDefault: i === 0, onOk: () => shell.push(titlePage(o)) })),
     );
+  };
 
   const episodesWrap = h('div.pv-episodes');
   const episodes = () => {
     const seasons = t.seasons || [];
+    if (!seasons.length) return h('div.pv-episodes', full ? h('div.pv-empty', 'No episodes listed for this show yet.') : waiting('the episodes'));
     const list = h('div.pv-row', { 'data-scroll': 'x', 'data-scroll-pad': 0 });
     const paintEpisodes = () => {
-      const s = seasons.filter((x) => x.n === season)[0];
+      const view = live.season(t.id, season);
+      const s: LiveSeason | undefined = view.value;
+      if (!s || !s.episodes.length) {
+        const p = view.phase;
+        replace(
+          list,
+          h('div.pv-empty', p === 'nokey' ? 'Add a TMDB key on the key page to see this.' : p === 'offline' ? 'Offline: this season isn’t saved yet.' : p === 'error' ? 'TMDB can’t be reached for this season.' : p === 'loading' ? 'Loading episodes…' : 'No episodes listed for this season.'),
+        );
+        return;
+      }
       replace(
         list,
-        (s ? s.episodes : []).map((e) => {
+        s.episodes.map((e) => {
           const watched = !!t.next && (season < t.next.season || (season === t.next.season && e.n < t.next.episode));
           const upNext = !!t.next && season === t.next.season && e.n === t.next.episode;
           return focusable(
@@ -283,7 +316,7 @@ export function titlePage(t: Title, opts: { moreLike?: boolean } = {}): Screen {
               `div.episode${upNext ? '.episode--next' : ''}`,
               h('div.episode-num', h('span', `E${e.n}`), upNext ? h('span.badge', 'Up next') : watched ? h('span.episode-seen', { html: icon('check', 20) }) : null),
               h('div.episode-name', e.name),
-              h('div.episode-meta', `${runtimeLabel(e.runtime)}${watched ? ' · Watched' : ''}`),
+              h('div.episode-meta', `${e.runtime ? runtimeLabel(e.runtime) : ''}${watched ? `${e.runtime ? ' · ' : ''}Watched` : ''}`),
             ),
             {
               group: 'episodes',
@@ -316,6 +349,7 @@ export function titlePage(t: Title, opts: { moreLike?: boolean } = {}): Screen {
             onFocus: () => {
               if (season === s.n) return;
               season = s.n;
+              state.season = s.n;
               const chips = episodesWrap.querySelectorAll('.pv-seasons .chip');
               for (let i = 0; i < chips.length; i++) chips[i].classList.toggle('is-selected', chips[i] === shell.focused);
               paintEpisodes();
@@ -348,22 +382,43 @@ export function titlePage(t: Title, opts: { moreLike?: boolean } = {}): Screen {
   function setTab(name: string) {
     if (name === active) return;
     active = name;
+    state.want = name;
     tabEls.forEach((el, i) => el.classList.toggle('is-active', tabs[i] === name));
     replace(content, renderers[name]());
     // F46: More like this holds C cards, taller than the other tabs: the title, buttons and tabs move up for it.
     content.classList.toggle('pv-content--cards', name === 'More like this');
   }
-  setTab(opts.moreLike ? 'More like this' : tabs[0]);
+  setTab(tabs.indexOf(state.want) >= 0 ? state.want : tabs[0]);
 
+  /** What the open tab shows that can still arrive: if it changed, the tab draws again. */
+  const signature = () => {
+    if (active === 'Episodes') {
+      const v = live.season(t.id, season);
+      return `${season}:${v.phase}:${v.value ? v.value.episodes.length : 0}`;
+    }
+    return active === 'More like this' ? similar(t).map((o) => o.id).join(',') : '';
+  };
+  let shownSignature = signature();
+  const tick = () => {
+    const now = signature();
+    if (now === shownSignature) return false;
+    shownSignature = now;
+    const name = active;
+    active = '';
+    setTab(name);
+    return true;
+  };
+
+  const facts: (HTMLElement | string)[] = [String(t.year)];
+  const addFact = (text: string) => text && facts.push(h('span.dot', '·'), h('span', text));
+  addFact(t.genres.join(', '));
+  addFact(isShow ? (t.seasons && t.seasons.length ? `${t.seasons.length} season${t.seasons.length === 1 ? '' : 's'}` : '') : t.runtime ? runtimeLabel(t.runtime) : '');
   const details = h(
     'div.pv-details',
     h('span', String(t.year)),
-    h('span.dot', '·'),
-    h('span', t.genres.join(', ')),
-    h('span.dot', '·'),
-    h('span', isShow ? `${(t.seasons || []).length} seasons` : runtimeLabel(t.runtime || 0)),
-    h('span.rating', t.rating),
-    h('span.score', h('span.star', { html: icon('star', 22, true) }), t.score.toFixed(1)),
+    facts.slice(1),
+    t.rating ? h('span.rating', t.rating) : null,
+    t.score ? h('span.score', h('span.star', { html: icon('star', 22, true) }), t.score.toFixed(1)) : null,
   );
 
   const backBtn = button('Back', { icon: 'back', small: true, key: 'back', onOk: () => shell.back() });
@@ -390,9 +445,50 @@ export function titlePage(t: Title, opts: { moreLike?: boolean } = {}): Screen {
       content,
     ),
   );
-  const el = h('div.screen.layer-popup', h('div.scrim'), popup);
+  return { popup, tick };
+}
+
+/** The title page. `moreLike` opens it on More like this, with focus on that tab. */
+export function titlePage(from: Title, opts: { moreLike?: boolean } = {}): Screen {
+  // The freshest copy there is: details that arrived since the card was drawn.
+  let t: Title = live.title(from.id) || from;
+  store.pushViewed(t.id);
+  if (!detailed(t)) live.need(t.id);
+  else live.wantPrices(t);
+  const state: PageState = { season: t.next ? t.next.season : 1, want: opts.moreLike ? 'More like this' : 'Overview' };
+  const togglePaints: (() => void)[] = [];
+  const el = h('div.screen.layer-popup');
+  let page: ReturnType<typeof buildPage>;
+  const draw = () => {
+    togglePaints.length = 0;
+    page = buildPage(t, opts, state, togglePaints);
+    replace(el, h('div.scrim'), page.popup);
+  };
+  draw();
   const first = opts.moreLike ? '[data-key="tab-More like this"]' : '[data-key="watch"]';
-  const screen: Screen = { label: t.name, el, layer: 'popup', defaultFocus: () => popup.querySelector(first) as HTMLElement | null };
+  const screen: Screen = { label: t.name, el, layer: 'popup', defaultFocus: () => el.querySelector(first) as HTMLElement | null };
+
+  /** Draws again keeping the focus on the same button, card or tab. */
+  const keepFocus = (draw: () => void) => {
+    const f = shell.focused;
+    const key = f && el.contains(f) ? f.getAttribute('data-key') : null;
+    draw();
+    if (key) {
+      const again = el.querySelector(`[data-key="${key.replace(/"/g, '\\"')}"]`) as HTMLElement | null;
+      if (again) shell.focus(again);
+    }
+  };
+  // The details, a season or the similar titles arrive after the page opens.
+  const stopLive = live.on(() => {
+    if (!shell.has(screen)) return;
+    const now = live.title(t.id);
+    if (now && now !== t && detailed(now)) {
+      // Details arriving, or prices laid over the offers: draw the page again.
+      if (!detailed(t)) live.wantPrices(now);
+      t = now;
+      keepFocus(draw);
+    } else keepFocus(() => void page.tick());
+  });
   // My list, Seen and Favorite changed elsewhere (another title page, later a phone): the buttons follow. Both
   // listeners go when the page leaves the stack, so a closed page can be freed.
   const stopStore = store.on(() => togglePaints.forEach((p) => p()));
@@ -401,6 +497,7 @@ export function titlePage(t: Title, opts: { moreLike?: boolean } = {}): Screen {
     if (shell.has(screen)) wasShown = true;
     else if (wasShown) {
       stopStore();
+      stopLive();
       stopStack();
     }
   });

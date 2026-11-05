@@ -3,7 +3,7 @@
 // comes in as `facts`, so tests run it in Node and the screen passes the household's store and the offers.
 
 import type { Kind, Title } from '@hometv/core/types.ts';
-import { GENRES } from '../data/catalog.ts';
+import { allGenres } from '../live/tmdb';
 
 export interface TitleFacts {
   isSeen(id: string): boolean;
@@ -23,8 +23,7 @@ export interface FilterDef {
   test(t: Title, option: number): boolean;
 }
 
-const MOVIE_ONLY_GENRES = ['Food', 'Musical', 'Western', 'Horror'];
-const genreOptions = (kind: Kind) => GENRES.filter((g) => MOVIE_ONLY_GENRES.indexOf(g) < 0 || kind === 'movie');
+const genreOptions = (kind: Kind) => allGenres(kind);
 
 export function filterDefs(kind: Kind, facts: TitleFacts): FilterDef[] {
   const genres = genreOptions(kind);
@@ -59,7 +58,8 @@ export function filterDefs(kind: Kind, facts: TitleFacts): FilterDef[] {
       options: ['Any length', 'Under 90 minutes', 'Under 2 hours', 'Under 2½ hours'],
       short: ['', 'Under 90 min', 'Under 2h', 'Under 2½h'],
       kinds: ['movie'],
-      test: (t, i) => i === 0 || (t.runtime || 0) < [0, 90, 120, 150][i],
+      // A title whose runtime isn't known yet (its details haven't arrived) doesn't pass.
+      test: (t, i) => i === 0 || (!!t.runtime && t.runtime < [0, 90, 120, 150][i]),
     },
     {
       id: 'watch',

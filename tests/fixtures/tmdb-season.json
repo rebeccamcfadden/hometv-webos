@@ -1,0 +1,8 @@
+{
+  "season_number": 1,
+  "episodes": [
+    { "episode_number": 1, "name": "Pilot", "runtime": 58 },
+    { "episode_number": 2, "name": "", "runtime": null },
+    { "episode_number": 3, "name": "Third" }
+  ]
+}

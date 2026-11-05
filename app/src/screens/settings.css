@@ -183,6 +183,9 @@
   line-height: 1.45;
   color: var(--text-3);
 }
+.pane-credits + .pane-credits {
+  margin-top: 6px;
+}
 .crumb {
   display: flex;
   align-items: center;

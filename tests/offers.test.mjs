@@ -7,12 +7,12 @@ import assert from 'node:assert/strict';
 import { loadTs } from './ts-module.mjs';
 
 // One bundle, so the offers read the same settings the test changes.
-const { o, s, c, rent } = await loadTs({ o: 'data/offers.ts', s: 'data/settings.ts', c: 'data/catalog.ts', rent: 'screens/rentRules.ts' });
+const { o, s, c, rent } = await loadTs({ o: 'data/offers.ts', s: 'data/settings.ts', c: '../../tests/fixtures/sample-catalog.ts', rent: 'screens/rentRules.ts' });
 const t = c.getTitle;
 test.afterEach(() => s.settings.reset());
 
 test('one region: Sweden’s services and stores, in kronor', () => {
-  assert.equal(s.CURRENCY, 'kr');
+  assert.equal(s.currency(), 'kr');
   const ids = s.pickServices().map((x) => x.id);
   assert.ok(ids.includes('svtplay') && !ids.includes('hulu'), 'Sweden’s list, not the US one');
   assert.deepEqual(

@@ -44,8 +44,8 @@ export function openPlan(service: ServiceId, link?: TitleLink): OpenPlan {
 }
 
 /**
- * Title links by title id and service. Empty: the mock catalogue has no service's own title ids. They come with the
- * catalogue from TMDB and the Java's DeepLinks in @hometv/core (docs/shared-package.md).
+ * Title links by title id and service. Empty: TMDB gives no service's own title ids. They come with prices in M2 and
+ * the Java's DeepLinks in @hometv/core (docs/shared-package.md).
  */
 const LINKS: Record<string, Partial<Record<ServiceId, TitleLink>>> = {};
 

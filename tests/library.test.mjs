@@ -1,12 +1,15 @@
-// Movies and TV Shows' logic, run as TypeScript by Node (type stripping): the Sort orders (librarySort.ts), the
-// filters (filterDefs.ts) and D-pad moves in the poster grid (shell/grid.ts). `npm test`.
+// Movies and TV Shows' logic, bundled by esbuild (tests/ts-module.mjs) and run by Node: the Sort orders
+// (librarySort.ts), the filters (filterDefs.ts) and D-pad moves in the poster grid (shell/grid.ts). `npm test`.
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { recentRanks, sortName, sortTitles, SORTS } from '../app/src/screens/librarySort.ts';
-import { activeCount, applyFilters, cycleFilter, defaultFilters, filterDefs, summary } from '../app/src/screens/filterDefs.ts';
-import { gridMove } from '../app/src/shell/grid.ts';
-import { TITLES } from '../app/src/data/catalog.ts';
+import { loadTs } from './ts-module.mjs';
+import { TITLES } from './fixtures/sample-catalog.ts';
+
+const { sort, filters, grid } = await loadTs({ sort: 'screens/librarySort.ts', filters: 'screens/filterDefs.ts', grid: 'shell/grid.ts' });
+const { defaultSort, recentRanks, sortName, sortsFor, sortTitles, SORTS } = sort;
+const { activeCount, applyFilters, cycleFilter, defaultFilters, filterDefs, summary } = filters;
+const { gridMove } = grid;
 
 const t = (id, name, year = 2000, score = 7) => ({ id, name, year, score, kind: 'movie', genres: [], offers: [], lists: [] });
 const ids = (list) => list.map((x) => x.id);
@@ -56,7 +59,10 @@ test('sorting leaves the input as it was', () => {
   const list = [t('b', 'B'), t('a', 'A')];
   sortTitles(list, 'az');
   assert.deepEqual(ids(list), ['b', 'a']);
-  assert.equal(SORTS[0].id, 'az');
+  assert.equal(SORTS[0].id, 'list', 'TMDB’s own order comes first');
+  assert.ok(!sortsFor(false).some((s) => s.id === 'recent') && !sortsFor(true).some((s) => s.id === 'list'));
+  assert.equal(defaultSort(false), 'list');
+  assert.equal(defaultSort(true), 'recent');
 });
 
 const facts = (seen = []) => ({

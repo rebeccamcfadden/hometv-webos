@@ -6,15 +6,21 @@
 
 import type { Title } from '@hometv/core/types.ts';
 
-export type SortId = 'az' | 'recent' | 'newest' | 'oldest' | 'rated';
+export type SortId = 'list' | 'az' | 'recent' | 'newest' | 'oldest' | 'rated';
 
 export const SORTS: { id: SortId; label: string; short: string }[] = [
+  { id: 'list', label: 'As ranked by TMDB', short: 'TMDB order' },
   { id: 'az', label: 'Alphabetical (A–Z)', short: 'A–Z' },
   { id: 'recent', label: 'Recently added to my lists', short: 'Recently added' },
   { id: 'newest', label: 'Newest release first', short: 'Newest' },
   { id: 'oldest', label: 'Oldest release first', short: 'Oldest' },
   { id: 'rated', label: 'Highest rated', short: 'Highest rated' },
 ];
+
+/** The orders a list offers: "Recently added" only on My list, TMDB's own order only on TMDB's lists. */
+export const sortsFor = (mine: boolean) => SORTS.filter((s) => (mine ? s.id !== 'list' : s.id !== 'recent'));
+/** The order a list opens in. */
+export const defaultSort = (mine: boolean): SortId => (mine ? 'recent' : 'list');
 
 /** Combining marks left by NFD (accents): the blocks Latin, Greek and Cyrillic titles use. */
 const MARKS = /[\u0300-\u036f\u1ab0-\u1aff\u1dc0-\u1dff\u20d0-\u20ff\ufe20-\ufe2f]+/g;
@@ -69,6 +75,8 @@ export function recentRanks(orders: string[][]): Map<string, number> {
 export function sortTitles(titles: Title[], sort: SortId, recent?: Map<string, number>): Title[] {
   const out = titles.slice();
   switch (sort) {
+    case 'list':
+      return out;
     case 'recent':
       return out.sort((a, b) => {
         const ra = recent ? recent.get(a.id) : undefined;

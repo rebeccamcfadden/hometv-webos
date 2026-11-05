@@ -15,6 +15,7 @@ import { qrCanvas } from '../ui/qrCanvas';
 import { KEY_INFO, keyStatus, keysValue, type KeyEntry, type KeyId } from '@hometv/core/keys.ts';
 import { topBar } from './home';
 import { bridge } from '../bridge';
+import { routes } from './routes';
 
 const keyPages = bridge.platform.keyPages;
 
@@ -148,12 +149,14 @@ export function showKeys() {
     list.appendChild(row);
   }
   const newCode = focusable(h('button.button', 'New code'), { key: 'newcode', onOk: () => fresh() });
+  // v1 only (v1.ts fills routes.account): signing in to a TMDB account, for My list, Favorites and Seen.
+  const account = routes.account ? focusable(h('button.button', 'TMDB account'), { key: 'tmdbaccount', onOk: () => routes.account && routes.account() }) : null;
   el.appendChild(lead);
   el.appendChild(
     h(
       'div.keycols',
       qrBox,
-      h('div.keyside', h('div.keylabel', 'On a laptop, open'), address, h('div.keylabel', 'and type the code'), codeEl, value, list, h('div.lowerrow', newCode, note)),
+      h('div.keyside', h('div.keylabel', 'On a laptop, open'), address, h('div.keylabel', 'and type the code'), codeEl, value, list, h('div.lowerrow', newCode, account, note)),
     ),
   );
   el.appendChild(h('p.hint', 'OK on a key checks it again. New code: a phone that has the old one can’t send keys any more. Back: Home.'));

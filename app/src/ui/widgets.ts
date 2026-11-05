@@ -6,7 +6,7 @@ import { V1 } from '../features';
 import { SERVICES } from '@hometv/core/services.ts';
 import { cardOffer } from '../data/offers';
 import { posterUrl } from '../data/posters';
-import { CURRENCY } from '../data/settings';
+import { currency } from '../data/settings';
 import { h } from '../shell/dom';
 import { focusable, type FocusOpts } from '../shell/focus';
 import { shell, type TabId } from '../shell/app';
@@ -154,7 +154,7 @@ export function posterArt(t: Title, box: HTMLElement): HTMLImageElement {
 export function servicePill(o: Offer | undefined): HTMLElement | null {
   if (!o) return null;
   const paid = o.type === 'rent' || o.type === 'buy';
-  const mark = paid ? h('span.pill-ico.pill-ico--paid', CURRENCY) : h('span.pill-ico.pill-ico--incl', { html: icon('check', 18) });
+  const mark = paid ? h('span.pill-ico.pill-ico--paid', currency()) : h('span.pill-ico.pill-ico--incl', { html: icon('check', 18) });
   return h('div.svc-pill', mark, h('span.pill-name', SERVICES[o.service].name));
 }
 
@@ -172,8 +172,15 @@ export function miniCard(t: Title, opts: FocusOpts & { name?: Node | string } = 
   return focusable(h('div.card.card--mini', { 'data-title': t.id }, art), opts);
 }
 
-export function personCard(name: string, role: string, opts: FocusOpts = {}): HTMLElement {
-  return focusable(h('div.person', h('div.person-portrait', initials(name)), h('div.person-name', name), h('div.person-role', role)), opts);
+export function personCard(name: string, role: string, opts: FocusOpts & { photo?: string | null } = {}): HTMLElement {
+  const portrait = h('div.person-portrait', initials(name));
+  if (opts.photo) {
+    // The face over the initials; if it won't load the initials stay.
+    const img = h('img', { src: opts.photo, alt: '' }) as HTMLImageElement;
+    img.onerror = () => img.remove();
+    portrait.appendChild(img);
+  }
+  return focusable(h('div.person', portrait, h('div.person-name', name), h('div.person-role', role)), opts);
 }
 
 /** A labelled row that scrolls sideways; `pad` keeps the focused card that far from its edges. */

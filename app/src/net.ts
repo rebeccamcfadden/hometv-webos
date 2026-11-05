@@ -2,7 +2,7 @@
 // to the answer's text, or null when offline, refused, too slow or too large; never rejects, so no caller waits on
 // the network or has to catch.
 
-export function getText(url: string, timeoutMs = 10000, maxChars = 256 * 1024): Promise<string | null> {
+export function getText(url: string, timeoutMs = 10000, maxChars = 256 * 1024, headers?: Record<string, string>): Promise<string | null> {
   return new Promise((resolve) => {
     let done = false;
     const end = (v: string | null) => {
@@ -15,6 +15,7 @@ export function getText(url: string, timeoutMs = 10000, maxChars = 256 * 1024): 
       xhr.open('GET', url);
       xhr.timeout = timeoutMs;
       xhr.setRequestHeader('Accept', 'application/json');
+      if (headers) for (const k of Object.keys(headers)) xhr.setRequestHeader(k, headers[k]);
       xhr.onload = () => end(xhr.status === 200 && xhr.responseText.length <= maxChars ? xhr.responseText : null);
       xhr.onerror = xhr.ontimeout = xhr.onabort = () => end(null);
       xhr.send();

@@ -1,8 +1,8 @@
 // TEMPORARY copy of hometv-launcher's design_preview/src/core/store.ts at 2bf3c2d: the household's own state that the
 // title page's buttons and Search change (My list, Seen, Favorites, recent searches, recently viewed), until it has a
 // home on Samsung (TMDB's lists once the account is shared). Changes: its own storage key; Set spread written out;
-// blocked or full storage keeps changes for this visit only; reset() doesn't reload the page.
-import { TITLES } from './catalog';
+// blocked or full storage keeps changes for this visit only; reset() doesn't reload the page; it starts empty, with no
+// sample titles, and keeps titles by their live ids (`movie:603`, `tv:1396`).
 
 interface Persisted {
   myList: string[];
@@ -17,11 +17,11 @@ const KEY = 'hometv-household-v1';
 const MAX_RECENT = 4;
 
 const defaults = (): Persisted => ({
-  myList: TITLES.filter((t) => t.lists.indexOf('my') >= 0).map((t) => t.id),
-  seen: ['knives-out', 'budapest'],
-  favorites: ['arrival'],
-  recent: ['dune', 'amy adams', 'sci-fi', 'carnival row'],
-  viewed: ['arrival', 'dune', 'past-lives', 'coda', 'moon', 'severance'],
+  myList: [],
+  seen: [],
+  favorites: [],
+  recent: [],
+  viewed: [],
 });
 
 function load(): Persisted {
@@ -52,23 +52,48 @@ function save() {
 }
 
 const listeners: (() => void)[] = [];
+/** The household's lists by their account names (account/sync.ts): what a change is recorded under. */
+export type ListName = 'myList' | 'seen' | 'favorites';
+const changeHooks: ((list: ListName, id: string, present: boolean) => void)[] = [];
 
-function toggle(set: Set<string>, id: string): boolean {
+function toggle(set: Set<string>, id: string, list: ListName): boolean {
   if (set.has(id)) set.delete(id);
   else set.add(id);
   save();
+  const present = set.has(id);
+  changeHooks.slice().forEach((fn) => fn(list, id, present));
   listeners.slice().forEach((fn) => fn());
-  return set.has(id);
+  return present;
 }
 
 export const store = {
   inMyList: (id: string) => myList.has(id),
   isSeen: (id: string) => seen.has(id),
   isFavorite: (id: string) => favorites.has(id),
-  toggleMyList: (id: string) => toggle(myList, id),
-  toggleSeen: (id: string) => toggle(seen, id),
-  toggleFavorite: (id: string) => toggle(favorites, id),
+  toggleMyList: (id: string) => toggle(myList, id, 'myList'),
+  toggleSeen: (id: string) => toggle(seen, id, 'seen'),
+  toggleFavorite: (id: string) => toggle(favorites, id, 'favorites'),
   myListIds: () => ids(myList),
+  seenIds: () => ids(seen),
+  favoriteIds: () => ids(favorites),
+  /** The three lists, for the account sync. */
+  lists: (): Record<ListName, string[]> => ({ myList: ids(myList), seen: ids(seen), favorites: ids(favorites) }),
+  /** The lists as merged with the account (account/account.ts); a list left out stays as it is. Not a change to record. */
+  applySynced(lists: Partial<Record<ListName, string[]>>) {
+    if (lists.myList) myList = new Set(lists.myList);
+    if (lists.seen) seen = new Set(lists.seen);
+    if (lists.favorites) favorites = new Set(lists.favorites);
+    save();
+    listeners.slice().forEach((fn) => fn());
+  },
+  /** Calls `fn` with each change made on the TV (a title put on a list or taken off); returns a function that stops it. */
+  onChange(fn: (list: ListName, id: string, present: boolean) => void): () => void {
+    changeHooks.push(fn);
+    return () => {
+      const i = changeHooks.indexOf(fn);
+      if (i >= 0) changeHooks.splice(i, 1);
+    };
+  },
   recent: () => data.recent,
   viewed: () => data.viewed,
   pushRecent(q: string) {
