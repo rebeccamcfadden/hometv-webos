@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { samplesInPage, sampleIn } from '../tools/package-webos.mjs';
+import { samplesInPage, sampleIn, serviceStage } from '../tools/package-webos.mjs';
 
 function page(files) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'hometv-page-'));
@@ -34,4 +34,19 @@ test('samplesInPage: clean page passes, a sample title in any file is named', ()
 
 test('the built v1 page, when present, holds no sample title', { skip: !fs.existsSync('dist/app/assets/app.js') }, () => {
   assert.deepEqual(samplesInPage('dist/app'), []);
+});
+
+test('the service in the package: v1 has the key page, v0 does not; neither has private keys', () => {
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'hometv-svc-stage-'));
+  try {
+    fs.mkdirSync('service/.private', { recursive: true });
+    fs.writeFileSync('service/.private/probe.json', '{}');
+    serviceStage(out, true);
+    assert.deepEqual(fs.readdirSync(out).sort(), ['keys-page.html', 'package.json', 'pages.js', 'service.js', 'services.json']);
+    serviceStage(out, false);
+    assert.deepEqual(fs.readdirSync(out).sort(), ['package.json', 'service.js', 'services.json']);
+  } finally {
+    fs.rmSync('service/.private', { recursive: true, force: true });
+    fs.rmSync(out, { recursive: true, force: true });
+  }
 });

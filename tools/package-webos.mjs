@@ -34,12 +34,17 @@ export function samplesInPage(dir) {
   return textFiles(dir).filter((f) => sampleIn(fs.readFileSync(f, 'utf8'))).map((f) => path.relative(dir, f));
 }
 
-/** The service folder as it goes in the .ipk: never its private keys, dev data or a test's files. */
-const serviceStage = (out) => {
+/**
+ * The service folder as it goes in the .ipk: never its private keys, dev data or a test's files. The offline v0 leaves
+ * out the key page too (pages.js checks keys against TMDB, Watchmode and Movie of the Night): service.js then only
+ * has `alive`, and says so to the key methods.
+ */
+export const serviceStage = (out, v1 = true) => {
   fs.rmSync(out, { recursive: true, force: true });
   fs.cpSync(path.join(root, 'service'), out, {
     recursive: true,
-    filter: (src) => !/[\\/](\.private|\.data|node_modules)([\\/]|$)/.test(src),
+    filter: (src) =>
+      !/[\\/](\.private|\.data|node_modules)([\\/]|$)/.test(src) && (v1 || !/[\\/](pages\.js|keys-page\.html)$/.test(src)),
   });
 };
 
@@ -88,7 +93,7 @@ function main() {
   fs.writeFileSync(path.join(out, 'icon.png'), png(80));
   fs.writeFileSync(path.join(out, 'largeIcon.png'), png(130));
   const svc = path.join(root, 'dist', 'stage', 'service');
-  serviceStage(svc);
+  serviceStage(svc, v1);
   console.log('staged ' + path.relative(root, out) + ' and ' + path.relative(root, svc) + (v1 ? ' (v1)' : ' (v0)'));
   if (args.includes('--stage-only')) return;
   const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
