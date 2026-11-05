@@ -5,3 +5,4 @@ dist/
 
 private/
 .data/
+.private/
