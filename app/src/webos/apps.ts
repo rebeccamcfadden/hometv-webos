@@ -48,18 +48,32 @@ export const guessId = (key: string): string | null => (LG_APP_IDS[key] || [])[0
 const NETFLIX_TITLE = /netflix\.com\/(?:[a-z-]+\/)?(?:title|watch)\/(\d+)/i;
 
 /**
- * The launch params for a title link (hometv-tizen's OpenPlan 'link': a web link and/or YouTube's `v=<id>` payload).
- * YouTube: contentId `v=<id>` (works, research.md). Netflix: its old catalogue form, built from the title's number
- * (works on some TVs). Others: LG's `contentTarget` with the web link (untested; most apps ignore it).
+ * Netflix's old title form is unproven (works for some TVs, not others: research.md section 1), so it is off. A TV call
+ * turns it on by setting localStorage `hometv.netflix-old-link` to "1" in the page; until the TV says it opens the
+ * title, Netflix opens on its home.
  */
-export function titleParams(key: string, url: string | null, payload: string): Record<string, string> | null {
+export function netflixOldLink(): boolean {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem('hometv.netflix-old-link') === '1';
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * The launch params for a title link (hometv-tizen's OpenPlan 'link': a web link and/or YouTube's `v=<id>` payload).
+ * YouTube: contentId `v=<id>` (works, research.md). Netflix: only behind `netflixOld` (netflixOldLink(), off by
+ * default): its old catalogue form, built from the title's number. Others: LG's `contentTarget` with the web link
+ * (untested; most apps ignore it, and the app then opens on its home).
+ */
+export function titleParams(key: string, url: string | null, payload: string, netflixOld: boolean = netflixOldLink()): Record<string, string> | null {
   if (key === 'youtube') {
     const v = /(?:^|[?&])v=([\w-]{6,})/.exec(payload) || (url ? /[?&]v=([\w-]{6,})/.exec(url) : null);
     return v ? { contentId: 'v=' + v[1] } : null;
   }
-  if (key === 'netflix' && url) {
-    const m = NETFLIX_TITLE.exec(url);
-    return m ? { contentId: `m=http://api.netflix.com/catalog/titles/movies/${m[1]}&source_type=4` } : { contentTarget: url };
+  if (key === 'netflix') {
+    const m = url ? NETFLIX_TITLE.exec(url) : null;
+    return netflixOld && m ? { contentId: `m=http://api.netflix.com/catalog/titles/movies/${m[1]}&source_type=4` } : null;
   }
   return url ? { contentTarget: url } : null;
 }

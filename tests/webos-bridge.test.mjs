@@ -87,12 +87,23 @@ test('a refused launch says why, in the toast too', async () => {
   bridge.setToast(() => {});
 });
 
-test('openTitle: YouTube gets its video as contentId; Netflix its old catalogue form', async () => {
+test('openTitle: YouTube gets its video as contentId; Netflix opens on its home unless the old-form flag is on', async () => {
   reset();
   let r = await bridge.openTitle({ how: 'link', app: { key: 'youtube', name: 'YouTube' }, url: null, payload: 'v=aqz-KE-bpKQ' });
   assert.deepEqual(r, { ok: true, id: 'youtube.leanback.v4', linked: true });
   assert.deepEqual(calls.at(-1).params, { id: 'youtube.leanback.v4', params: { contentId: 'v=aqz-KE-bpKQ' } });
-  r = await bridge.openTitle({ how: 'link', app: { key: 'netflix', name: 'Netflix' }, url: 'https://www.netflix.com/title/80057281', payload: 'm=80057281' });
+  const netflix = { how: 'link', app: { key: 'netflix', name: 'Netflix' }, url: 'https://www.netflix.com/title/80057281', payload: 'm=80057281' };
+  r = await bridge.openTitle(netflix);
+  assert.deepEqual(r, { ok: true, id: 'netflix', linked: false, error: undefined });
+  assert.deepEqual(calls.at(-1).params, { id: 'netflix' });
+  const saved = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { value: { getItem: (k) => (k === 'hometv.netflix-old-link' ? '1' : null) }, configurable: true, writable: true });
+  try {
+    r = await bridge.openTitle(netflix);
+  } finally {
+    if (saved) Object.defineProperty(globalThis, 'localStorage', saved);
+    else delete globalThis.localStorage;
+  }
   assert.equal(r.linked, true);
   assert.match(calls.at(-1).params.params.contentId, /movies\/80057281&source_type=4$/);
 });

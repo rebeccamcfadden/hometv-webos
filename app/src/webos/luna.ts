@@ -17,10 +17,13 @@ interface Bridge {
 
 type BridgeCtor = new () => Bridge;
 
+// A bare global, not globalThis: webOS 4's Chromium 53 has no globalThis (check-legacy).
+declare const PalmServiceBridge: unknown;
+
 const pending: Bridge[] = [];
 
 const ctor = (): BridgeCtor | undefined =>
-  (globalThis as unknown as { PalmServiceBridge?: BridgeCtor }).PalmServiceBridge;
+  typeof PalmServiceBridge !== 'undefined' ? (PalmServiceBridge as unknown as BridgeCtor) : undefined;
 
 export const onWebOS = (): boolean => typeof ctor() === 'function';
 
