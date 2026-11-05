@@ -73,8 +73,9 @@ export function homeTop(): HTMLElement {
   const ampm = h('span.ht-ampm');
   const wx = h('div.ht-wx');
   const right = h('div.topright', h('span.pill.' + bridge.mode(), MODE_TEXT[bridge.mode()]), h('div.ht-clock', h('div', time, ampm), wx));
-  const el = h('div.topbar.home-top', h('div.ht-hello', hello, date), right);
-  if (bridge.problem()) el.appendChild(h('div.problem', 'TV: ' + bridge.problem()));
+  // The TV's problem line sits under the date, in the flow, so the taller Home top bar never covers it.
+  const problem = bridge.problem() ? h('div.problem', 'TV: ' + bridge.problem()) : null;
+  const el = h('div.topbar.home-top', h('div.ht-hello', hello, date, problem), right);
 
   const painter: Painter = {
     el,

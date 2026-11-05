@@ -4,6 +4,7 @@
 
 import { h } from './dom';
 import { type Dir, ensureVisible, findNext, handlerOf, nearest } from './focus';
+import { V1 } from '../features';
 
 export type TabId = 'home' | 'movies' | 'tv' | 'search';
 
@@ -211,12 +212,13 @@ class Shell {
     this.toastEl.textContent = text;
     this.toastEl.classList.add('is-shown');
     this.toastEl.classList.toggle('is-bad', bad);
-    // The last message stays small at the top left, so a screenshot taken later still shows what happened.
-    if (!this.lastEl) {
+    // v1 (dev) builds keep the last message small at the top left, so a screenshot taken later still shows what
+    // happened. v0 leaves it out: it's a debug line, not for the family.
+    if (V1 && !this.lastEl) {
       this.lastEl = h('div.lastaction');
       this.stage.appendChild(this.lastEl);
     }
-    this.lastEl.textContent = 'Last: ' + text;
+    if (this.lastEl) this.lastEl.textContent = 'Last: ' + text;
     clearTimeout(this.toastTimer);
     this.toastTimer = window.setTimeout(() => this.toastEl.classList.remove('is-shown'), ms);
   }
