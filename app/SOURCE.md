@@ -1,7 +1,7 @@
 # Where `app/` comes from
 
 HomeTV's screens and shell are copied unchanged from
-[hometv-tizen](https://github.com/rebeccamcfadden/hometv-tizen) at commit **1aa9191** (the v1 merge: `app/`, its
+[hometv-tizen](https://github.com/rebeccamcfadden/hometv-tizen) at commit **1aa9191** (`screens/keys.ts` at 4adff68) (the v1 merge: `app/`, its
 `docs/platform.md` layer). v1's screens, the live data (`src/live`) and the TMDB account (`src/account`) are behind `HOMETV_V1=1`. Only the platform files differ. A fix to a screen goes to hometv-tizen first,
 then is copied here again with this file's commit updated.
 

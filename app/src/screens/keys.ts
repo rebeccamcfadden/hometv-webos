@@ -97,7 +97,7 @@ async function findService(): Promise<{ base: string } | { problem: string }> {
     if (attempt === 0) keyPages.start();
     await wait(800);
   }
-  if (taken) return { problem: 'Another service holds port 8766 (HomeTV’s TizenBrew module?), so the key page can’t open. Close it and try again.' };
+  if (taken) return { problem: 'Another app holds port 8766, so the key page can’t open. Close that app and try again.' };
   return {
     problem: keyPages.onTv()
       ? 'HomeTV’s key service didn’t start. Back, then open API keys again; if it still fails, restart the TV.'
