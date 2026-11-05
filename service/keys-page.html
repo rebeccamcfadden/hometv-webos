@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HomeTV · API keys</title>
+<!--
+  The page the QR on HomeTV's API keys screen opens on a phone, or a laptop opens at the TV's address. Served by
+  HomeTV's pages service (service/pages.js) on the TV; ported from the Android launcher's res/raw/keys_setup.html
+  (design_preview/keys.html's look and words). The code is in the address's #fragment, which a browser never sends,
+  or typed. Keys go to the TV only; the page keeps nothing and holds nothing secret.
+-->
+<style>
+  body { font: 17px -apple-system, system-ui, sans-serif; margin: 0 auto; max-width: 640px; padding: 24px 20px 48px; background: #0d1117; color: #e6e9ee; line-height: 1.45; }
+  h1 { font-size: 24px; margin: 0 0 6px; }
+  h2 { font-size: 20px; margin: 0; }
+  p { color: #adb5c0; margin: 6px 0 14px; }
+  .need { display: block; font-size: 15px; font-weight: 400; color: #adb5c0; margin-top: 2px; }
+  section.key { border: 1px solid #2c3440; border-radius: 14px; padding: 16px 16px 18px; margin: 18px 0; background: #11161d; }
+  .status { font-size: 15px; margin: 8px 0 0; }
+  .status.good { color: #8fd9a8; }
+  .status.warn { color: #f2c46d; }
+  .status.bad { color: #f19a8e; }
+  .status.dim { color: #7d8999; }
+  details { margin-top: 12px; }
+  summary { font-weight: 600; color: #cfd5dd; cursor: pointer; }
+  ol { padding-left: 22px; color: #cfd5dd; margin: 8px 0 0; }
+  li { margin: 8px 0; }
+  a { color: #c4ddf7; }
+  label { display: block; font-size: 14px; color: #adb5c0; margin: 16px 0 6px; }
+  textarea, input { box-sizing: border-box; width: 100%; font: 15px ui-monospace, Menlo, monospace; padding: 10px 12px; border-radius: 10px; border: 1px solid #2c3440; background: #161c24; color: #e6e9ee; }
+  textarea { resize: vertical; }
+  button { font: 600 16px -apple-system, system-ui, sans-serif; padding: 12px 16px; border-radius: 10px; border: 0; background: #c4ddf7; color: #101820; margin-top: 10px; cursor: pointer; }
+  button:disabled { opacity: .6; cursor: default; }
+  button.small { font-size: 13px; padding: 6px 10px; margin: 0 0 0 8px; background: #2c3440; color: #e6e9ee; }
+  .copyrow { display: flex; align-items: center; justify-content: space-between; margin: 4px 0; }
+  .copyrow code { font: 14px ui-monospace, Menlo, monospace; color: #e6e9ee; word-break: break-all; margin-right: 8px; }
+  .warn { color: #f2c46d; }
+  .small { font-size: 14px; color: #7d8999; }
+  .tip { border-left: 3px solid #c4ddf7; padding-left: 10px; }
+</style>
+</head>
+<body>
+<h1>Keys for your TV</h1>
+<p>
+  Movies, TV Shows, Search and prices on the TV come from three free services. Each needs a key that someone in this home
+  makes, once. Paste each key here: the TV checks it with the service and keeps it. This page keeps nothing.
+</p>
+<p class="tip" id="laptoptip" hidden>
+  Making the keys is easier on a laptop. Open <b id="addr"></b> there, on the same Wi-Fi, and type the code the TV shows.
+</p>
+
+<div id="codebox" hidden>
+  <label for="code">The code on the TV (HomeTV › API keys)</label>
+  <input id="code" autocomplete="off" autocapitalize="characters" maxlength="9" placeholder="K7QM-4PXT">
+  <button id="usecode">Use this code</button>
+</div>
+<p id="badcode" class="warn" hidden></p>
+
+<section class="key" data-key="tmdb">
+  <h2>1. TMDB <span class="need">Needed for Movies, TV Shows and Search · free for personal use</span></h2>
+  <p class="status" data-status></p>
+  <details open>
+    <summary>How to get it (about 5 minutes)</summary>
+    <ol>
+      <li>Make a free account at <a href="https://www.themoviedb.org/signup" target="_blank" rel="noopener noreferrer">themoviedb.org/signup</a>, then open the link in the email TMDB sends you.</li>
+      <li>Open <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer">Settings › API</a>. Choose to create a key, pick <b>Developer</b>, and accept the terms.</li>
+      <li>
+        Fill in the form. <b>Type of use</b>: Personal. For the three about the app, copy these:
+        <div class="copyrow"><code>HomeTV Launcher</code><button class="small" data-copy="HomeTV Launcher">Copy</button></div>
+        <div class="copyrow"><code>https://github.com/rebeccamcfadden/hometv-launcher</code><button class="small" data-copy="https://github.com/rebeccamcfadden/hometv-launcher">Copy</button></div>
+        <div class="copyrow"><code>A home screen for our TV that shows where films and shows can be watched.</code><button class="small" data-copy="A home screen for our TV that shows where films and shows can be watched.">Copy</button></div>
+        The rest asks about you. Send it: the key is ready at once.
+      </li>
+      <li>Back on <b>Settings › API</b>, copy the <b>API Read Access Token</b>: the long one that starts with <code>eyJ</code>. Not the short “API Key”.</li>
+      <li>Paste it below.</li>
+    </ol>
+  </details>
+  <label for="k-tmdb">API Read Access Token</label>
+  <textarea id="k-tmdb" rows="3" autocomplete="off" spellcheck="false" placeholder="eyJ…"></textarea>
+  <button data-send="tmdb">Check and save on the TV</button>
+</section>
+
+<section class="key" data-key="watchmode">
+  <h2>2. Watchmode <span class="need">Rent and buy prices · free: 2,500 credits a month</span></h2>
+  <p class="status" data-status></p>
+  <details>
+    <summary>How to get it (about 2 minutes)</summary>
+    <ol>
+      <li>Open <a href="https://api.watchmode.com/requestApiKey/" target="_blank" rel="noopener noreferrer">api.watchmode.com/requestApiKey</a>. No card is needed.</li>
+      <li>Fill in your name and email; for what it’s for, “Prices on our home TV”. Send it.</li>
+      <li>Copy your <b>API key</b> from the page it shows, or from your Watchmode account.</li>
+      <li>Paste it below.</li>
+    </ol>
+  </details>
+  <label for="k-watchmode">API key</label>
+  <input id="k-watchmode" autocomplete="off" spellcheck="false">
+  <button data-send="watchmode">Check and save on the TV</button>
+</section>
+
+<section class="key" data-key="motn">
+  <h2>3. Movie of the Night <span class="need">More prices, when Watchmode has none · optional · free: 1,000 requests a month</span></h2>
+  <p class="status" data-status></p>
+  <details>
+    <summary>How to get it (about 2 minutes)</summary>
+    <ol>
+      <li>Sign up at <a href="https://developers.movieofthenight.com/" target="_blank" rel="noopener noreferrer">developers.movieofthenight.com</a>. No card is needed.</li>
+      <li>On your dashboard, press <b>Copy</b> beside the API key. (A key from RapidAPI won’t work here.)</li>
+      <li>Paste it below.</li>
+    </ol>
+  </details>
+  <label for="k-motn">API key</label>
+  <input id="k-motn" autocomplete="off" spellcheck="false">
+  <button data-send="motn">Check and save on the TV</button>
+</section>
+
+<p class="small">
+  Keys go straight to the TV over your home network, and stay on it. The TV only ever shows their last four characters.
+  The page works while the TV shows its API keys screen.
+</p>
+<script>
+(function () {
+  var NAMES = { tmdb: 'TMDB', watchmode: 'Watchmode', motn: 'Movie of the Night' };
+  var $ = function (s) { return document.querySelector(s); };
+  var clean = function (s) { return (s || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase(); };
+  var fromLink = '';
+  try { fromLink = clean(decodeURIComponent((location.hash || '').slice(1))); } catch (e) { fromLink = ''; }
+  var typed = '';
+  var code = function () { return fromLink || typed; };
+  var busy = {};
+
+  // A phone that scanned the QR gets the laptop tip; a laptop that typed the address doesn't need it.
+  if (fromLink) {
+    $('#addr').textContent = location.protocol + '//' + location.host + '/keys';
+    $('#laptoptip').hidden = false;
+  } else {
+    $('#codebox').hidden = false;
+  }
+
+  function say(msg) {
+    var p = $('#badcode');
+    p.textContent = msg || '';
+    p.hidden = !msg;
+  }
+
+  function status(id, k) {
+    var name = NAMES[id];
+    switch (k.state) {
+      case 'ok': return ['Works · ends ' + k.last4, 'good'];
+      case 'built': return ['The TV already has a working key; one pasted here replaces it.', 'good'];
+      case 'checking': return ['Checking with ' + name + '…', 'dim'];
+      case 'unreachable': return ['Kept, not checked: the TV couldn’t reach ' + name + '. It tries again later.', 'warn'];
+      case 'bad': return [id === 'tmdb' ? 'TMDB refused it. Copy the API Read Access Token (the long one), all of it.'
+          : name + ' refused it. Copy the key again, all of it.', 'bad'];
+      default: return [id === 'motn' ? 'Not set · optional' : 'Not set', 'dim'];
+    }
+  }
+
+  function paint(keys) {
+    var secs = document.querySelectorAll('section.key[data-key]');
+    for (var i = 0; i < secs.length; i++) {
+      var id = secs[i].getAttribute('data-key');
+      var k = busy[id] ? { state: 'checking', last4: '' } : (keys && keys[id]) || { state: 'unset', last4: '' };
+      var s = status(id, k);
+      var out = secs[i].querySelector('[data-status]');
+      out.textContent = s[0];
+      out.className = 'status ' + s[1];
+    }
+  }
+
+  var last = null;
+  function call(method, body) {
+    var init = { method: method, headers: { 'Authorization': 'Bearer ' + code() }, cache: 'no-store', credentials: 'omit' };
+    if (body) {
+      init.headers['Content-Type'] = 'application/json';
+      init.body = JSON.stringify(body);
+    }
+    return fetch(method === 'GET' ? '/keys/state' : '/keys', init).then(function (r) {
+      return r.json().catch(function () { return { ok: false, message: 'The TV sent an answer this page can’t read.' }; })
+        .then(function (j) {
+          if (!r.ok || !j.ok) throw new Error(j.message || 'The TV refused that.');
+          return j;
+        });
+    }, function () {
+      throw new Error('The TV didn’t answer. It listens only while its API keys screen shows, on the same Wi-Fi.');
+    });
+  }
+
+  function refresh() {
+    if (!code()) return paint(null);
+    call('GET').then(function (j) { last = j.keys; say(''); paint(last); }, function (e) { say(e.message); paint(last); });
+  }
+
+  function send(id, button) {
+    var field = document.getElementById('k-' + id);
+    var value = field.value.trim();
+    if (!value) return field.focus();
+    if (!code()) { say('Type the code the TV shows first.'); return $('#code').focus(); }
+    busy[id] = true;
+    button.disabled = true;
+    paint(last);
+    call('POST', { id: id, key: value }).then(function (j) {
+      // The key leaves the page once the TV has it: nothing to read back off the screen.
+      field.value = '';
+      last = j.keys;
+      say('');
+    }, function (e) { say(e.message); }).then(function () {
+      busy[id] = false;
+      button.disabled = false;
+      paint(last);
+    });
+  }
+
+  $('#usecode').addEventListener('click', function () { typed = clean($('#code').value); refresh(); });
+  $('#code').addEventListener('keydown', function (e) { if (e.key === 'Enter') { typed = clean($('#code').value); refresh(); } });
+  var sends = document.querySelectorAll('[data-send]');
+  for (var i = 0; i < sends.length; i++) {
+    sends[i].addEventListener('click', function (e) { send(e.currentTarget.getAttribute('data-send'), e.currentTarget); });
+  }
+  var copies = document.querySelectorAll('[data-copy]');
+  for (var j = 0; j < copies.length; j++) {
+    copies[j].addEventListener('click', function (e) {
+      var b = e.currentTarget;
+      var text = b.getAttribute('data-copy');
+      var done = function () { b.textContent = 'Copied'; };
+      // The page is plain http, where browsers give no clipboard API: copy through a hidden field instead.
+      var fallback = function () {
+        var t = document.createElement('textarea');
+        t.value = text;
+        t.setAttribute('readonly', '');
+        t.style.position = 'fixed';
+        t.style.opacity = '0';
+        document.body.appendChild(t);
+        t.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (err) { ok = false; }
+        document.body.removeChild(t);
+        b.textContent = ok ? 'Copied' : 'Select and copy';
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+      else fallback();
+    });
+  }
+  // Back on the page after making a key in another tab: what the TV has now.
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
+  refresh();
+})();
+</script>
+</body>
+</html>

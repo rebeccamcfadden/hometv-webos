@@ -203,6 +203,18 @@ const SERVICE = 'luna://com.hometv.app.service';
 const HEARTBEAT_MS = 10000;
 let heartbeat: number | null = null;
 
+/** A PC's dev-server route as text ("" when it can't be read): the stand-in for a Luna call to HomeTV's service. */
+function devGet(path: string): Promise<string> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', path);
+    xhr.timeout = 1500;
+    xhr.onload = () => resolve(xhr.status === 200 ? xhr.responseText.trim() : '');
+    xhr.onerror = xhr.ontimeout = () => resolve('');
+    xhr.send();
+  });
+}
+
 function beat(): void {
   if (typeof document !== 'undefined' && document.hidden) return;
   luna(SERVICE + '/alive', {}, 5000);
@@ -371,17 +383,37 @@ export const platform = {
      * caller); on a PC (`npm run dev`) from the dev server. "" when it can't be read.
      */
     token(): Promise<string> {
-      if (!onWebOS()) {
-        return new Promise((resolve) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('GET', '/__hometv/pages-token');
-          xhr.timeout = 1500;
-          xhr.onload = () => resolve(xhr.status === 200 ? xhr.responseText.trim() : '');
-          xhr.onerror = xhr.ontimeout = () => resolve('');
-          xhr.send();
-        });
-      }
+      if (!onWebOS()) return devGet('/__hometv/pages-token');
       return luna(SERVICE + '/token', {}, 5000).then((r) => (r.returnValue && typeof r.token === 'string' ? r.token : ''));
+    },
+    /**
+     * The TMDB key the household sent through the key page. On the TV from HomeTV's service, which keeps it in its own
+     * private folder (never in this page's storage) and gives it only to HomeTV's page; on a PC the dev server's
+     * /__hometv/tmdb-key. "" when none is saved or it can't be read. The live catalogue sends it to TMDB and nowhere else.
+     */
+    async tmdbKey(): Promise<string> {
+      if (!onWebOS()) return (await devGet('/__hometv/tmdb-key')).trim();
+      const r = await luna(SERVICE + '/tmdbKey', {}, 5000);
+      return r.returnValue && typeof r.key === 'string' ? r.key.trim() : '';
+    },
+    /**
+     * The Watchmode and Movie of the Night keys, the same way ("" for one that isn't saved). The price sources send
+     * each to its own service and nowhere else.
+     */
+    async priceKeys(): Promise<{ watchmode: string; motn: string }> {
+      let got: Record<string, unknown> = {};
+      if (onWebOS()) {
+        got = await luna(SERVICE + '/priceKeys', {}, 5000);
+        if (!got.returnValue) got = {};
+      } else {
+        try {
+          got = JSON.parse(await devGet('/__hometv/price-keys'));
+        } catch (e) {
+          got = {};
+        }
+      }
+      const of = (k: string): string => (typeof got[k] === 'string' ? (got[k] as string).trim() : '');
+      return { watchmode: of('watchmode'), motn: of('motn') };
     },
     /** The TV's own address on the home network (Wi-Fi, then wired). "" when unknown. */
     address(): Promise<string> {

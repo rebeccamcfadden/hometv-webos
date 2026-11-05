@@ -1,6 +1,7 @@
 import { defineConfig, type Plugin } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
+import { devKeysPlugin } from './tools/dev-keys.mjs';
 
 // HomeTV's page for LG (dist/app, then tools/package-webos.mjs makes the .ipk). Built as hometv-tizen builds it: one
 // classic script (iife) for older engines (webOS 4 has Chromium 53), so the screens' build is the same on both TVs.
@@ -22,7 +23,9 @@ const VERSION = (JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.jso
 export default defineConfig({
   root: 'app',
   base: './',
-  plugins: [classicScript()],
+  // On a PC (npm run dev:app) v1's key page runs here: the pages service on 8767 with fake key checks, and the routes
+  // /__hometv/pages-token, /__hometv/tmdb-key and /__hometv/price-keys that platform.ts reads in place of Luna.
+  plugins: [classicScript(), ...(V1 ? [devKeysPlugin()] : [])],
   // The shared package (hometv-tizen's docs/shared-package.md), a submodule pinned to a hometv-launcher commit.
   resolve: {
     alias: {
