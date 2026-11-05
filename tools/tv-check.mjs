@@ -45,6 +45,10 @@ const tv = await open(host, {
   onPrompt: () => say('Press "Allow" on the TV (the remote\'s OK button).'),
   // Tests only: a pretend TV on plain ws at this port.
   ports: wsPort ? [{ url: 'ws://' + host + ':' + wsPort + '/', insecure: false }] : undefined
+}).catch((e) => {
+  console.error('Could not connect to the TV at ' + host + ' (' + (e.code || e.message) + '). Check the TV is on and ' +
+    'on the same network as this laptop, then run this again.');
+  process.exit(1);
 });
 if (tv.clientKey && tv.clientKey !== clientKey) fs.writeFileSync(keyFile, tv.clientKey, { mode: 0o600 });
 

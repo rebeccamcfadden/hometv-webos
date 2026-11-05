@@ -49,7 +49,7 @@ export function showChecks() {
   const addr = bridge.addresses();
   const link = addr.length ? `http://${addr[0]}:8766/report` : 'http://<the TV’s address>:8766/report';
   el.appendChild(
-    h('p.phonelink', bridge.mode() === 'app' ? 'Results stay on this TV; read them out or take a photo.' : `On a phone on the same Wi-Fi, open ${link}`),
+    h('p.phonelink' + (bridge.problem() ? '.after-problem' : ''), bridge.mode() === 'app' ? 'Results stay on this TV; read them out or take a photo.' : `On a phone on the same Wi-Fi, open ${link}`),
   );
   const list = h('div.checklist');
   const log = h('div.log');

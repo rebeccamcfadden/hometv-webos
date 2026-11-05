@@ -1,7 +1,7 @@
 # Where `app/` comes from
 
 HomeTV's screens and shell are copied unchanged from
-[hometv-tizen](https://github.com/rebeccamcfadden/hometv-tizen) at commit **990c5ae** (`app/`, its
+[hometv-tizen](https://github.com/rebeccamcfadden/hometv-tizen) at commit **6d92dc6** (`app/`, its
 `docs/platform.md` layer at 7996c2b). Only the platform files differ. A fix to a screen goes to hometv-tizen first,
 then is copied here again with this file's commit updated.
 
