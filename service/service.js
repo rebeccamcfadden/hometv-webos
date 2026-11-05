@@ -26,10 +26,15 @@ var CALLERS = ['com.hometv.app', 'com.webos.app.home'];
 var IDLE_MS = 2 * 60000;
 var SWEEP_MS = 30000;
 
-/** The caller's app id, as LG's service library gives it ("" when this TV doesn't say). */
+/**
+ * The caller's app id, as LG's service library gives it ("" when this TV doesn't say). It may carry the caller's
+ * instance after a space or dash ("com.hometv.app-12", "com.hometv.app 12"); only a number or a UUID is cut off, so
+ * another app's id that merely starts with HomeTV's ("com.hometv.app-evil") is not taken for it.
+ */
 function callerOf(message) {
   var s = message && (message.sender || message.applicationID);
-  return typeof s === 'string' ? s.split(/[ -]/)[0] : '';
+  if (typeof s !== 'string') return '';
+  return s.replace(/[ -](\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i, '');
 }
 
 /** `alive` only touches one empty file: a TV that doesn't say who called is let through. */
@@ -58,23 +63,35 @@ function touch(path) {
  */
 function createMethods(deps) {
   deps = deps || {};
-  var pages = deps.pages || require('./pages.js');
+  var pages = deps.pages;
   var setTimer = deps.setTimer || setInterval;
   var clearTimer = deps.clearTimer || clearInterval;
   var instance = null;
   var activity = null;
+  var creating = false;
+  var epoch = 0;
   var sweeper = null;
 
   function refuse(message) {
     message.respond({ returnValue: false, errorText: 'not HomeTV' });
   }
 
-  function one() {
-    if (!instance) instance = pages.create(deps.options || {});
+  /** The key page, made on first use: a build without pages.js (v0) answers these methods with an error. */
+  function one(message) {
+    if (!instance) {
+      try {
+        instance = (pages || require('./pages.js')).create(deps.options || {});
+      } catch (e) {
+        message.respond({ returnValue: false, errorText: 'no key page in this build' });
+        return null;
+      }
+    }
     return instance;
   }
 
   function release() {
+    epoch++;
+    creating = false;
     if (sweeper) clearTimer(sweeper);
     sweeper = null;
     if (activity && deps.activities) deps.activities.complete(activity, function () {});
@@ -102,10 +119,16 @@ function createMethods(deps) {
     },
     start: function (message) {
       if (!strict(message)) return refuse(message);
-      var mine = one();
+      var mine = one(message);
+      if (!mine) return;
       // Without an open activity a webOS service is stopped a few seconds after its last call.
-      if (!activity && deps.activities) {
+      if (!activity && !creating && deps.activities) {
+        creating = true;
+        var born = epoch;
         deps.activities.create('hometv-keys-keepalive', function (a) {
+          // Released while it was being made: let it go at once, or it would keep the service alive for good.
+          if (epoch !== born) return deps.activities.complete(a, function () {});
+          creating = false;
           activity = a;
         });
       }
@@ -135,11 +158,14 @@ function createMethods(deps) {
     },
     tmdbKey: function (message) {
       if (!strict(message)) return refuse(message);
-      message.respond({ returnValue: true, key: one().keyOf('tmdb') });
+      var p = one(message);
+      if (!p) return;
+      message.respond({ returnValue: true, key: p.keyOf('tmdb') });
     },
     priceKeys: function (message) {
       if (!strict(message)) return refuse(message);
-      var p = one();
+      var p = one(message);
+      if (!p) return;
       message.respond({ returnValue: true, watchmode: p.keyOf('watchmode'), motn: p.keyOf('motn') });
     },
     sweep: sweep,

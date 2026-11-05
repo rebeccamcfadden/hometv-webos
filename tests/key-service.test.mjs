@@ -79,7 +79,53 @@ test('the key methods answer HomeTV’s page and Home mounting it, and refuse ev
   assert.equal(svc.strict({ sender: 'com.webos.app.home' }), true);
   assert.equal(svc.strict({ sender: 'com.hometv.app 1234' }), true);
   assert.equal(svc.strict({ sender: 'com.hometv.app-1234' }), true);
+  assert.equal(svc.strict({ sender: 'com.hometv.app-0b6f9c5e-1d2a-4c3b-8e7f-123456789abc' }), true);
+  assert.equal(svc.strict({ sender: 'com.hometv.app-evil' }), false, 'an app whose id only starts with HomeTV’s');
   assert.equal(svc.strict({ sender: 'com.hometv.app.service' }), false);
+});
+
+test('an activity still being made when the key page lets go is completed at once, and start makes one at a time', async () => {
+  const made = [];
+  const completed = [];
+  const methods = svc.createMethods({
+    pages,
+    activities: { create: (name, cb) => made.push(cb), complete: (a, cb) => (completed.push(a.name), cb()) },
+    options: { port: 0, dataDir: dir() },
+    setTimer: () => ({ unref() {} }),
+    clearTimer: () => {},
+  });
+  await call(methods, 'start');
+  await call(methods, 'start');
+  assert.equal(made.length, 1, 'a second start while the first activity is being made makes no second');
+  await call(methods, 'stop');
+  made[0]({ name: 'late' });
+  assert.deepEqual(completed, ['late']);
+});
+
+test('a build without pages.js (v0): the key methods say so', async () => {
+  const methods = svc.createMethods({ pages: undefined, options: {} });
+  const Module = require('node:module');
+  const original = Module._resolveFilename;
+  Module._resolveFilename = function (request, ...rest) {
+    if (request === './pages.js') throw new Error('Cannot find module');
+    return original.call(this, request, ...rest);
+  };
+  try {
+    for (const name of ['start', 'tmdbKey', 'priceKeys']) {
+      assert.deepEqual(await call(methods, name), { returnValue: false, errorText: 'no key page in this build' }, name);
+    }
+  } finally {
+    Module._resolveFilename = original;
+  }
+});
+
+test('a keys folder that was already there is tightened to 0700, its file 0600', { skip: process.platform === 'win32' }, () => {
+  const d = dir();
+  fs.chmodSync(d, 0o755);
+  const p = pages.create({ dataDir: d });
+  p.keyOf('tmdb');
+  assert.equal(fs.statSync(d).mode & 0o777, 0o700);
+  assert.equal(fs.statSync(path.join(d, 'hometv-keys-v1.json')).mode & 0o777, 0o600);
 });
 
 test('token: none before the server holds its port; then 48 hex, for the loopback routes only, and never on disk', async () => {

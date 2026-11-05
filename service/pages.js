@@ -323,6 +323,12 @@ function privateStore(dirs) {
       } catch (e) {
         if (!e || e.code !== 'EEXIST') throw e;
       }
+      try {
+        // A folder that was there already may be looser than 0700; tighten it where Node can.
+        fs.chmodSync(dir, 448);
+      } catch (e) {
+        // Not ours to change: the write test below decides.
+      }
       var probe = path.join(dir, '.probe-' + crypto.randomBytes(4).toString('hex'));
       fs.writeFileSync(probe, '');
       fs.unlinkSync(probe);
@@ -799,7 +805,8 @@ function create(opts) {
 }
 
 module.exports = {
-  create: create,  /** For the tests. */
+  create: create,
+  /** For the tests. */
   rules: {
     normalizeCode: normalizeCode,
     newCode: newCode,
