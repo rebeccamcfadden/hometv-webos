@@ -1,7 +1,7 @@
 {
   "name": "hometv-webos",
-  "version": "0.0.1",
-  "appVersion": "0.0.1",
+  "version": "0.1.0",
+  "appVersion": "0.1.0",
   "private": true,
   "description": "HomeTV on LG webOS: research spike and the first TV call's checks app.",
   "license": "MIT",
