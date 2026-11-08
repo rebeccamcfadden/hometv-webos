@@ -11,7 +11,8 @@
  *   stop       closes the server now
  * The root edition's way back (docs/root-plan.md, levels 0 and 1; root/undo-home.sh does the work, as root: the start-up
  * hook elevates this service at each start):
- *   rootState  { edition, hooked, chosen }: root/ is on the TV; its start-up hook is linked; "Use LG's Home" is chosen
+ *   rootState  { edition, hooked, chosen, ranThisStart }: root/ is on the TV; its start-up hook is linked; "Use LG's
+ *              Home" is chosen; the hook ran this start (null: can't tell). HomeTV's "root ended" notice reads it
  *   useLgHome  { mode: 'temp' }: LG's Home now, until the next restart (Home pressed three times), run detached, since
  *              the app manager's restart ends HomeTV's page. { mode: 'at-restart' }: LG's Home for good from the next
  *              restart (Settings › Use LG's Home); answers once the hooks are gone
@@ -31,6 +32,8 @@ var ALIVE = process.env.HOMETV_ALIVE || '/tmp/hometv-alive';
 /** As root/lib.sh D and INITD (the tests point them elsewhere). */
 var ROOT_DIR = process.env.HOMETV_DIR || '/media/developer/hometv';
 var INITD = process.env.HOMETV_INITD || '/var/lib/webosbrew/init.d';
+/** As root/lib.sh BOOT_ID: this start's id, new at each start. */
+var BOOT_ID = process.env.HOMETV_BOOT_ID || '/proc/sys/kernel/random/boot_id';
 /** A second "LG's Home now" within this long is the same press (the first is still restarting the app manager). */
 var TEMP_GAP_MS = 60000;
 /** Who may call: HomeTV's page, also when it is mounted over LG's Home (root/10-hometv-home). */
@@ -89,12 +92,32 @@ function there(p) {
   }
 }
 
-/** The root edition on this TV, as far as this service can see (a jailed service may see none of it). */
-function rootStateOf(dir, initd) {
+/** A small file's text, trimmed; "" when it can't be read. */
+function readSmall(p) {
+  try {
+    return String(fs.readFileSync(p, 'utf8')).trim();
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * The root edition on this TV, as far as this service can see (a jailed service may see none of it).
+ * ranThisStart: did the start-up hook run at this start? The hook copies this start's id (BOOT_ID) to `started` before
+ * anything else (root/10-hometv-home). The cheapest sign that root ended: it needs no call to Homebrew Channel's service
+ * (whose callers this page may not be among) and no network; an LG update that ends root stops Homebrew Channel's
+ * start-up, so the note keeps an older start's id. null when it can't tell: no note since root/ was installed (the
+ * restart still to come), or this start's id unreadable. Homebrew Channel's failsafe start also skips the hook: it reads
+ * as false too, and the notice that follows ("LG's Home is back, nothing is broken") still holds for that start.
+ */
+function rootStateOf(dir, initd, bootIdFile) {
+  var boot = readSmall(bootIdFile);
+  var noted = readSmall(path.join(dir, 'started'));
   return {
     edition: there(path.join(dir, 'undo-home.sh')),
     hooked: there(path.join(initd, '10-hometv-home')),
-    chosen: there(path.join(dir, 'DISABLE'))
+    chosen: there(path.join(dir, 'DISABLE')),
+    ranThisStart: boot && noted ? noted === boot : null
   };
 }
 
@@ -114,6 +137,7 @@ function createMethods(deps) {
   var sweeper = null;
   var rootDir = deps.rootDir || ROOT_DIR;
   var initd = deps.initd || INITD;
+  var bootIdFile = deps.bootIdFile || BOOT_ID;
   var spawn = deps.spawn || childProcess.spawn;
   var execFile = deps.execFile || childProcess.execFile;
   var uid = deps.uid || function () {
@@ -220,8 +244,8 @@ function createMethods(deps) {
     },
     rootState: function (message) {
       if (!exact(message)) return refuse(message);
-      var s = rootStateOf(rootDir, initd);
-      message.respond({ returnValue: true, edition: s.edition, hooked: s.hooked, chosen: s.chosen });
+      var s = rootStateOf(rootDir, initd, bootIdFile);
+      message.respond({ returnValue: true, edition: s.edition, hooked: s.hooked, chosen: s.chosen, ranThisStart: s.ranThisStart });
     },
     useLgHome: function (message) {
       if (!exact(message)) return refuse(message);
@@ -247,7 +271,7 @@ function createMethods(deps) {
         return message.respond({ returnValue: true });
       }
       execFile('sh', [script, 'at-restart'], { timeout: 15000 }, function (err) {
-        var s = rootStateOf(rootDir, initd);
+        var s = rootStateOf(rootDir, initd, bootIdFile);
         if (err || !s.chosen || s.hooked) {
           return message.respond({ returnValue: false, errorText: 'undo-home.sh didn\'t finish', chosen: s.chosen, hooked: s.hooked });
         }

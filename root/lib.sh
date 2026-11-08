@@ -7,6 +7,10 @@ H=${HOMETV_HOME_APP:-/usr/palm/applications/com.webos.app.home}
 MOUNTS=${HOMETV_MOUNTS:-/proc/mounts}
 LOG=${HOMETV_LOG:-/tmp/hometv-boot.log}
 ALIVE=${HOMETV_ALIVE:-/tmp/hometv-alive}
+# This start's id (new at each start) and the file the start-up hook copies it to: from the two, HomeTV's service tells
+# that the hook didn't run this start, as after an LG update that ended root (service/service.js, rootState)
+BOOT_ID=${HOMETV_BOOT_ID:-/proc/sys/kernel/random/boot_id}
+STARTED=$D/started
 APP_ID=${HOMETV_APP_ID:-com.hometv.app}
 APP=${HOMETV_APP:-/media/developer/apps/usr/palm/applications/$APP_ID}
 # Homebrew Channel's start-up hooks (install.sh links HomeTV's two here; "Use LG's Home" removes them)

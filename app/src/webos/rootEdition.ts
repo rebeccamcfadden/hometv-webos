@@ -5,7 +5,11 @@
 //   page again, which webOS tells it with `webOSRelaunch`. The idea is Razdva122's launcher's (no code taken).
 //   UNCHECKED on a real TV: that webOS 25 relaunches the page on every press (a question for the first TV run).
 // - Level 1, "Use LG's Home" (Settings): LG's Home for good from the next restart; HomeTV stays an app, root stays.
+// - After an LG update that ended root (docs/root-plan.md, When an LG update ends root): HomeTV, opened from its tile,
+//   says so once per TV software version (ui/rootEndedNotice.ts). The sign is the service's ranThisStart (why that one:
+//   service/service.js, rootStateOf); no network call.
 
+import type { KeyValueStore } from '../homeRow';
 import { luna, lunaError, onWebOS } from './luna';
 
 const SERVICE = 'luna://com.hometv.app.service';
@@ -21,6 +25,8 @@ export interface RootState {
   hooked: boolean;
   /** "Use LG's Home" is chosen. */
   chosen: boolean;
+  /** The start-up hook ran this start; null when the service can't tell (no start since root/ was installed). */
+  ranThisStart: boolean | null;
 }
 
 type WebOSWindow = { webOSSystem?: { identifier?: string }; PalmSystem?: { identifier?: string } };
@@ -56,7 +62,12 @@ export async function readRootState(): Promise<RootState | null> {
   if (!onWebOS()) return null;
   const r = await luna(SERVICE + '/rootState', {}, 5000);
   if (!r.returnValue) return null;
-  return { edition: !!r.edition, hooked: !!r.hooked, chosen: !!r.chosen };
+  return {
+    edition: !!r.edition,
+    hooked: !!r.hooked,
+    chosen: !!r.chosen,
+    ranThisStart: typeof r.ranThisStart === 'boolean' ? r.ranThisStart : null,
+  };
 }
 
 /** Asks the service for LG's Home: '' when it took it, else why not. */
@@ -104,3 +115,54 @@ export function startWayOut(toast: (text: string, bad?: boolean) => void): void 
   });
   document.addEventListener('webOSRelaunch', () => presses.press());
 }
+
+// --- After an LG update that ended root
+
+/**
+ * Root ended on this TV: HomeTV runs from its tile (not as LG's Home), its root edition is still here and still hooked,
+ * "Use LG's Home" wasn't chosen, and the service says the start-up hook didn't run this start. A TV that was never
+ * rooted (no root/), a hook that ran, or a service that can't tell (null) says nothing.
+ */
+export function rootEnded(s: RootState | null, lgHome: boolean): boolean {
+  return !lgHome && !!s && s.edition && s.hooked && !s.chosen && s.ranThisStart === false;
+}
+
+/** The TV software version the notice last showed for; "Don't show again" for good. */
+export const ROOT_ENDED_SEEN_KEY = 'hometv.rootEnded.seen';
+export const ROOT_ENDED_NEVER_KEY = 'hometv.rootEnded.never';
+
+/**
+ * Once per TV software version: true the first time for `firmware` ("" when unknown counts as one version), and marks
+ * it shown; false after "Don't show again". Blocked storage: shown at each start it applies (still once a start).
+ */
+export function takeRootEndedNotice(storage: KeyValueStore | null, firmware: string): boolean {
+  const v = firmware || 'unknown';
+  try {
+    if (!storage) return true;
+    if (storage.getItem(ROOT_ENDED_NEVER_KEY) === '1') return false;
+    if (storage.getItem(ROOT_ENDED_SEEN_KEY) === v) return false;
+    storage.setItem(ROOT_ENDED_SEEN_KEY, v);
+  } catch (e) {
+    // blocked storage
+  }
+  return true;
+}
+
+export function neverRootEndedNotice(storage: KeyValueStore | null): void {
+  try {
+    if (storage) storage.setItem(ROOT_ENDED_NEVER_KEY, '1');
+  } catch (e) {
+    // blocked storage: it shows again at the next update only
+  }
+}
+
+/** The TV software's version ("33.31.61"), "" when unknown or off a TV. */
+export async function tvFirmware(): Promise<string> {
+  if (!onWebOS()) return '';
+  const r = await luna('luna://com.webos.service.tv.systemproperty/getSystemInfo', { keys: ['firmwareVersion'] }, 5000);
+  const v = r.returnValue && typeof r.firmwareVersion === 'string' ? r.firmwareVersion.trim() : '';
+  return /^[0-9A-Za-z.\-_]{1,32}$/.test(v) ? v : '';
+}
+
+/** The guide's part on it (docs/root.md, published at /root/). */
+export const AFTER_UPDATE_URL = 'https://rebeccamcfadden.github.io/hometv-webos/root/#after-an-update';

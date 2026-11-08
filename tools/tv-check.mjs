@@ -3,7 +3,8 @@
 //   node tools/tv-check.mjs <tv address> [--backup [--root]] [--launch] [--reach]   (or: hometv-lg check …)
 //
 // Without flags: read-only checks (model and firmware, apps, inputs, sound output) and what v0 needs (root status for
-// the software, Developer Mode app, Homebrew Channel). --backup also saves a backup of what the TV lets a paired app
+// the software, Developer Mode app, Homebrew Channel). On a TV this laptop rooted, also whether root is still on or an LG
+// update ended it, with the choices then (tools/lib/root-status.mjs). --backup also saves a backup of what the TV lets a paired app
 // read (settings, apps, inputs) in %USERPROFILE%\HomeTV\backups, apart from the report (tools/lib/backup.mjs); with
 // --root, also what a rooted TV's shell can read (docs/backup.md).
 // --launch then opens Netflix, YouTube and a YouTube video, asking first and asking what happened. --reach checks the
@@ -18,6 +19,7 @@ import { open } from './lib/ssap.mjs';
 import { readOnlyChecks, launch, toast, readiness, LAUNCHES } from './lib/checks.mjs';
 import { backup, describe, WARNING } from './lib/backup.mjs';
 import { sshShell } from './lib/root-shell.mjs';
+import { rootedBefore, rootStatus, describeRootStatus } from './lib/root-status.mjs';
 import { reach } from './lib/reach.mjs';
 
 const args = process.argv.slice(2);
@@ -35,6 +37,7 @@ if (!host || !/^[0-9A-Za-z.\-:]+$/.test(host)) {
 const dir = process.env.HOMETV_DIR || path.join(os.homedir(), 'HomeTV');
 fs.mkdirSync(dir, { recursive: true });
 const keyFile = path.join(dir, 'lg-client-key');
+const rootKeyFile = process.env.HOMETV_ROOT_KEY || path.join(dir, 'lg-root-key');
 const clientKey = fs.existsSync(keyFile) ? fs.readFileSync(keyFile, 'utf8').trim() : undefined;
 
 const say = (s) => console.log(s);
@@ -62,9 +65,8 @@ say('Inputs: ' + (c.inputs.ok ? c.inputs.devices.map((d) => d.label).join(', ') 
 if (args.includes('--backup')) {
   let shell = null;
   if (args.includes('--root')) {
-    const rootKey = process.env.HOMETV_ROOT_KEY || path.join(dir, 'lg-root-key');
-    if (fs.existsSync(rootKey)) shell = sshShell({ host, key: rootKey, knownHosts: path.join(dir, 'lg-known-hosts') });
-    else say('No root key at ' + rootKey + ': the backup is taken without root.');
+    if (fs.existsSync(rootKeyFile)) shell = sshShell({ host, key: rootKeyFile, knownHosts: path.join(dir, 'lg-known-hosts') });
+    else say('No root key at ' + rootKeyFile + ': the backup is taken without root.');
   }
   const b = await backup(tv, path.join(dir, 'backups'), { shell });
   // The report keeps only the allowlisted settings, as before; the full backup is a separate file, never sent.
@@ -98,6 +100,14 @@ report.readiness = readiness(report);
 const rd = report.readiness;
 say('For v0: root ' + rd.root + '; Developer Mode app ' + (rd.developerModeApp ? 'installed' : 'not installed') +
   '; Homebrew Channel ' + (rd.homebrewChannel ? 'installed' : 'not installed') + '.');
+
+// A TV this laptop rooted: is root still on, or did an LG update end it? (one `id -u` over SSH; nothing changes)
+if (rootedBefore(dir, rootKeyFile)) {
+  const rootShell = fs.existsSync(rootKeyFile) ? sshShell({ host, key: rootKeyFile, knownHosts: path.join(dir, 'lg-known-hosts') }) : null;
+  const rs = await rootStatus({ wasRooted: true, apps: rd.appList ? c.apps.all.map((a) => a.id) : null, shell: rootShell });
+  report.rootStatus = rs;
+  for (const line of describeRootStatus(rs)) say(line);
+}
 
 await toast(tv, 'HomeTV check finished. Thank you!');
 tv.close();
