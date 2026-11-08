@@ -10,8 +10,8 @@ import sea from 'node:sea';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { open } from './ssap.mjs';
-import { backup, describe, WARNING } from './backup.mjs';
-import { sshShell, isRoot } from './root-shell.mjs';
+import { backup, describe, WARNING, FORMAT } from './backup.mjs';
+import { sshShell, isRoot, luna, sq } from './root-shell.mjs';
 import { reach } from './reach.mjs';
 import { PINNED, sha256 } from './fetch.mjs';
 import { telnetShell, pushFile, portOpen, q } from './telnet.mjs';
@@ -37,6 +37,28 @@ const RESTART = 'unplug the TV from the wall, wait 30 seconds, plug it back in a
   'button isn\'t a restart: Quick Start+ keeps the TV half-awake)';
 const KEY_FILE = '%USERPROFILE%\\HomeTV\\lg-root-key';
 const yes = (a) => /^\s*y/i.test(a || '');
+const UPDATES_WHERE = 'Settings > All Settings > Support > Software Update';
+// Homebrew Channel's services/startup.sh gives root this password ("alpine") at each start while
+// /home/root/.ssh/authorized_keys is missing; with the key there it sets none.
+const DEFAULT_PASSWORD_HASH = 'xGVw8H4GqkKg6';
+// Homebrew Channel's switches the lock-down sets (docs/root-plan.md, step 7)
+const LOCK = { telnetDisabled: 'Telnet off', sshdEnabled: 'SSH on', blockUpdates: 'Block system updates on' };
+
+/** The way back, lightest first (docs/root-plan.md, "The way back"), as it can be done today. */
+export const WAY_BACK = [
+  '0  One-off trouble: unplug the TV for 30 seconds. LG\'s Home until the next start. (HomeTV\'s own way out, Home ' +
+    'pressed three times, is still to build.)',
+  '1  LG\'s Home for good, HomeTV kept: ssh -i ' + KEY_FILE + ' root@<tv ip> sh ' + TV_PATHS.dir + '/undo-home.sh , then ' +
+    'restart. (HomeTV\'s own "Use LG\'s Home" setting is still to build.)',
+  '2  Remove HomeTV: ssh -i ' + KEY_FILE + ' root@<tv ip> sh ' + TV_PATHS.dir + '/uninstall.sh , restart, then uninstall ' +
+    'HomeTV in Homebrew Channel. Homebrew Channel stays.',
+  '3  Full unroot: Settings > General > System > Reset to Initial Settings (a factory reset), then set the TV up again ' +
+    'with the backup, the photos and the sign-in list (hometv-lg restore puts back what it can).',
+  '4  The TV won\'t finish starting: unplug it for 30 seconds and let Homebrew Channel\'s failsafe start skip every ' +
+    'customisation; then level 3.',
+  '5  Still won\'t start: LG\'s USB recovery, the firmware file in LG_DTV on the FAT32 stick: TV off, stick in, TV on.',
+  '6  Nothing works: LG service.'
+];
 
 /** Takes out anything that identifies the TV or the laptop's user: addresses, MACs, the home folder. */
 export function scrub(text, host) {
@@ -77,6 +99,54 @@ async function softwareVersion(tv) {
   // only these two fields are read: never device_id or serial
   return sw.returnValue === false || !sw.major_ver ? '' : String(sw.major_ver) + '.' + String(sw.minor_ver);
 }
+
+async function modelName(tv) {
+  const r = await tv.request('system/getSystemInfo');
+  // only the model name is read: never the serial number
+  return r.returnValue === false ? '' : String(r.modelName || '');
+}
+
+/**
+ * Reads Allow Automatic Updates over the remote-control connection (read only, never set): 'on', 'off', or '' when the
+ * TV doesn't say. LG doesn't document the setting's name, so a few likely ones are tried (as devmode.mjs does).
+ */
+export async function readAutoUpdate(tv) {
+  const norm = (v) => (/^(on|true|1|yes)$/i.test(String(v)) ? 'on' : /^(off|false|0|no)$/i.test(String(v)) ? 'off' : '');
+  for (const category of ['option', 'general', 'network']) {
+    let r;
+    try { r = await tv.request('settings/getSystemSettings', { category, keys: ['autoUpdate', 'automaticUpdate', 'allowAutoUpdate'] }); } catch { continue; }
+    if (!r || r.returnValue === false || !r.settings) continue;
+    for (const [k, v] of Object.entries(r.settings)) if (/auto.*update/i.test(k) && norm(v)) return norm(v);
+  }
+  return '';
+}
+
+/** Allow Automatic Updates must be off: read from the TV; asked only when the TV doesn't say and it wasn't confirmed. */
+async function updatesOff(ctx, confirmed) {
+  const v = await withTv(ctx, readAutoUpdate);
+  if (v === 'on') return stop('The TV says Allow Automatic Updates is on.', 'Switch it off (' + UPDATES_WHERE + '), then run this again.');
+  if (v === 'off') { ctx.say('  ✓ Allow Automatic Updates is off (the TV says)'); return null; }
+  if (confirmed) { ctx.say('  ✓ Allow Automatic Updates is off (confirmed in the checklist)'); return null; }
+  if (!yes(await ctx.ask('  Is Allow Automatic Updates switched off (' + UPDATES_WHERE + ')? [y/N] '))) {
+    return stop('LG\'s automatic updates may still be on.', 'Switch Allow Automatic Updates off, then run this again.');
+  }
+  return null;
+}
+
+/** The newest backup hometv-lg made on this laptop (lg-backup-<date>.json in the HomeTV folder), or null. */
+export function latestBackup(dir) {
+  let names = [];
+  try { names = fs.readdirSync(dir).filter((f) => /^lg-backup-.*\.json$/.test(f)).sort().reverse(); } catch { return null; }
+  for (const file of names) {
+    try {
+      const data = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf8'));
+      if (data && data.format === FORMAT) return { file, data };
+    } catch { /* not a backup this tool can read: try the one before */ }
+  }
+  return null;
+}
+
+const done = (ctx, id) => !!(ctx.state && ctx.state.steps[id] && ctx.state.steps[id].status === 'done');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -200,35 +270,48 @@ export const STEPS = [
     undo: 'Nothing to undo.',
     async run(ctx) {
       const tvDone = await withTv(ctx, async (tv) => {
+        const apps = await appIds(tv);
+        if (apps.has(HBC)) return { note: 'skipped: the TV is already rooted (Homebrew Channel is installed)' };
         const sw = await softwareVersion(tv);
         if (sw !== ROOT_SW) {
           return stop('The TV\'s software is ' + (sw || 'unknown') + ', not ' + ROOT_SW + ' (the version SlopBro is known to work on).',
             'Don\'t root. Tell the HomeTV team: root has to be checked again on CanI.RootMy.TV for this version.');
         }
         ctx.say('  ✓ software ' + sw);
-        if ((await appIds(tv)).has(DEVMODE)) {
+        if (apps.has(DEVMODE)) {
           return stop('The Developer Mode app is still installed.',
             'Delete it (Home > edit the app list > Developer Mode > delete), restart the TV (' + RESTART + '), then run this ' +
             'again. It must go before root, never after: on this exact software a TV lost Homebrew Channel when it was ' +
             'deleted after root (SlopBro issue 22).');
         }
         ctx.say('  ✓ the Developer Mode app is deleted');
+        // docs/root-plan.md, step 5: root goes on a TV back to stock; HomeTV comes back after root (root-install)
+        if (apps.has(APP)) {
+          return stop('HomeTV\'s Developer Mode copy is still installed.',
+            'Delete it (Home > edit the app list > HomeTV > delete), restart the TV (' + RESTART + '), then run this again. ' +
+            'Root goes on a TV back to stock (docs/root-plan.md, step 5); HomeTV comes back after root.');
+        }
+        ctx.say('  ✓ HomeTV\'s Developer Mode copy is deleted');
         return null;
       });
       if (tvDone) return tvDone;
-      if (!yes(await ctx.ask('  Has the TV been restarted since the Developer Mode app was deleted? [y/N] '))) {
+      if (done(ctx, 'clear-the-way')) {
+        ctx.say('  ✓ restarted since (checked in "Clear the way")');
+      } else if (!yes(await ctx.ask('  Has the TV been restarted since the Developer Mode app was deleted? [y/N] '))) {
         return stop('The TV needs a restart after the Developer Mode app is deleted.', 'Restart it: ' + RESTART + '. Then run this again.');
       }
       const kit = ctx.kit || rootKit(ctx.dir);
       const bad = await kitProblem(kit);
       if (bad) return stop('The root kit isn\'t ready: ' + bad + '.', 'Run: hometv-lg get root-kit   then run this again.');
       ctx.say('  ✓ the root kit (Python, and SlopBro with its SHA-256 checked)');
-      if (!yes(await ctx.ask('  Is LG\'s firmware file for this TV on a USB stick, in a folder named LG_DTV? [y/N] '))) {
+      const checklist = done(ctx, 'root-preflight');
+      if (checklist) {
+        ctx.say('  ✓ the USB stick with LG\'s firmware (confirmed in the checklist)');
+      } else if (!yes(await ctx.ask('  Is LG\'s firmware file for this TV on a USB stick, in a folder named LG_DTV? [y/N] '))) {
         return stop('The USB stick with LG\'s firmware isn\'t ready.', 'It\'s the way back if the TV ever won\'t start (docs/root-plan.md, level 5). Prepare it, then run this again.');
       }
-      if (!yes(await ctx.ask('  Is Allow Automatic Updates switched off (Settings > All Settings > Support > Software Update)? [y/N] '))) {
-        return stop('LG\'s automatic updates may still be on.', 'Switch Allow Automatic Updates off, then run this again.');
-      }
+      const upd = await updatesOff(ctx, checklist);
+      if (upd) return upd;
       const r = await withTv(ctx, (tv) => reach(tv, ctx.host, { address: ctx.reachAddress, waitMs: ctx.reachWaitMs }));
       if (!r.ok) {
         return stop('The TV can\'t reach this laptop (' + r.error + '). SlopBro needs that.',
@@ -355,10 +438,18 @@ export const STEPS = [
 
         // Homebrew Channel's own switches (services/service.ts, setConfiguration): only the three named are changed.
         // Block system updates is a second layer behind Allow Automatic Updates off (decided; docs/install.md)
-        await sh.run('luna-send -n 1 -w 10000 -f ' + q(HBC_SERVICE + 'setConfiguration') + ' ' + q(JSON.stringify({ telnetDisabled: true, sshdEnabled: true, blockUpdates: true })) + ' >/dev/null 2>&1');
-        const after = await hbcConfig(sh);
-        if (!after.telnetDisabled || !after.sshdEnabled || !after.blockUpdates) {
-          return stop('Homebrew Channel didn\'t take the change (Telnet off, SSH on, Block system updates on).',
+        const setConf = (o) => sh.run('luna-send -n 1 -w 10000 -f ' + q(HBC_SERVICE + 'setConfiguration') + ' ' + q(JSON.stringify(o)) + ' >/dev/null 2>&1');
+        await setConf(Object.fromEntries(Object.keys(LOCK).map((k) => [k, true])));
+        let after = await hbcConfig(sh);
+        const missed = Object.keys(LOCK).filter((k) => !after[k]);
+        if (missed.length) {
+          // once more, only what didn't take
+          await setConf(Object.fromEntries(missed.map((k) => [k, true])));
+          after = await hbcConfig(sh);
+        }
+        const still = Object.keys(LOCK).filter((k) => !after[k]);
+        if (still.length) {
+          return stop('Homebrew Channel didn\'t take the change (Telnet off, SSH on, Block system updates on); not on: ' + still.map((k) => LOCK[k]).join(', ') + '.',
             'In Homebrew Channel > Settings, switch Telnet off, SSH Server on and Block system updates on, then run this again.');
         }
         ctx.say('  ✓ Homebrew Channel: Telnet off, SSH on and Block system updates on, from the next restart');
@@ -372,8 +463,9 @@ export const STEPS = [
   {
     id: 'restart-check',
     title: 'Restart: HomeTV as Home',
-    what: 'After a restart, HomeTV should open as the TV\'s Home. The laptop checks Home is on screen, Telnet is closed ' +
-      'and SSH answers; you say whether it\'s HomeTV (the takeover keeps LG\'s Home app name, so the laptop can\'t tell).',
+    what: 'After a restart, HomeTV should open as the TV\'s Home. The laptop checks Home is on screen, Telnet is closed, ' +
+      'SSH logs in with the laptop\'s key only (no default password) and Homebrew Channel\'s three switches are on; you say ' +
+      'whether it\'s HomeTV (the takeover keeps LG\'s Home app name, so the laptop can\'t tell).',
     undo: 'LG\'s Home back for good: ssh -i ' + KEY_FILE + ' root@<tv ip> sh ' + TV_PATHS.dir + '/undo-home.sh . ' +
       'All the levels, up to a factory reset: docs/root-plan.md, "The way back".',
     async run(ctx) {
@@ -406,7 +498,24 @@ export const STEPS = [
           'Check that Windows\' OpenSSH client is installed (Settings > System > Optional features), then run this again ' +
           'with --from restart-check. Tell the HomeTV team if it stays.');
       }
-      return { note: 'HomeTV is Home (root edition); Telnet closed, SSH logs in with the laptop\'s key' };
+      // Step 7, after the restart: SSH by key only, and Homebrew Channel's three switches still on. The password check
+      // runs on the TV: no hash comes back to the laptop.
+      const P = { ...TV_PATHS, ...ctx.tvPaths };
+      const pw = await shell.run('[ -s ' + sq(P.ssh + '/authorized_keys') + ' ] && echo authorized-keys; grep -q ' +
+        sq('^root:' + DEFAULT_PASSWORD_HASH + ':') + ' /etc/shadow && echo default-password; true');
+      const pwOut = String(pw.stdout || '');
+      if (!/authorized-keys/.test(pwOut) || /default-password/.test(pwOut)) {
+        return stop('SSH still takes Homebrew Channel\'s default root password ("alpine"), not only the laptop\'s key.',
+          'The key has to be on the TV before a restart: run this again with --from root-install, then restart. Tell the HomeTV team if it stays.');
+      }
+      const conf = await luna(shell, HBC_SERVICE.replace('luna://', '') + 'getConfiguration');
+      const off = Object.keys(LOCK).filter((k) => conf[k] !== true);
+      if (off.length) {
+        return stop('After the restart, Homebrew Channel\'s switches aren\'t all set; not on: ' + off.map((k) => LOCK[k]).join(', ') + '.',
+          'In Homebrew Channel > Settings, switch Telnet off, SSH Server on and Block system updates on, restart the TV, then ' +
+          'run this again with --from restart-check.');
+      }
+      return { note: 'HomeTV is Home (root edition); Telnet off, SSH by key only, Block system updates on' };
     }
   }
 ];
@@ -416,6 +525,111 @@ async function hbcConfig(sh) {
   const flag = (k) => new RegExp('"' + k + '"\\s*:\\s*true').test(r.out);
   return { root: flag('root'), telnetDisabled: flag('telnetDisabled'), sshdEnabled: flag('sshdEnabled'), blockUpdates: flag('blockUpdates') };
 }
+
+// --- hometv-lg root: the checklist and "Clear the way" (docs/root-plan.md, steps 3-5), then the root steps above
+
+const PREFLIGHT = [
+  ['Have you photographed the TV\'s settings screens: picture, sound, the privacy switches, the home-row order, Power ' +
+    'On Screen and Quick Start+, HDMI device links (SIMPLINK), the channel list if you use an aerial, accessibility? [y/N] ',
+  'The photos of the TV\'s settings aren\'t taken.',
+  'After a factory reset they are how the settings go back by hand (docs/root-plan.md, Backup, part 2). Take them, then run this again.'],
+  ['Have you written down which apps you would need to sign in to again, the LG account if there is one, and the ' +
+    'Wi-Fi name (no passwords)? [y/N] ',
+  'The sign-in list isn\'t written.',
+  'It\'s what a factory reset would ask for again (docs/root-plan.md, Backup, part 3). Write it, then run this again.'],
+  ['Is LG\'s firmware file for this TV on a USB stick, in a folder named LG_DTV? [y/N] ',
+    'The USB stick with LG\'s firmware isn\'t ready.',
+    'It\'s the way back if the TV ever won\'t start (docs/root-plan.md, level 5). Prepare it, then run this again.']
+];
+
+export const ROOT_PRE = [
+  {
+    id: 'root-preflight',
+    title: 'Before root: the checklist',
+    what: 'Checks the TV answers and this laptop holds its backup, then asks what has to be ready before root, one line ' +
+      'at a time, and stops at the first "no". Changes nothing on the TV.',
+    undo: 'Nothing to undo.',
+    async run(ctx) {
+      const tv = await withTv(ctx, async (t) => ({ apps: await appIds(t), model: await modelName(t) }));
+      if (tv.apps.has(HBC)) return { note: 'skipped: the TV is already rooted (Homebrew Channel is installed)' };
+      ctx.say('  ✓ the TV answers and knows this laptop');
+      const b = latestBackup(ctx.dir);
+      if (!b) {
+        return stop('There\'s no backup of this TV on this laptop.',
+          'Run hometv-lg install <tv address> first (its first step is the backup), or hometv-lg check <tv address> --backup, then run this again.');
+      }
+      const was = (b.data.tv && b.data.tv.model) || '';
+      if (was && tv.model && was !== tv.model) {
+        return stop('The newest backup on this laptop (' + b.file + ') is of another TV model (' + was + ').',
+          'Back this TV up: hometv-lg check <tv address> --backup, then run this again.');
+      }
+      ctx.say('  ✓ the backup on this laptop: ' + b.file);
+      for (const [question, why, next] of PREFLIGHT) {
+        if (!yes(await ctx.ask('  ' + question))) return stop(why, next);
+      }
+      const upd = await updatesOff(ctx, false);
+      if (upd) return upd;
+      ctx.say('  Root changes the TV\'s writable storage, never LG\'s signed firmware. There is no unroot button: the full undo\n' +
+        '  is a factory reset (level 3 below), which also clears the TV\'s settings, apps and sign-ins.');
+      const a = (await ctx.ask('  If the TV\'s owner agrees to root it, type  root  and press Enter (anything else stops here): ')).trim().toLowerCase();
+      if (a !== 'root') return stop('The TV\'s owner hasn\'t agreed to root it.', 'Nothing changed on the TV. Run this again when they agree.');
+      return { note: 'backup ' + b.file + '; photos, sign-in list and USB stick confirmed; automatic updates off; the owner agreed' };
+    }
+  },
+  {
+    id: 'clear-the-way',
+    title: 'Clear the way: HomeTV and the Developer Mode app deleted, then a restart',
+    what: 'Root goes on a TV back to stock (docs/root-plan.md, step 5): you delete HomeTV\'s Developer Mode copy and the ' +
+      'Developer Mode app and restart the TV; the laptop then checks they\'re gone, LG\'s Home is on screen and the apps in ' +
+      'the backup are all there. HomeTV comes back after root, through Homebrew Channel\'s root shell.',
+    undo: 'HomeTV without root again: hometv-lg devmode <tv address>. Only if you stop here for good: on this software the ' +
+      'Developer Mode app must not be on the TV when it is rooted, nor deleted after (SlopBro issue 22).',
+    async run(ctx) {
+      let apps = await withTv(ctx, appIds);
+      if (apps.has(HBC)) return { note: 'skipped: the TV is already rooted (Homebrew Channel is installed)' };
+      const left = () => [apps.has(APP) && 'HomeTV', apps.has(DEVMODE) && 'the Developer Mode app'].filter(Boolean);
+      if (left().length) {
+        ctx.say([
+          '  On the TV, delete ' + left().join(' and ') + ': Home > edit the app list > the app > delete.',
+          '  Then restart the TV: ' + RESTART + '.'
+        ].join('\n'));
+        const a = await ctx.ask('  Press Enter when they\'re deleted and the TV is on again (or type q to stop here): ');
+        if (/^\s*q/i.test(a)) return { pause: 'Stopped before anything was deleted by this step. Run this again to carry on.' };
+      } else if (!yes(await ctx.ask('  Has the TV been restarted since the Developer Mode app was deleted? [y/N] '))) {
+        ctx.say('  Restart the TV now: ' + RESTART + '.');
+        await ctx.ask('  Press Enter when the TV is on again: ');
+      }
+      apps = await withTv(ctx, appIds);
+      if (left().length) {
+        return stop(left().join(' and ') + ' still on the TV.',
+          'Delete ' + (left().length > 1 ? 'them' : 'it') + ' (Home > edit the app list), restart the TV (' + RESTART + '), then run this again.');
+      }
+      ctx.say('  ✓ HomeTV\'s Developer Mode copy and the Developer Mode app are deleted');
+      let fg = await withTv(ctx, foreground);
+      if (fg !== HOME) {
+        await ctx.ask('  Press Home on the remote, then Enter here: ');
+        fg = await withTv(ctx, foreground);
+      }
+      if (fg !== HOME) {
+        return stop('LG\'s Home isn\'t on screen after the restart.',
+          'Press Home and check the TV works as before. If it doesn\'t, don\'t root: tell the HomeTV team.');
+      }
+      ctx.say('  ✓ LG\'s Home is on screen');
+      const b = latestBackup(ctx.dir);
+      const before = b && b.data.ssap && Array.isArray(b.data.ssap.apps) ? b.data.ssap.apps.map((x) => String(x.id)) : [];
+      const missing = before.filter((id) => ![APP, DEVMODE, HBC].includes(id) && !apps.has(id));
+      if (missing.length) {
+        return stop('Apps in the backup aren\'t on the TV any more: ' + missing.join(', ') + '.',
+          'Check them on the TV before root. If you deleted one on purpose, back up again (hometv-lg check <tv address> --backup), then run this again.');
+      }
+      ctx.say('  ✓ the apps in the backup are all on the TV');
+      return { note: 'back to stock: HomeTV and the Developer Mode app deleted, restarted, LG\'s Home and the apps there' };
+    }
+  }
+];
+
+/** hometv-lg root: the checklist, "Clear the way", then the same steps as hometv-lg install from root-checks on. */
+export const ROOT_STEPS = [...ROOT_PRE, ...STEPS.slice(STEPS.findIndex((s) => s.id === 'root-checks'))];
 
 // --- The runner
 
@@ -429,8 +643,39 @@ function saveState(dir, state) {
   fs.writeFileSync(stateFile(dir), JSON.stringify(state, null, 2));
 }
 
-/** Runs the steps not done yet (or from `from` on). Returns {done}, {paused: id} or {stopped: id}. */
-export async function runInstall(ctx, { from } = {}) {
+/** What a step's record says, in a word: done, skipped, stopped, paused or not run. */
+function statusWord(rec) {
+  if (!rec) return 'not run';
+  if (rec.status === 'done' && /^skipped/.test(rec.note || '')) return 'skipped';
+  return rec.status;
+}
+
+/** The report: each step's status, what it noted, its undo, and the way back. Nothing that identifies the TV. */
+export function reportText(steps, state, result, name) {
+  const end = result.done ? 'all steps done' : (result.stopped ? 'stopped at ' : 'paused at ') +
+    '"' + steps.find((s) => s.id === (result.stopped || result.paused)).title + '"';
+  const lines = [
+    'HomeTV for LG: hometv-lg ' + name + ' report',
+    'Written ' + new Date().toISOString().slice(0, 19).replace('T', ' ') + ' (UTC). Result: ' + end + '.',
+    'No TV address, serial number, device id or MAC address is in this report.',
+    ''
+  ];
+  for (const [i, s] of steps.entries()) {
+    const rec = state.steps[s.id];
+    lines.push((i + 1) + '. [' + statusWord(rec) + '] ' + s.title + (rec && rec.at ? ' (' + rec.at.slice(0, 16).replace('T', ' ') + ')' : ''));
+    if (rec && (rec.note || rec.why)) lines.push('   ' + (rec.why || rec.note));
+    lines.push('   Undo: ' + s.undo);
+  }
+  lines.push('', 'The way back, lightest first (docs/root-plan.md, "The way back"):', ...WAY_BACK.map((l) => '  ' + l));
+  return lines.join('\n') + '\n';
+}
+
+/**
+ * Runs the steps not done yet (or from `from` on). Returns {done}, {paused: id} or {stopped: id}. `steps` is STEPS
+ * (hometv-lg install) or ROOT_STEPS (hometv-lg root); both keep their progress in the same state file, so a step done
+ * by one is done for the other. With `report`, writes lg-<name>-report-<date>.txt in the HomeTV folder at the end.
+ */
+export async function runInstall(ctx, { from, steps = STEPS, name = 'install', report = false } = {}) {
   const rawSay = ctx.say;
   const logFile = path.join(ctx.dir, 'install-log.txt');
   const say = (s) => {
@@ -438,48 +683,57 @@ export async function runInstall(ctx, { from } = {}) {
     rawSay(clean);
     fs.appendFileSync(logFile, clean + '\n');
   };
-  const c = { ...ctx, say };
   fs.mkdirSync(ctx.dir, { recursive: true });
   const state = loadState(ctx.dir);
+  const c = { ...ctx, say, state };
   if (from) {
-    const i = STEPS.findIndex((s) => s.id === from);
-    if (i < 0) throw new Error('no step named ' + from + ' (steps: ' + STEPS.map((s) => s.id).join(', ') + ')');
-    for (const s of STEPS.slice(i)) delete state.steps[s.id];
+    const i = steps.findIndex((s) => s.id === from);
+    if (i < 0) throw new Error('no step named ' + from + ' (steps: ' + steps.map((s) => s.id).join(', ') + ')');
+    for (const s of steps.slice(i)) delete state.steps[s.id];
   }
-  say('\n[' + new Date().toISOString().slice(0, 19) + '] hometv-lg install');
-  for (const [i, step] of STEPS.entries()) {
-    const head = '\nStep ' + (i + 1) + ' of ' + STEPS.length + ': ' + step.title;
-    const prev = state.steps[step.id];
-    if (prev && prev.status === 'done') { say(head + ' (done ' + prev.at.slice(0, 10) + ')'); continue; }
-    say(head + '\n  ' + step.what + '\n  Undo: ' + step.undo);
-    let r;
-    try {
-      r = await step.run(c);
-    } catch (e) {
-      r = stop('Something went wrong: ' + (e && e.message ? e.message : e) + '.', 'Run this again: finished steps are skipped.');
-    }
-    const at = new Date().toISOString();
-    if (r.pause) {
-      state.steps[step.id] = { status: 'paused', at };
+  say('\n[' + new Date().toISOString().slice(0, 19) + '] hometv-lg ' + name);
+  const result = await (async () => {
+    for (const [i, step] of steps.entries()) {
+      const head = '\nStep ' + (i + 1) + ' of ' + steps.length + ': ' + step.title;
+      const prev = state.steps[step.id];
+      if (prev && prev.status === 'done') { say(head + ' (done ' + prev.at.slice(0, 10) + ')'); continue; }
+      say(head + '\n  ' + step.what + '\n  Undo: ' + step.undo);
+      let r;
+      try {
+        r = await step.run(c);
+      } catch (e) {
+        r = stop('Something went wrong: ' + (e && e.message ? e.message : e) + '.', 'Run this again: finished steps are skipped.');
+      }
+      const at = new Date().toISOString();
+      if (r.pause) {
+        state.steps[step.id] = { status: 'paused', at };
+        saveState(ctx.dir, state);
+        say('  ' + r.pause);
+        return { paused: step.id };
+      }
+      if (r.stop) {
+        state.steps[step.id] = { status: 'stopped', at, why: scrub(r.stop, ctx.host) };
+        saveState(ctx.dir, state);
+        say('  STOPPED: ' + r.stop + '\n  Next: ' + r.next);
+        return { stopped: step.id };
+      }
+      state.steps[step.id] = { status: 'done', at, note: scrub(r.note || '', ctx.host) };
       saveState(ctx.dir, state);
-      say('  ' + r.pause);
-      return { paused: step.id };
+      say('  ✓ ' + (r.note || 'done'));
     }
-    if (r.stop) {
-      state.steps[step.id] = { status: 'stopped', at, why: scrub(r.stop, ctx.host) };
-      saveState(ctx.dir, state);
-      say('  STOPPED: ' + r.stop + '\n  Next: ' + r.next);
-      return { stopped: step.id };
-    }
-    state.steps[step.id] = { status: 'done', at, note: scrub(r.note || '', ctx.host) };
-    saveState(ctx.dir, state);
-    say('  ✓ ' + (r.note || 'done'));
+    say('\nAll steps done: HomeTV is Home.');
+    return { done: true };
+  })();
+  if (report) {
+    const file = path.join(ctx.dir, 'lg-' + name + '-report-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.txt');
+    const text = scrub(reportText(steps, state, result, name), ctx.host);
+    fs.writeFileSync(file, text);
+    say('\n' + text + '\nThis report is saved as ' + path.basename(file) + ' in the HomeTV folder.');
   }
-  say('\nAll steps done: HomeTV is Home.');
-  return { done: true };
+  return result;
 }
 
-export function listSteps(dir) {
+export function listSteps(dir, steps = STEPS) {
   const state = loadState(dir);
-  return STEPS.map((s, i) => (i + 1) + '. ' + s.id.padEnd(14) + (state.steps[s.id] ? state.steps[s.id].status : 'not run').padEnd(9) + s.title);
+  return steps.map((s, i) => (i + 1) + '. ' + s.id.padEnd(15) + statusWord(state.steps[s.id]).padEnd(9) + s.title);
 }

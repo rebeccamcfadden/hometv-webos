@@ -71,10 +71,13 @@ export const HANDLERS = {
 };
 
 // A pretend TV whose apps and screen change as a test goes on (hometv-lg install): state.apps (app ids),
-// state.foreground (the app on screen), state.minor (the software's minor version).
+// state.foreground (the app on screen), state.minor (the software's minor version), state.autoUpdate ('on' or 'off':
+// Allow Automatic Updates, when the TV says; unset, it doesn't).
 export function tvWithState(state) {
   return {
     ...HANDLERS,
+    'settings/getSystemSettings': (p) => (state.autoUpdate && p.category === 'option' && (p.keys || []).includes('autoUpdate')
+      ? { returnValue: true, settings: { autoUpdate: state.autoUpdate } } : HANDLERS['settings/getSystemSettings'](p)),
     'com.webos.service.update/getCurrentSWInformation': () => ({
       ...HANDLERS['com.webos.service.update/getCurrentSWInformation'](), minor_ver: state.minor || '31.61'
     }),

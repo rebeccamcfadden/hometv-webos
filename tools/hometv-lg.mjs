@@ -3,6 +3,7 @@
 //   hometv-lg check <tv address> [--backup] [--launch] [--reach]
 //   hometv-lg devmode <tv address> [--v0 <file>] [--v1 <file>] [--only v0|v1]   HomeTV v0 then v1 on a TV in Developer Mode, checked
 //   hometv-lg install <tv address> [--ipk <file>] [--from <step>]   (docs/install.md)
+//   hometv-lg root <tv address> [--ipk <file>] [--from <step>]      the rooted path alone, with a checklist and a report
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -128,12 +129,12 @@ if (cmd === 'check') {
 } else if (cmd === DEVMODE_CMD) {
   process.argv = [process.argv[0], DEVMODE_CMD, ...rest];
   await import('./devmode.mjs');
-} else if (cmd === 'install' || (cmd === 'get' && rest[0] === 'root-kit')) {
+} else if (cmd === 'install' || cmd === 'root' || (cmd === 'get' && rest[0] === 'root-kit')) {
   if (!ROOT) {
     console.log(NO_ROOT);
     process.exitCode = 2;
-  } else if (cmd === 'install') {
-    process.argv = [process.argv[0], 'install', ...rest];
+  } else if (cmd === 'install' || cmd === 'root') {
+    process.argv = [process.argv[0], cmd, ...rest];
     await import('./install.mjs');
   } else {
     process.argv = [process.argv[0], 'get', ...rest];
@@ -151,7 +152,8 @@ if (cmd === 'check') {
   console.log('HomeTV for LG\n\n  hometv-lg                      (double-click) asks: check the TV, or install HomeTV\n' +
     '  hometv-lg check <tv address> [--backup] [--launch] [--reach]\n' +
     '  hometv-lg ' + DEVMODE_CMD + ' <tv address> [--v0 <file>] [--v1 <file>] [--only v0|v1]\n' +
-    (ROOT ? '  hometv-lg install <tv address> [--ipk <file>] [--from <step>]   (or: install --list)\n' : '') +
+    (ROOT ? '  hometv-lg install <tv address> [--ipk <file>] [--from <step>]   (or: install --list)\n' +
+      '  hometv-lg root <tv address> [--ipk <file>] [--from <step>]      (or: root --list)\n' : '') +
     '  hometv-lg get dev-manager' + (ROOT ? ' | root-kit' : '') + '\n' +
     '  hometv-lg restore <backup file> <tv address> [--root] [--dry-run]\n\n' +
     'check   reads the TV (model, apps, inputs, what v0 needs) after its "Allow" prompt;\n' +
@@ -160,6 +162,8 @@ if (cmd === 'check') {
     DEVMODE_CMD + ' installs HomeTV v0, then v1 over it, on a TV in Developer Mode (no root) and runs every check the laptop can;\n' +
     '        it asks yes or no only for what it cannot see, and writes lg-devmode-<date>.json and .txt (no address or serial).' +
     (ROOT ? '\ninstall takes the TV from Developer Mode to HomeTV as Home (root edition), one checked step at a time;\n' +
-    '        run again, it carries on where it stopped (docs/install.md).' : ''));
+    '        run again, it carries on where it stopped (docs/install.md).\n' +
+    'root    the rooted path alone, on a TV that passed the unrooted install: a checklist (backup, photos, sign-in list,\n' +
+    '        USB stick, automatic updates off, the owner types root), Clear the way, root, the lock-down, and a report.' : ''));
   process.exitCode = 2;
 }

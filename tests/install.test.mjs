@@ -12,7 +12,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fakeTv, tvWithState } from './fake-ssap.mjs';
 import { fakeTelnet, fakeRootedTv, SH } from './fake-telnet.mjs';
-import { runInstall, STEPS, loadState, scrub, rootFiles } from '../tools/lib/install-steps.mjs';
+import { runInstall, STEPS, ROOT_STEPS, loadState, scrub, rootFiles } from '../tools/lib/install-steps.mjs';
 import { telnetParser, telnetShell, pushFile } from '../tools/lib/telnet.mjs';
 
 const APP = 'com.hometv.app';
@@ -58,6 +58,7 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
   const asked = [];
   const slopbro = [];
   const logins = [];
+  const flags = { defaultPassword: false, lost: [] };
   const ctx = {
     host: '127.0.0.1', dir: laptop, ipk, kit,
     ssapPorts: [{ url: 'ws://127.0.0.1:' + ws + '/', insecure: false }],
@@ -71,14 +72,22 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
       return '';
     },
     runSlopbro: async (k, host) => { slopbro.push(host); state.apps.push(HBC); return 0; },
-    // a pretend Windows ssh (tools/lib/root-shell.mjs's shape): root when the key is the one the TV was given
+    // a pretend Windows ssh (tools/lib/root-shell.mjs's shape): root when the key is the one the TV was given; answers
+    // the restart check's key-only check and Homebrew Channel's switches from the folder standing for the TV
     rootShell: (o) => ({
       async run(cmd) {
         logins.push({ ...o, cmd });
         const ak = path.join(t, 'tv', 'ssh', 'authorized_keys');
         const ok = fs.existsSync(ak) && fs.existsSync(o.key + '.pub') &&
           fs.readFileSync(ak, 'utf8').includes(fs.readFileSync(o.key + '.pub', 'utf8').trim());
-        return ok ? { code: 0, stdout: '0\n', stderr: '' } : { code: 255, stdout: '', stderr: 'Permission denied (publickey).' };
+        if (!ok) return { code: 255, stdout: '', stderr: 'Permission denied (publickey).' };
+        if (cmd === 'id -u') return { code: 0, stdout: '0\n', stderr: '' };
+        if (cmd.includes('/etc/shadow')) return { code: 0, stdout: 'authorized-keys\n' + (flags.defaultPassword ? 'default-password\n' : ''), stderr: '' };
+        if (cmd.includes('hbchannel.service/getConfiguration')) {
+          const f = (n) => !flags.lost.includes(n) && fs.existsSync(path.join(t, 'tv', 'prefs', 'webosbrew_' + n));
+          return { code: 0, stdout: JSON.stringify({ returnValue: true, root: true, telnetDisabled: f('telnet_disabled'), sshdEnabled: f('sshd_enabled'), blockUpdates: f('block_updates') }), stderr: '' };
+        }
+        return { code: 127, stdout: '', stderr: 'not in the pretend ssh' };
       }
     })
   };
@@ -88,7 +97,7 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
     if (tn) await tn.stop();
     fs.rmSync(t, { recursive: true, force: true });
   };
-  return { t, ctx, state, out, asked, slopbro, logins, tn, rooted, laptop, done, text: () => out.join('\n') };
+  return { t, ctx, state, out, asked, slopbro, logins, tn, rooted, laptop, flags, done, text: () => out.join('\n') };
 }
 
 // The answers a person gives on the happy path; the hooks do what the person does on the TV meanwhile.
@@ -197,9 +206,13 @@ test('the whole way: backup, Developer Mode, checks, root, Homebrew Channel, roo
     assert.match(stub, /appInstallService\/dev\/install .*com\.ares\.defaultName/);
     assert.match(s.text(), /Telnet off, SSH on and Block system updates on/);
     assert.match(s.text(), /All steps done: HomeTV is Home\./);
-    // step 8 logs in with exactly the key and known-hosts file hometv-lg restore uses
-    assert.deepEqual(s.logins.map((l) => [l.key, l.knownHosts, l.cmd]),
-      [[path.join(s.laptop, 'lg-root-key'), path.join(s.laptop, 'lg-known-hosts'), 'id -u']]);
+    // step 8 logs in with exactly the key and known-hosts file hometv-lg restore uses, then checks the lock-down
+    assert.deepEqual(s.logins.map((l) => [l.key, l.knownHosts]),
+      s.logins.map(() => [path.join(s.laptop, 'lg-root-key'), path.join(s.laptop, 'lg-known-hosts')]));
+    assert.equal(s.logins[0].cmd, 'id -u');
+    assert.match(s.logins[1].cmd, /authorized_keys.*grep -q '\^root:xGVw8H4GqkKg6:' \/etc\/shadow/);
+    assert.match(s.logins[2].cmd, /hbchannel\.service\/getConfiguration/);
+    assert.match(s.text(), /Telnet off, SSH by key only, Block system updates on/);
     assert.match(fs.readFileSync(path.join(s.laptop, 'lg-root-key'), 'utf8'), /^-----BEGIN OPENSSH PRIVATE KEY-----\n/);
     noSecrets(s);
 
@@ -466,6 +479,236 @@ test('the command line: --list, usage, and the double-click menu\'s install choi
     assert.ok(!fs.readFileSync(path.join(dir, 'install-log.txt'), 'utf8').includes('127.0.0.1'));
   } finally {
     tv.server.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// --- hometv-lg root: the rooted path alone, on a TV that passed the unrooted install
+
+const ROOT_RUN = { steps: ROOT_STEPS, name: 'root', report: true };
+
+/** A TV that passed hometv-lg install up to "root now?" (answered no): backup taken, HomeTV and Developer Mode on it. */
+async function rootSetup({ replies = {}, hooks = {}, ...opts } = {}) {
+  const box = {};
+  const s = await setup({
+    ...opts,
+    replies: {
+      'Dev Manager says': '', 'Go on to the root steps': 'n', 'photographed': 'y', 'written down': 'y', 'USB stick': 'y',
+      'Automatic Updates': 'y', 'owner agrees': 'root', 'restarted since': 'y', 'root the TV': 'Root the TV', 'HomeTV on screen': 'y',
+      ...replies
+    },
+    hooks: {
+      'Dev Manager says': () => box.state.apps.push(APP),
+      // the person deletes both and restarts, as "Clear the way" asks
+      'deleted and the TV is on again': () => { box.state.apps = box.state.apps.filter((a) => a !== DEVMODE && a !== APP); },
+      'back on': async () => { box.state.foreground = HOME; if (box.tn) await box.tn.stop(); },
+      'Press Home on the remote': () => { box.state.foreground = HOME; },
+      ...hooks
+    }
+  });
+  box.state = s.state;
+  box.tn = s.tn;
+  assert.deepEqual(await runInstall(s.ctx), { paused: 'go-on' }, s.text());
+  s.out.length = 0;
+  s.asked.length = 0;
+  return s;
+}
+
+const report = (s) => {
+  const f = fs.readdirSync(s.laptop).filter((x) => /^lg-root-report-.*\.txt$/.test(x)).sort().pop();
+  return f ? fs.readFileSync(path.join(s.laptop, f), 'utf8') : '';
+};
+
+test('hometv-lg root: the checklist and "Clear the way", then the install\'s own steps from root-checks on', () => {
+  assert.deepEqual(ROOT_STEPS.map((s) => s.id),
+    ['root-preflight', 'clear-the-way', 'root-checks', 'root', 'hbc-check', 'root-install', 'restart-check']);
+  for (const id of ROOT_STEPS.slice(2).map((s) => s.id)) assert.equal(ROOT_STEPS.find((s) => s.id === id), STEPS.find((s) => s.id === id), id);
+  for (const s of ROOT_STEPS) assert.ok(s.title && s.what && s.undo && typeof s.run === 'function', s.id);
+});
+
+test('hometv-lg root, the whole way: checklist, clear the way, root, lock-down, restart, one report', { skip: !SH, timeout: 180000 }, async () => {
+  const s = await rootSetup();
+  try {
+    const r = await runInstall(s.ctx, ROOT_RUN);
+    assert.deepEqual(r, { done: true }, s.text());
+    assert.deepEqual(s.slopbro, ['127.0.0.1']);
+    // asked once each: no second restart or USB question in root-checks
+    assert.equal(s.asked.filter((q) => q.includes('USB stick')).length, 1);
+    assert.equal(s.asked.filter((q) => q.includes('restarted since')).length, 0);
+    assert.match(s.text(), /✓ restarted since \(checked in "Clear the way"\)/);
+    assert.match(s.text(), /✓ the backup on this laptop: lg-backup-/);
+    assert.match(s.text(), /✓ the apps in the backup are all on the TV/);
+    assert.ok(fs.existsSync(path.join(s.t, 'tv', 'prefs', 'webosbrew_block_updates')));
+    const rep = report(s);
+    for (const st of ROOT_STEPS) assert.match(rep, new RegExp('\\[done\\] ' + st.title.replace(/[()"']/g, '.')), st.id);
+    assert.match(rep, /Result: all steps done\./);
+    assert.match(rep, /Undo: There is no unroot button/);
+    assert.match(rep, /The way back, lightest first/);
+    assert.match(rep, /3 {2}Full unroot: Settings > General > System > Reset to Initial Settings/);
+    for (const x of SECRETS) assert.ok(!rep.includes(x), 'report leaked: ' + x);
+    noSecrets(s);
+
+    // a re-run: nothing runs twice, the report says so again
+    s.out.length = 0;
+    const before = s.tn.seen.connections;
+    assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { done: true });
+    assert.equal(s.slopbro.length, 1);
+    assert.equal(s.tn.seen.connections, before);
+    assert.match(s.text(), /Step 1 of 7: Before root: the checklist \(done/);
+  } finally {
+    await s.done();
+  }
+});
+
+test('hometv-lg root: a "no" at each checklist question stops before anything changes', async () => {
+  for (const [q, msg] of [['photographed', /photos of the TV's settings aren't taken/], ['written down', /sign-in list isn't written/],
+    ['USB stick', /USB stick with LG's firmware isn't ready/], ['Automatic Updates', /automatic updates may still be on/],
+    ['owner agrees', /owner hasn't agreed/]]) {
+    const s = await rootSetup({ telnet: false, replies: { [q]: q === 'owner agrees' ? 'yes' : 'n' } });
+    try {
+      assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'root-preflight' }, q);
+      assert.match(s.text(), msg);
+      assert.deepEqual(s.slopbro, []);
+      assert.ok(s.state.apps.includes(DEVMODE), 'nothing asked to be deleted yet');
+      assert.match(report(s), /\[stopped\] Before root: the checklist/);
+      assert.match(report(s), /\[not run\] Root with SlopBro/);
+      noSecrets(s);
+    } finally {
+      await s.done();
+    }
+  }
+});
+
+test('hometv-lg root: the backup must be on this laptop, and of this model', async () => {
+  const s = await setup({ telnet: false, replies: { photographed: 'y' } });
+  try {
+    assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'root-preflight' });
+    assert.match(s.text(), /no backup of this TV on this laptop/);
+    assert.equal(s.asked.filter((q) => q.includes('photographed')).length, 0, 'the file is checked before any question');
+    fs.writeFileSync(path.join(s.laptop, 'lg-backup-2026-01-01-00-00-00.json'), JSON.stringify({ format: 'hometv-lg-backup', tv: { model: 'OLED55C4' } }));
+    s.out.length = 0;
+    assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'root-preflight' });
+    assert.match(s.text(), /another TV model \(OLED55C4\)/);
+  } finally {
+    await s.done();
+  }
+});
+
+test('hometv-lg root: Allow Automatic Updates is read from the TV when it says', async () => {
+  const on = await rootSetup({ telnet: false });
+  on.state.autoUpdate = 'on';
+  try {
+    assert.deepEqual(await runInstall(on.ctx, ROOT_RUN), { stopped: 'root-preflight' });
+    assert.match(on.text(), /The TV says Allow Automatic Updates is on/);
+    assert.equal(on.asked.filter((q) => q.includes('Automatic Updates')).length, 0);
+  } finally {
+    await on.done();
+  }
+  const off = await rootSetup({ telnet: false, replies: { 'Automatic Updates': 'n' } });
+  off.state.autoUpdate = 'off';
+  try {
+    assert.deepEqual(await runInstall(off.ctx, ROOT_RUN), { stopped: 'root-install' }); // pretend Telnet is closed
+    assert.match(off.text(), /✓ Allow Automatic Updates is off \(the TV says\)/);
+    assert.equal(off.asked.filter((q) => q.includes('Automatic Updates')).length, 0);
+  } finally {
+    await off.done();
+  }
+});
+
+test('hometv-lg root: "Clear the way" stops while HomeTV or the Developer Mode app is on, or an app went missing; a re-run carries on', async () => {
+  const s = await rootSetup({ telnet: false, hooks: { 'deleted and the TV is on again': () => {} } });
+  try {
+    assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'clear-the-way' });
+    assert.match(s.text(), /HomeTV and the Developer Mode app still on the TV/);
+    // the person deletes only the Developer Mode app (HomeTV's copy stays), then runs it again: the checklist isn't asked again
+    s.state.apps = s.state.apps.filter((a) => a !== DEVMODE);
+    s.out.length = 0;
+    s.asked.length = 0;
+    assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'clear-the-way' });
+    assert.match(s.text(), /Step 1 of 7: Before root: the checklist \(done/);
+    assert.equal(s.asked.filter((q) => q.includes('photographed')).length, 0);
+    assert.match(s.text(), /delete HomeTV:/);
+    assert.match(s.text(), /HomeTV still on the TV/);
+    // both gone, but Netflix too
+    s.state.apps = [];
+    s.out.length = 0;
+    assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'clear-the-way' });
+    assert.match(s.text(), /Apps in the backup aren't on the TV any more: netflix/);
+    // all well: carries on to root-checks and further
+    s.state.apps = ['netflix'];
+    s.out.length = 0;
+    assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'root-install' }); // pretend Telnet is closed
+    assert.equal(loadState(s.laptop).steps['clear-the-way'].status, 'done');
+    assert.deepEqual(s.slopbro, ['127.0.0.1']);
+  } finally {
+    await s.done();
+  }
+});
+
+test('root-checks: HomeTV\'s Developer Mode copy still on stops it, in hometv-lg install too (root-plan step 5)', async () => {
+  const box = {};
+  const s = await setup({ telnet: false, replies: happy(box).replies, hooks: {
+    'Dev Manager says': () => box.state.apps.push(APP),
+    'Go on to the root steps': () => { box.state.apps = box.state.apps.filter((a) => a !== DEVMODE); }
+  } });
+  box.state = s.state;
+  try {
+    assert.deepEqual(await runInstall(s.ctx), { stopped: 'root-checks' });
+    assert.match(s.text(), /HomeTV's Developer Mode copy is still installed/);
+    assert.deepEqual(s.slopbro, []);
+  } finally {
+    await s.done();
+  }
+});
+
+test('hometv-lg root: Homebrew Channel missing after the restart stops and points to level 3', async () => {
+  const s = await rootSetup({ telnet: false });
+  s.ctx.runSlopbro = async () => 0;
+  try {
+    assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'hbc-check' });
+    assert.match(s.text(), /Homebrew Channel isn't on the TV after root/);
+    assert.match(s.text(), /level 3/);
+    const rep = report(s);
+    assert.match(rep, /Result: stopped at "After root: Homebrew Channel"/);
+    assert.match(rep, /\[stopped\] After root: Homebrew Channel/);
+    assert.match(rep, /\[not run\] Restart: HomeTV as Home/);
+    noSecrets(s);
+  } finally {
+    await s.done();
+  }
+});
+
+test('restart check: the default root password, or a switch Homebrew Channel lost, stops it', { skip: !SH, timeout: 180000 }, async () => {
+  const s = await rootSetup();
+  s.flags.defaultPassword = true;
+  try {
+    assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'restart-check' });
+    assert.match(s.text(), /default root password \("alpine"\)/);
+    s.flags.defaultPassword = false;
+    s.flags.lost = ['block_updates'];
+    s.out.length = 0;
+    assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'restart-check' });
+    assert.match(s.text(), /not on: Block system updates on/);
+    s.flags.lost = [];
+    assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { done: true });
+  } finally {
+    await s.done();
+  }
+});
+
+test('the command line: hometv-lg root --list and its usage', { timeout: 30000 }, async () => {
+  const { execFileSync } = await import('node:child_process');
+  const dir = scratch('cli-root');
+  try {
+    const env = { ...process.env, HOMETV_DIR: dir };
+    const list = execFileSync(process.execPath, ['tools/hometv-lg.mjs', 'root', '--list'], { env, encoding: 'utf8' });
+    assert.match(list, /^1\. root-preflight +not run +Before root: the checklist/);
+    assert.match(list, /7\. restart-check +not run/);
+    assert.throws(() => execFileSync(process.execPath, ['tools/hometv-lg.mjs', 'root', '127.0.0.1', '--from', 'backup'], { env, stdio: 'pipe' }),
+      (e) => /hometv-lg root <tv address>/.test(String(e.stderr)) && /Steps: root-preflight, clear-the-way/.test(String(e.stderr)));
+    const { spawnSync } = await import('node:child_process');
+    assert.match(spawnSync(process.execPath, ['tools/hometv-lg.mjs', 'help'], { env, encoding: 'utf8' }).stdout, /hometv-lg root <tv address>/);
+  } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
