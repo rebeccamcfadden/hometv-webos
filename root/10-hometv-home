@@ -1,10 +1,12 @@
 #!/bin/sh
 # Homebrew Channel start-up hook (/var/lib/webosbrew/init.d/10-hometv-home): makes HomeTV LG's Home, in memory only. A
 # restart without this hook (an LG update that ends root, or Homebrew Channel's failsafe start) leaves LG's Home as it
-# was. "Use LG's Home" = the file DISABLE in the HomeTV folder (undo-home.sh writes it). From lasharor's
+# was. "Use LG's Home" (undo-home.sh) removes this hook and writes DISABLE in the HomeTV folder, which it honours too.
+# HomeTV uninstalled in Homebrew Channel leaves this hook behind: it then does nothing. From lasharor's
 # 10-cleanyourtv-home (MIT), the mount way only.
 . "$(dirname "$(readlink -f "$0")")/lib.sh"
 [ -e "$D/DISABLE" ] && exit 0
+[ -f "$APP/index.html" ] || { say "home: HomeTV isn't installed; LG's Home stays"; exit 0; }
 home=$(node "$D/decide.js" kind "$D/backup/home-appinfo.orig.json")
 if [ "$(node "$D/decide.js" takeover "$home")" != mount ]; then
   say "home: LG's Home here is '$home'; HomeTV only takes over the flutter or web Home; LG's Home stays"

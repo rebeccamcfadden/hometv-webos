@@ -138,11 +138,60 @@ test('undo-home: temp puts LG\'s Home back for now; without temp it stays (DISAB
     assert.match(s.read('boot.log'), /LG's Home is back until the next restart/);
     s.run('10-hometv-home');
     assert.ok(s.mounted());
+    fs.writeFileSync(path.join(s.t, 'initd', '10-hometv-home'), '');
+    fs.writeFileSync(path.join(s.t, 'initd', '15-hometv-debloat'), '');
+    fs.writeFileSync(path.join(s.t, 'initd', '20-other'), '');
     s.run('undo-home.sh');
     assert.ok(!s.mounted());
     assert.ok(fs.existsSync(path.join(s.D, 'DISABLE')));
+    assert.deepEqual(fs.readdirSync(path.join(s.t, 'initd')), ['20-other'], 'only HomeTV\'s hooks go');
     s.run('10-hometv-home');
     assert.ok(!s.mounted());
+  } finally {
+    s.done();
+  }
+});
+
+test('undo-home at-restart (HomeTV\'s "Use LG\'s Home"): hooks gone and DISABLE now, nothing in memory touched; install.sh undoes it', { skip: !SH }, async () => {
+  const s = setup();
+  try {
+    s.run('install.sh');
+    s.run('10-hometv-home');
+    await s.waitFor(/launch/);
+    const sams = (s.read('stub.log').match(/restart sam/g) || []).length;
+    fs.writeFileSync(path.join(s.t, 'lastapp.json'), '{"lastAppId":"com.hometv.app"}');
+    assert.match(s.run('undo-home.sh', 'at-restart'), /LG's Home from the next restart/);
+    assert.ok(s.mounted(), 'still HomeTV until the restart');
+    assert.equal((s.read('stub.log').match(/restart sam/g) || []).length, sams);
+    assert.doesNotMatch(s.read('stub.log'), /umount/);
+    assert.deepEqual(fs.readdirSync(path.join(s.t, 'initd')), []);
+    assert.ok(fs.existsSync(path.join(s.D, 'DISABLE')));
+    assert.match(s.read('lastapp.json'), /com\.webos\.app\.home/);
+    // the way back: install.sh links the hooks again and removes DISABLE
+    s.run('install.sh');
+    assert.deepEqual(fs.readdirSync(path.join(s.t, 'initd')).sort(), ['10-hometv-home', '15-hometv-debloat']);
+    assert.ok(!fs.existsSync(path.join(s.D, 'DISABLE')));
+    assert.throws(() => s.run('undo-home.sh', 'forever'), (e) => /usage/.test(String(e.stderr)));
+    assert.ok(!fs.existsSync(path.join(s.D, 'DISABLE')), 'a wrong word changes nothing');
+  } finally {
+    s.done();
+  }
+});
+
+test('HomeTV uninstalled in Homebrew Channel: the hooks left behind do nothing; uninstall.sh still cleans up', { skip: !SH }, async () => {
+  const s = setup();
+  try {
+    s.run('install.sh');
+    fs.rmSync(path.join(s.t, 'app'), { recursive: true });
+    s.run('10-hometv-home');
+    s.run('15-hometv-debloat');
+    await new Promise((r) => setTimeout(r, 300));
+    assert.ok(!s.mounted());
+    assert.equal(s.read('stub.log'), '', 'no mount, no sam restart, no elevation, no debloat');
+    assert.match(s.read('boot.log'), /HomeTV isn't installed; LG's Home stays/);
+    s.run('uninstall.sh');
+    assert.deepEqual(fs.readdirSync(path.join(s.t, 'initd')), []);
+    assert.ok(!fs.existsSync(s.D));
   } finally {
     s.done();
   }
