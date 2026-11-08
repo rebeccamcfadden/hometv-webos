@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { loadTs } from './ts-module.mjs';
-import { rootedBefore, rootStatus, describeRootStatus } from '../tools/lib/root-status.mjs';
+import { rootedBefore, knownHost, rootStatus, describeRootStatus } from '../tools/lib/root-status.mjs';
 
 const { re } = await loadTs({ re: 'webos/rootEdition.ts' });
 
@@ -95,20 +95,51 @@ test('laptop: a TV this laptop never rooted gets no root line; ended names the c
   assert.match(describeRootStatus({ state: 'rooted', why: '' })[0], /^Root: still on/);
 });
 
-test('laptop: "rooted before" is the root steps done in install-state.json, or the root key', () => {
+test('laptop: "rooted before" is the root steps done in install-state.json, or the root key, and this TV\'s address in the kept host keys', () => {
   const d = path.resolve('dist', 'test-rootended-' + crypto.randomBytes(4).toString('hex'));
   fs.mkdirSync(d, { recursive: true });
+  const TV = '192.168.1.50';
   try {
-    assert.equal(rootedBefore(d), false, 'nothing here');
+    fs.writeFileSync(path.join(d, 'lg-known-hosts'), TV + ' ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIexample\n');
+    assert.equal(rootedBefore(d, TV), false, 'nothing here');
     fs.writeFileSync(path.join(d, 'install-state.json'), JSON.stringify({ steps: { backup: { status: 'done' }, root: { status: 'stopped' } } }));
-    assert.equal(rootedBefore(d), false, 'Developer Mode only, or root stopped');
+    assert.equal(rootedBefore(d, TV), false, 'Developer Mode only, or root stopped');
     fs.writeFileSync(path.join(d, 'install-state.json'), JSON.stringify({ steps: { root: { status: 'done' } } }));
-    assert.equal(rootedBefore(d), true);
+    assert.equal(rootedBefore(d, TV), true);
+    assert.equal(rootedBefore(d, '192.168.1.51'), false, 'another TV checked from this laptop: no root line');
     fs.writeFileSync(path.join(d, 'install-state.json'), 'not json');
-    assert.equal(rootedBefore(d), false);
+    assert.equal(rootedBefore(d, TV), false);
     fs.writeFileSync(path.join(d, 'lg-root-key'), 'x');
-    assert.equal(rootedBefore(d), true);
+    assert.equal(rootedBefore(d, TV), true);
+    fs.rmSync(path.join(d, 'lg-known-hosts'));
+    assert.equal(rootedBefore(d, TV), false, 'no host keys kept: never logged in');
+    // a hashed line (HashKnownHosts), and [host]:22
+    const salt = crypto.randomBytes(20);
+    const hash = crypto.createHmac('sha1', salt).update(TV).digest('base64');
+    fs.writeFileSync(path.join(d, 'kh'), '# c\n|1|' + salt.toString('base64') + '|' + hash + ' ssh-ed25519 AAAA\n');
+    assert.equal(knownHost(path.join(d, 'kh'), TV), true);
+    assert.equal(knownHost(path.join(d, 'kh'), '192.168.1.5'), false);
+    fs.writeFileSync(path.join(d, 'kh'), 'other,[' + TV + ']:22 ssh-rsa AAAA\n');
+    assert.equal(knownHost(path.join(d, 'kh'), TV), true);
   } finally {
     fs.rmSync(d, { recursive: true, force: true });
   }
+});
+
+test('laptop: SSH\'s own error text, which names the TV, never reaches the report', async () => {
+  const TV = '192.168.1.50';
+  for (const err of [
+    'ssh: connect to host ' + TV + ' port 22: Network is unreachable',
+    'ssh: Could not resolve hostname tv.example: Name or service not known',
+    'Command failed: ssh -p 22 -i C:\\Users\\someone\\HomeTV\\lg-root-key root@' + TV + ' id -u',
+    '@@@ WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! @@@ ' + TV,
+    'kex_exchange_identification: Connection closed by remote host ' + TV,
+    'ssh: connect to host ' + TV + ' port 22: Connection refused'
+  ]) {
+    const r = await rootStatus({ wasRooted: true, apps: APPS, shell: shellSaying({ code: 255, stderr: err }) });
+    const text = JSON.stringify(r) + describeRootStatus(r).join('\n');
+    assert.ok(!text.includes(TV) && !text.includes('tv.example') && !text.includes('someone'), text);
+  }
+  const closed = await rootStatus({ wasRooted: true, apps: APPS, shell: shellSaying({ code: 255, stderr: 'Connection closed by remote host' }) });
+  assert.equal(closed.state, 'unknown', 'a closed connection isn\'t proof root ended');
 });

@@ -102,7 +102,7 @@ say('For v0: root ' + rd.root + '; Developer Mode app ' + (rd.developerModeApp ?
   '; Homebrew Channel ' + (rd.homebrewChannel ? 'installed' : 'not installed') + '.');
 
 // A TV this laptop rooted: is root still on, or did an LG update end it? (one `id -u` over SSH; nothing changes)
-if (rootedBefore(dir, rootKeyFile)) {
+if (rootedBefore(dir, host, rootKeyFile)) {
   const rootShell = fs.existsSync(rootKeyFile) ? sshShell({ host, key: rootKeyFile, knownHosts: path.join(dir, 'lg-known-hosts') }) : null;
   const rs = await rootStatus({ wasRooted: true, apps: rd.appList ? c.apps.all.map((a) => a.id) : null, shell: rootShell });
   report.rootStatus = rs;
