@@ -4,14 +4,15 @@
 // (webos/rootEdition.ts, root/undo-home.sh at-restart). Shown on the root edition only (settings.ts). Also names level 0.
 import { h } from '../../shell/dom';
 import { button } from '../../ui/widgets';
-import { LEVEL0_TEXT, RESTART_TEXT, rootEdition, useLgHome } from '../../webos/rootEdition';
+import { isLgHome, LEVEL0_TEXT, RESTART_TEXT, rootEdition, useLgHome } from '../../webos/rootEdition';
 import type { Pane, PaneHost } from './pane';
 
 export const HOME_AGAIN = 'hometv-lg root <tv address> --home-again';
 
+/** Chosen and still HomeTV as Home (the restart to come), or chosen and LG's Home already back. */
 export const lgHomeValue = (): string => {
   const s = rootEdition.get();
-  return s && s.chosen ? 'From the next restart' : '';
+  return s && s.chosen ? (isLgHome() ? 'From the next restart' : 'In use') : '';
 };
 
 export function lgHomePane(host: PaneHost): Pane {
@@ -46,6 +47,13 @@ export function lgHomePane(host: PaneHost): Pane {
       const head = [h('div.eyebrow', 'This TV'), h('div.pane-title', 'Use LG’s Home')];
       const comeBack = h('div.pane-note', `To have HomeTV as Home again: on the laptop, ${HOME_AGAIN}, then restart the TV.`);
       const wayOut = h('div.pane-note', `Just for now: ${LEVEL0_TEXT}`);
+      if (s && s.chosen && !isLgHome()) {
+        return [
+          ...head,
+          h('div.pane-sub', 'In use: the TV opens LG’s own Home, and HomeTV is an app on its tile.'),
+          comeBack,
+        ];
+      }
       if (s && s.chosen) {
         return [
           ...head,

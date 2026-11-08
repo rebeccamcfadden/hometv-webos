@@ -61,6 +61,15 @@ function strict(message) {
   return CALLERS.indexOf(callerOf(message)) >= 0;
 }
 
+/**
+ * The methods that change Home: the caller's id exactly, or with an instance after a space. No dash suffix is cut, so
+ * another app named "com.hometv.app-1" is never taken for HomeTV (a TV that says "com.hometv.app-1" is refused: safe).
+ */
+function exact(message) {
+  var s = message && (message.sender || message.applicationID);
+  return typeof s === 'string' && CALLERS.indexOf(s.split(' ')[0]) >= 0;
+}
+
 function touch(path) {
   var now = new Date();
   try {
@@ -210,12 +219,12 @@ function createMethods(deps) {
       message.respond({ returnValue: true, watchmode: p.keyOf('watchmode'), motn: p.keyOf('motn') });
     },
     rootState: function (message) {
-      if (!strict(message)) return refuse(message);
+      if (!exact(message)) return refuse(message);
       var s = rootStateOf(rootDir, initd);
       message.respond({ returnValue: true, edition: s.edition, hooked: s.hooked, chosen: s.chosen });
     },
     useLgHome: function (message) {
-      if (!strict(message)) return refuse(message);
+      if (!exact(message)) return refuse(message);
       var mode = message.payload && message.payload.mode;
       if (mode !== 'temp' && mode !== 'at-restart') {
         return message.respond({ returnValue: false, errorText: 'mode must be temp or at-restart' });

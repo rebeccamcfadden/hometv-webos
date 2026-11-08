@@ -57,12 +57,13 @@ function service({ uid = 0, edition = true } = {}) {
 test('service: rootState and useLgHome answer HomeTV only, as its own app or mounted over LG\'s Home', async () => {
   const s = service();
   try {
-    for (const who of ['', 'com.other.app', 'com.hometv.app-evil']) {
+    for (const who of ['', 'com.other.app', 'com.hometv.app-evil', 'com.hometv.app-1', 'com.webos.app.home-12345678']) {
       assert.equal((await call(s.methods, 'rootState', {}, who)).errorText, 'not HomeTV', who);
       assert.equal((await call(s.methods, 'useLgHome', { mode: 'temp' }, who)).errorText, 'not HomeTV', who);
     }
     assert.equal(s.log.spawned.length + s.log.ran.length, 0);
     assert.deepEqual(await call(s.methods, 'rootState', {}, HOME), { returnValue: true, edition: true, hooked: true, chosen: false });
+    assert.equal((await call(s.methods, 'rootState', {}, APP + ' 12')).returnValue, true, 'an instance after a space');
   } finally {
     s.done();
   }
