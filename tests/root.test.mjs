@@ -61,8 +61,9 @@ function setup({ homeType = 'flutter', fg = 'com.webos.app.home', services = 'vi
     HOMETV_DIR: fwd(D), HOMETV_APP: fwd(app), HOMETV_MOUNTS: fwd(mounts), HOMETV_LOG: fwd(path.join(t, 'boot.log')),
     HOMETV_ALIVE: fwd(path.join(t, 'alive')), HOMETV_LASTAPP: fwd(path.join(t, 'lastapp.json')),
     STUB_LOG: fwd(path.join(t, 'stub.log')), STUB_FG: fg, STUB_SERVICES: services,
-    HOMETV_WATCH_MAX: '8'
+    HOMETV_WATCH_MAX: '8', HOMETV_BOOT_ID: fwd(path.join(t, 'boot_id'))
   };
+  fs.writeFileSync(path.join(t, 'boot_id'), 'boot-1\n');
   const run = (script, ...args) => execFileSync(SH, [fwd(path.join(D, script)), ...args], { env, encoding: 'utf8', timeout: 20000 });
   const read = (f) => (fs.existsSync(path.join(t, f)) ? fs.readFileSync(path.join(t, f), 'utf8') : '');
   const mounted = () => read('mounts').includes(' ' + HOME_APP + ' ');
@@ -326,6 +327,45 @@ test('install saves LG Home\'s appinfo once and adds the two hooks; uninstall re
     assert.ok(!s.read('mounts').includes('acr2'), 'debloat lifted');
     assert.deepEqual(fs.readdirSync(path.join(s.t, 'initd')), []);
     assert.ok(!fs.existsSync(s.D));
+  } finally {
+    s.done();
+  }
+});
+
+test('"root ended": the hook notes each start it runs; install.sh clears the note; the service compares it with this start', { skip: !SH }, async () => {
+  const svc = require('../service/service.js');
+  const s = setup();
+  try {
+    const state = () => new Promise((resolve) => svc.createMethods({ rootDir: s.D, initd: path.join(s.t, 'initd'), bootIdFile: path.join(s.t, 'boot_id') })
+      .rootState({ sender: 'com.hometv.app', payload: {}, respond: resolve }));
+    const started = path.join(s.D, 'started');
+    s.run('install.sh');
+    assert.ok(!fs.existsSync(started));
+    assert.equal((await state()).ranThisStart, null, 'installed, not restarted yet: can\'t tell');
+    s.run('10-hometv-home');
+    await s.waitFor(/launch/);
+    assert.equal(fs.readFileSync(started, 'utf8').trim(), 'boot-1');
+    assert.deepEqual(await state(), { returnValue: true, edition: true, hooked: true, chosen: false, ranThisStart: true });
+    // the next start without the hook (an LG update that ended root): the note keeps the older start
+    fs.writeFileSync(path.join(s.t, 'boot_id'), 'boot-2\n');
+    assert.equal((await state()).ranThisStart, false);
+    // a start where the hook runs again
+    s.run('10-hometv-home');
+    assert.equal((await state()).ranThisStart, true);
+    // installing again (hometv-lg root --home-again) forgets the note until the hook has run
+    s.run('install.sh');
+    assert.equal((await state()).ranThisStart, null);
+    // "Use LG's Home" chosen: the hook stops before the note (and the page shows nothing while chosen)
+    s.run('undo-home.sh', 'at-restart');
+    s.run('10-hometv-home');
+    assert.ok(!fs.existsSync(started));
+    // no readable start id: can't tell
+    s.run('install.sh');
+    fs.rmSync(path.join(s.t, 'boot_id'));
+    s.run('10-hometv-home');
+    assert.ok(!fs.existsSync(started), 'nothing noted without an id');
+    assert.match(s.read('boot.log'), /couldn't note this start/);
+    assert.equal((await state()).ranThisStart, null);
   } finally {
     s.done();
   }

@@ -6,6 +6,8 @@
 # 10-cleanyourtv-home (MIT), the mount way only.
 . "$(dirname "$(readlink -f "$0")")/lib.sh"
 [ -e "$D/DISABLE" ] && exit 0
+# The hook ran this start (HomeTV's "root ended" notice reads it; written before any check that may stop the takeover)
+b=$(cat "$BOOT_ID" 2>/dev/null) && [ -n "$b" ] && echo "$b" > "$STARTED" || say "home: couldn't note this start in $STARTED"
 [ -f "$APP/index.html" ] || { say "home: HomeTV isn't installed; LG's Home stays"; exit 0; }
 home=$(node "$D/decide.js" kind "$D/backup/home-appinfo.orig.json")
 if [ "$(node "$D/decide.js" takeover "$home")" != mount ]; then

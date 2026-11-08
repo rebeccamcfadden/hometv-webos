@@ -62,7 +62,7 @@ test('service: rootState and useLgHome answer HomeTV only, as its own app or mou
       assert.equal((await call(s.methods, 'useLgHome', { mode: 'temp' }, who)).errorText, 'not HomeTV', who);
     }
     assert.equal(s.log.spawned.length + s.log.ran.length, 0);
-    assert.deepEqual(await call(s.methods, 'rootState', {}, HOME), { returnValue: true, edition: true, hooked: true, chosen: false });
+    assert.deepEqual(await call(s.methods, 'rootState', {}, HOME), { returnValue: true, edition: true, hooked: true, chosen: false, ranThisStart: null });
     assert.equal((await call(s.methods, 'rootState', {}, APP + ' 12')).returnValue, true, 'an instance after a space');
   } finally {
     s.done();
@@ -118,7 +118,7 @@ test('service: "Use LG\'s Home" runs undo-home.sh at-restart and answers only on
     const r = await call(s.methods, 'useLgHome', { mode: 'at-restart' }, HOME);
     assert.deepEqual(r, { returnValue: true, chosen: true, hooked: false });
     assert.deepEqual(s.log.ran[0].args, [path.join(s.dir, 'undo-home.sh'), 'at-restart']);
-    assert.deepEqual(await call(s.methods, 'rootState', {}), { returnValue: true, edition: true, hooked: false, chosen: true });
+    assert.deepEqual(await call(s.methods, 'rootState', {}), { returnValue: true, edition: true, hooked: false, chosen: true, ranThisStart: null });
   } finally {
     s.done();
   }

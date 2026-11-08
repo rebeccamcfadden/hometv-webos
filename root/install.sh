@@ -28,5 +28,8 @@ chmod 755 "$D"/*.sh "$D/10-hometv-home" "$D/15-hometv-debloat"
 ln -sf "$D/10-hometv-home" "$INITD/10-hometv-home"
 ln -sf "$D/15-hometv-debloat" "$INITD/15-hometv-debloat"
 rm -f "$D/DISABLE"
+# No start noted since this install: HomeTV's page then can't tell whether root ended, so it says nothing until the hook
+# has run once (an older start's note would read as "root ended" until the restart)
+rm -f "$STARTED"
 say "install: done; HomeTV becomes Home at the next restart"
 echo "HomeTV's root edition is installed. Restart the TV; HomeTV opens as Home."
