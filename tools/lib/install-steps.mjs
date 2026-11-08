@@ -146,7 +146,9 @@ export function latestBackup(dir) {
   return null;
 }
 
-const done = (ctx, id) => !!(ctx.state && ctx.state.steps[id] && ctx.state.steps[id].status === 'done');
+// Done in this same run: an older record may no longer describe the TV (a restart not done since, a factory reset), so
+// only what was checked in this run spares a question.
+const doneNow = (ctx, id) => !!(ctx.thisRun && ctx.thisRun.has(id));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -278,6 +280,8 @@ export const STEPS = [
             'Don\'t root. Tell the HomeTV team: root has to be checked again on CanI.RootMy.TV for this version.');
         }
         ctx.say('  ✓ software ' + sw);
+        // either back on the TV: "Clear the way" has to be done again
+        if ((apps.has(DEVMODE) || apps.has(APP)) && ctx.state) delete ctx.state.steps['clear-the-way'];
         if (apps.has(DEVMODE)) {
           return stop('The Developer Mode app is still installed.',
             'Delete it (Home > edit the app list > Developer Mode > delete), restart the TV (' + RESTART + '), then run this ' +
@@ -295,7 +299,7 @@ export const STEPS = [
         return null;
       });
       if (tvDone) return tvDone;
-      if (done(ctx, 'clear-the-way')) {
+      if (doneNow(ctx, 'clear-the-way')) {
         ctx.say('  ✓ restarted since (checked in "Clear the way")');
       } else if (!yes(await ctx.ask('  Has the TV been restarted since the Developer Mode app was deleted? [y/N] '))) {
         return stop('The TV needs a restart after the Developer Mode app is deleted.', 'Restart it: ' + RESTART + '. Then run this again.');
@@ -304,7 +308,7 @@ export const STEPS = [
       const bad = await kitProblem(kit);
       if (bad) return stop('The root kit isn\'t ready: ' + bad + '.', 'Run: hometv-lg get root-kit   then run this again.');
       ctx.say('  ✓ the root kit (Python, and SlopBro with its SHA-256 checked)');
-      const checklist = done(ctx, 'root-preflight');
+      const checklist = doneNow(ctx, 'root-preflight');
       if (checklist) {
         ctx.say('  ✓ the USB stick with LG\'s firmware (confirmed in the checklist)');
       } else if (!yes(await ctx.ask('  Is LG\'s firmware file for this TV on a USB stick, in a folder named LG_DTV? [y/N] '))) {
@@ -685,7 +689,8 @@ export async function runInstall(ctx, { from, steps = STEPS, name = 'install', r
   };
   fs.mkdirSync(ctx.dir, { recursive: true });
   const state = loadState(ctx.dir);
-  const c = { ...ctx, say, state };
+  const thisRun = new Set();
+  const c = { ...ctx, say, state, thisRun };
   if (from) {
     const i = steps.findIndex((s) => s.id === from);
     if (i < 0) throw new Error('no step named ' + from + ' (steps: ' + steps.map((s) => s.id).join(', ') + ')');
@@ -718,6 +723,7 @@ export async function runInstall(ctx, { from, steps = STEPS, name = 'install', r
         return { stopped: step.id };
       }
       state.steps[step.id] = { status: 'done', at, note: scrub(r.note || '', ctx.host) };
+      thisRun.add(step.id);
       saveState(ctx.dir, state);
       say('  ✓ ' + (r.note || 'done'));
     }

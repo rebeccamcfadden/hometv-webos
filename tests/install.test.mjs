@@ -712,3 +712,28 @@ test('the command line: hometv-lg root --list and its usage', { timeout: 30000 }
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('hometv-lg root: an older run\'s checklist or "Clear the way" never spares root-checks a question', async () => {
+  const s = await rootSetup({ telnet: false });
+  fs.appendFileSync(s.ctx.kit.slopbro, 'changed');
+  try {
+    assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'root-checks' });
+    assert.equal(s.asked.filter((q) => q.includes('restarted since')).length, 0, 'same run: checked in "Clear the way"');
+    // the kit is fixed, but meanwhile the Developer Mode app came back (hometv-lg devmode)
+    fs.writeFileSync(s.ctx.kit.slopbro, '# a pretend SlopBro\n');
+    s.state.apps.push(DEVMODE);
+    assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'root-checks' });
+    assert.match(s.text(), /Developer Mode app is still installed/);
+    assert.equal(loadState(s.laptop).steps['clear-the-way'], undefined, '"Clear the way" has to be done again');
+    // deleted again: "Clear the way" runs again and asks for the restart; the USB stick is asked again too
+    s.state.apps = s.state.apps.filter((a) => a !== DEVMODE);
+    s.asked.length = 0;
+    assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'root-install' }); // pretend Telnet is closed
+    assert.equal(s.asked.filter((q) => q.includes('restarted since')).length, 1);
+    assert.equal(s.asked.filter((q) => q.includes('USB stick')).length, 1);
+    assert.equal(s.asked.filter((q) => q.includes('photographed')).length, 0);
+    assert.deepEqual(s.slopbro, ['127.0.0.1']);
+  } finally {
+    await s.done();
+  }
+});
