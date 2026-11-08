@@ -19,7 +19,9 @@ const LUNA_PUB = 'luna-send-pub';
 const REMOVE = 'To remove HomeTV: delete it from the TV\'s app list, or delete the Developer Mode app.';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const UPDATES_BACK = 'To let the TV update itself again: Settings › Support › Software Update › Allow Automatic Updates on';
-const VERSIONS = { v0: '0.0.1', v1: '0.1.0' };
+// The versions each pinned .ipk installs, from its file name (com.hometv.app_<version>_all.ipk)
+const pinnedVersion = (k) => (PINNED[k].file.match(/_(\d+\.\d+\.\d+)_all\.ipk$/) || [])[1];
+const VERSIONS = { v0: pinnedVersion('hometv-v0'), v1: pinnedVersion('hometv-v1') };
 
 /** Waits until `fn` gives something other than false, undefined or '' (up to `ms`); returns it, or null. */
 async function until(fn, ms, step = 500) {

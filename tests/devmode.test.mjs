@@ -137,7 +137,7 @@ async function setup({ install = 'ok', replies = {}, keyPem = ENCRYPTED, noKeySe
   const cdp = fakeCdp(model);
   const cdpPort = await listen(cdp.server);
   const v0 = path.join(t, 'com.hometv.app_0.0.1_all.ipk');
-  const v1 = path.join(t, 'com.hometv.app_0.1.0_all.ipk');
+  const v1 = path.join(t, 'com.hometv.app_0.1.1_all.ipk');
   fs.writeFileSync(v0, crypto.randomBytes(30000));
   fs.writeFileSync(v1, crypto.randomBytes(31000));
   const logFile = path.join(t, 'ssh.log');
@@ -219,9 +219,9 @@ test('the key server not answering says to switch Key Server on', async () => {
 
 test('the pins are the published v0 and v1 files', () => {
   assert.equal(PINNED['hometv-v0'].sha256, '945d9c0d00a6258b4d7ba4d558be9c1264950c53d5f3d5c40ea87afae9f003d8');
-  assert.equal(PINNED['hometv-v1'].sha256, '6f6abc8348abcaf4349091d9be9d6051c8966bd672e6c9e379af4ff57560cb03');
+  assert.equal(PINNED['hometv-v1'].sha256, '07d2fdf8abca55b30749abf7b527a46185cc6f15f50a88a877a4d989c991955c');
   assert.match(PINNED['hometv-v0'].url, /app-v0\.0\.1\/com\.hometv\.app_0\.0\.1_all\.ipk$/);
-  assert.match(PINNED['hometv-v1'].url, /app-v0\.1\.0\/com\.hometv\.app_0\.1\.0_all\.ipk$/);
+  assert.match(PINNED['hometv-v1'].url, /app-v0\.1\.1\/com\.hometv\.app_0\.1\.1_all\.ipk$/);
 });
 
 test('a download that does not match the pin is refused and not kept; a matching cached file skips the download', async () => {
@@ -368,7 +368,7 @@ test('devmode: only the Developer Mode account, port 9922, the rsa options, the 
     }
     assert.equal(run.filter((c) => c.command.includes('/dev/install')).length, 2);
     assert.deepEqual(log.filter((l) => l.removed).map((l) => l.removed), [
-      '/media/developer/temp/com.hometv.app_0.0.1_all.ipk', '/media/developer/temp/com.hometv.app_0.1.0_all.ipk']);
+      '/media/developer/temp/com.hometv.app_0.0.1_all.ipk', '/media/developer/temp/com.hometv.app_0.1.1_all.ipk']);
     // the decrypted key is only in the HomeTV folder, with the known_hosts file
     assert.ok(fs.existsSync(path.join(s.ctx.dir, 'devmode_rsa')));
   } finally { await s.done(); }

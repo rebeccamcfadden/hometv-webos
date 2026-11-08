@@ -39,11 +39,11 @@ export const PINNED = {
     sha256: '945d9c0d00a6258b4d7ba4d558be9c1264950c53d5f3d5c40ea87afae9f003d8'
   },
   'hometv-v1': {
-    what: 'HomeTV v1 for LG (app-v0.1.0)',
-    url: 'https://github.com/rebeccamcfadden/hometv-webos/releases/download/app-v0.1.0/com.hometv.app_0.1.0_all.ipk',
-    file: 'com.hometv.app_0.1.0_all.ipk',
-    size: null,
-    sha256: '6f6abc8348abcaf4349091d9be9d6051c8966bd672e6c9e379af4ff57560cb03'
+    what: 'HomeTV v1 for LG (app-v0.1.1)',
+    url: 'https://github.com/rebeccamcfadden/hometv-webos/releases/download/app-v0.1.1/com.hometv.app_0.1.1_all.ipk',
+    file: 'com.hometv.app_0.1.1_all.ipk',
+    size: 113682,
+    sha256: '07d2fdf8abca55b30749abf7b527a46185cc6f15f50a88a877a4d989c991955c'
   }
 };
 

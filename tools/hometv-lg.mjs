@@ -7,9 +7,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import readline from 'node:readline/promises';
+import { isSea, getAsset } from 'node:sea';
 
 // The Developer Mode install's command name: the one place to rename it (the root install may take install).
 const DEVMODE_CMD = 'devmode';
+
+// A released exe leaves the root install out until it is reviewed (tools/build-exe.mjs, --root keeps it)
+const ROOT = !(isSea() && (() => { try { getAsset('no-root'); return true; } catch { return false; } })());
+const NO_ROOT = 'This hometv-lg leaves out the root install (not reviewed yet). Use: hometv-lg ' + DEVMODE_CMD + ' <tv address>';
 
 const [cmd, ...rest] = process.argv.slice(2);
 
@@ -23,11 +28,11 @@ async function guided() {
     '  ------------------------------------------------------------',
     '  1  Check the TV: reads it and changes nothing (the usual choice)',
     '  2  Install HomeTV v0 then v1 and check them (Developer Mode, no root): only if you were asked to',
-    '  3  Install HomeTV, step by step: only if you were asked to (it can root the TV, and asks first)',
+    ...(ROOT ? ['  3  Install HomeTV, step by step: only if you were asked to (it can root the TV, and asks first)'] : []),
     ''
   ].join('\n'));
-  const choice = (await rl.question('  Type 1, 2 or 3 and press Enter [1]: ')).trim();
-  if (choice === '2' || choice === '3') {
+  const choice = (await rl.question(ROOT ? '  Type 1, 2 or 3 and press Enter [1]: ' : '  Type 1 or 2 and press Enter [1]: ')).trim();
+  if (choice === '2' || (ROOT && choice === '3')) {
     rl.close();
     return choice === '2' ? guidedDevmode() : guidedInstall();
   }
@@ -123,9 +128,17 @@ if (cmd === 'check') {
 } else if (cmd === DEVMODE_CMD) {
   process.argv = [process.argv[0], DEVMODE_CMD, ...rest];
   await import('./devmode.mjs');
-} else if (cmd === 'install') {
-  process.argv = [process.argv[0], 'install', ...rest];
-  await import('./install.mjs');
+} else if (cmd === 'install' || (cmd === 'get' && rest[0] === 'root-kit')) {
+  if (!ROOT) {
+    console.log(NO_ROOT);
+    process.exitCode = 2;
+  } else if (cmd === 'install') {
+    process.argv = [process.argv[0], 'install', ...rest];
+    await import('./install.mjs');
+  } else {
+    process.argv = [process.argv[0], 'get', ...rest];
+    await import('./get.mjs');
+  }
 } else if (cmd === 'get') {
   process.argv = [process.argv[0], 'get', ...rest];
   await import('./get.mjs');
@@ -138,15 +151,15 @@ if (cmd === 'check') {
   console.log('HomeTV for LG\n\n  hometv-lg                      (double-click) asks: check the TV, or install HomeTV\n' +
     '  hometv-lg check <tv address> [--backup] [--launch] [--reach]\n' +
     '  hometv-lg ' + DEVMODE_CMD + ' <tv address> [--v0 <file>] [--v1 <file>] [--only v0|v1]\n' +
-    '  hometv-lg install <tv address> [--ipk <file>] [--from <step>]   (or: install --list)\n' +
-    '  hometv-lg get dev-manager | root-kit\n' +
+    (ROOT ? '  hometv-lg install <tv address> [--ipk <file>] [--from <step>]   (or: install --list)\n' : '') +
+    '  hometv-lg get dev-manager' + (ROOT ? ' | root-kit' : '') + '\n' +
     '  hometv-lg restore <backup file> <tv address> [--root] [--dry-run]\n\n' +
     'check   reads the TV (model, apps, inputs, what v0 needs) after its "Allow" prompt;\n' +
     '        --backup also saves the settings it can read; --launch opens Netflix and YouTube, asking first;\n' +
     '        --reach checks the TV can reach this laptop (the TV\'s browser opens for a moment).\n' +
     DEVMODE_CMD + ' installs HomeTV v0, then v1 over it, on a TV in Developer Mode (no root) and runs every check the laptop can;\n' +
-    '        it asks yes or no only for what it cannot see, and writes lg-devmode-<date>.json and .txt (no address or serial).\n' +
-    'install takes the TV from Developer Mode to HomeTV as Home (root edition), one checked step at a time;\n' +
-    '        run again, it carries on where it stopped (docs/install.md).');
+    '        it asks yes or no only for what it cannot see, and writes lg-devmode-<date>.json and .txt (no address or serial).' +
+    (ROOT ? '\ninstall takes the TV from Developer Mode to HomeTV as Home (root edition), one checked step at a time;\n' +
+    '        run again, it carries on where it stopped (docs/install.md).' : ''));
   process.exitCode = 2;
 }
