@@ -27,7 +27,7 @@ doesn't change LG's software.
 2. **Get the laptop tools.** On a Windows laptop, `hometv-lg get dev-manager` downloads webosbrew's free
    [Dev Manager](https://github.com/webosbrew/dev-manager-desktop) and starts its installer. The download is checked
    against a pinned SHA-256 first. (Step-by-step, for someone who isn't technical:
-   [docs/check/index.html](check/index.html#install).)
+   [docs/install/index.html](install/index.html).)
 3. **Add the TV in Dev Manager:** *Add new device...*, the TV's IP address (for example `192.168.1.50`), and the
    passphrase from the TV.
 4. **Install HomeTV:** on the Apps page click *Install* and pick the `.ipk`. To make one from this repository:
