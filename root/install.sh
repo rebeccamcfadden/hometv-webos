@@ -4,7 +4,6 @@
 # Home is the flutter or web kind. Saves LG Home's own appinfo first (once, never over a mounted Home), copies the
 # scripts, and adds the two start-up hooks. Takes effect at the next restart. Undo: uninstall.sh.
 . "$(dirname "$0")/lib.sh"
-INITD=${HOMETV_INITD:-/var/lib/webosbrew/init.d}
 DEVMODE_APP=${HOMETV_DEVMODE_APP:-/media/cryptofs/apps/usr/palm/applications/com.palmdts.devmode}
 SRC=$(cd "$(dirname "$0")" && pwd)
 fail() { echo "install: $*" >&2; say "install: refused: $*"; exit 1; }

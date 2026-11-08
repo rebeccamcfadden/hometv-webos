@@ -9,6 +9,8 @@ LOG=${HOMETV_LOG:-/tmp/hometv-boot.log}
 ALIVE=${HOMETV_ALIVE:-/tmp/hometv-alive}
 APP_ID=${HOMETV_APP_ID:-com.hometv.app}
 APP=${HOMETV_APP:-/media/developer/apps/usr/palm/applications/$APP_ID}
+# Homebrew Channel's start-up hooks (install.sh links HomeTV's two here; "Use LG's Home" removes them)
+INITD=${HOMETV_INITD:-/var/lib/webosbrew/init.d}
 # Homebrew Channel's tool that lets an installed app's service run as root, outside LG's jail (webosbrew, MIT)
 ELEVATE=${HOMETV_ELEVATE:-/media/developer/apps/usr/palm/services/org.webosbrew.hbchannel.service/elevate-service}
 up() { cut -d' ' -f1 /proc/uptime 2>/dev/null || echo 0; }
