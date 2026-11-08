@@ -28,31 +28,34 @@
 
 <h1>Install HomeTV on an LG TV</h1>
 <p>Done together with the person helping you, on the phone. First HomeTV <strong>v0</strong> and its checks, then
-  <strong>v1</strong> installed over it. About 40 minutes.</p>
+  <strong>v1</strong> installed over it. A program on the laptop does the installing and most of the checks. About
+  30 minutes.</p>
 <p class="small">The laptop check comes first, on its own page: <a href="../check/">HomeTV check for LG TVs</a>. You
   need its program, <code>hometv-lg.exe</code>, and the TV's address from it.</p>
 
 <h2>What you need</h2>
 <ul>
   <li>The Windows laptop with <code>hometv-lg.exe</code> in your Downloads folder (from the <a href="../check/">check
-    page</a>), on the <strong>same Wi-Fi</strong> as the TV.</li>
+    page</a>), on the <strong>same Wi-Fi</strong> as the TV. If you downloaded it before 8 November, download it
+    again: the older one can only check, not install.</li>
   <li>The LG Developer account details (an email and a password) from the person who sent you this link. Don't use
     your own LG account.</li>
   <li>Your phone, on the same Wi-Fi, for v1.</li>
-  <li>The two HomeTV files below, in your Downloads folder.</li>
+  <li>The two HomeTV files below, in your Downloads folder (the program downloads them itself; these are a spare, for
+    the Dev Manager fallback).</li>
 </ul>
 
 <h2>Download both files</h2>
 <p><a class="download" href="https://github.com/rebeccamcfadden/hometv-webos/releases/download/app-v0.0.1/com.hometv.app_0.0.1_all.ipk">Download HomeTV v0</a></p>
 <p class="small">File: <code>com.hometv.app_0.0.1_all.ipk</code>, release <code>app-v0.0.1</code>. SHA-256:
   <code id="sha-app-v0">945d9c0d00a6258b4d7ba4d558be9c1264950c53d5f3d5c40ea87afae9f003d8</code>.</p>
-<p><a class="download" href="https://github.com/rebeccamcfadden/hometv-webos/releases/download/app-v0.1.0/com.hometv.app_0.1.0_all.ipk">Download HomeTV v1</a></p>
-<p class="small">File: <code>com.hometv.app_0.1.0_all.ipk</code>, release <code>app-v0.1.0</code>. SHA-256:
-  <code id="sha-app">6f6abc8348abcaf4349091d9be9d6051c8966bd672e6c9e379af4ff57560cb03</code>.</p>
+<p><a class="download" href="https://github.com/rebeccamcfadden/hometv-webos/releases/download/app-v0.1.1/com.hometv.app_0.1.1_all.ipk">Download HomeTV v1</a></p>
+<p class="small">File: <code>com.hometv.app_0.1.1_all.ipk</code>, release <code>app-v0.1.1</code>. SHA-256:
+  <code id="sha-app">07d2fdf8abca55b30749abf7b527a46185cc6f15f50a88a877a4d989c991955c</code>.</p>
 <p class="small">To check them (optional): open Command Prompt in your Downloads folder and run each line below; the
   long code it shows should match the one above.</p>
 <div class="cmd"><span id="c1">certutil -hashfile com.hometv.app_0.0.1_all.ipk SHA256</span><button onclick="copy('c1', this)">Copy</button></div>
-<div class="cmd"><span id="c2">certutil -hashfile com.hometv.app_0.1.0_all.ipk SHA256</span><button onclick="copy('c2', this)">Copy</button></div>
+<div class="cmd"><span id="c2">certutil -hashfile com.hometv.app_0.1.1_all.ipk SHA256</span><button onclick="copy('c2', this)">Copy</button></div>
 
 <!-- Facts in the next section: webosbrew/dev-manager-desktop README (Windows .msi installer; "Add device without need to use command line"; "Install apps on TV with a few clicks") and its source (src/app/devices/devices.component.html
      "Add new device..."; src/app/apps/apps.component.html "Install" button that asks for an .ipk file;
@@ -76,32 +79,53 @@
       6-letter <span class="path">passphrase</span> shown at the bottom left (capital and small letters count).</p>
   </li>
   <li>
-    <p><strong>Get Dev Manager on the laptop.</strong> Dev Manager is a free Windows program, from the open-source
-      webOS Homebrew project, that puts apps on the TV. In Command Prompt, in your Downloads folder (where
-      <code>hometv-lg.exe</code> is), run:</p>
+    <p><strong>Switch off the TV's automatic updates</strong>, so the TV doesn't update itself during the checks. On
+      the remote press the Settings button, then <span class="path">All Settings › Support › Software Update ›
+      Allow Automatic Updates</span>. Note whether it was on, switch it <strong>OFF</strong>, and check that it
+      now shows off. The program in the next step asks you about this, and it goes in its report.</p>
+  </li>
+  <li>
+    <p><strong>Run the install program.</strong> In Command Prompt, in your Downloads folder (where
+      <code>hometv-lg.exe</code> is), run this with the TV's address (the four numbers from the check):</p>
+    <div class="cmd"><span id="c4">hometv-lg.exe devmode 192.168.1.50</span><button onclick="copy('c4', this)">Copy</button></div>
+    <p class="small">Change <code>192.168.1.50</code> to your TV's own address before pressing Enter.</p>
+    <p>(Or double-click <code>hometv-lg.exe</code> and type <strong>2</strong>.) It downloads HomeTV v0 and v1 and
+      checks them, asks for the 6-letter passphrase from the TV, installs <strong>v0</strong>, opens it and checks
+      it, then installs <strong>v1</strong> over it (it keeps v0's settings; there is still one HomeTV) and checks
+      that. It asks you only plain yes/no questions, like <span class="path">Is HomeTV on the TV screen now?</span>:
+      type <code>y</code> or <code>n</code> and press Enter. If the TV asks to <span class="path">Allow</span> the
+      laptop, press OK on the remote. At the end it saves a report file (with no address or serial number in it): send
+      it to the person helping you.</p>
+  </li>
+  <li>
+    <p><strong>Key Server: OFF</strong> in the Developer Mode app (it's only needed to install).</p>
+  </li>
+</ol>
+
+<h2>If the program can't install HomeTV: Dev Manager</h2>
+<p class="small">Only if the person helping you asks for it. Dev Manager is a free Windows program, from the
+  open-source webOS Homebrew project, that puts apps on the TV.</p>
+<ol>
+  <li>
+    <p>In Command Prompt, in your Downloads folder, run:</p>
     <div class="cmd"><span id="c3">hometv-lg.exe get dev-manager</span><button onclick="copy('c3', this)">Copy</button></div>
     <p>It downloads the installer, checks it, and starts it. Windows asks <span class="path">Do you want to allow this
       app to make changes?</span>: click <span class="path">Yes</span>, then follow the installer.</p>
   </li>
   <li>
     <p><strong>Add the TV in Dev Manager.</strong> Open <span class="path">webOS Dev Manager</span>, click
-      <span class="path">Add new device...</span>, type the TV's address (the four numbers from the check, like
-      <code>192.168.1.50</code>) and any name. For the sign-in choose the option that uses the Developer Mode
-      <strong>passphrase</strong>, and type the 6 letters from the TV's screen.</p>
+      <span class="path">Add new device...</span>, type the TV's address and any name. For the sign-in choose the
+      option that uses the Developer Mode <strong>passphrase</strong>, and type the 6 letters from the TV's screen.</p>
   </li>
   <li>
-    <p><strong>Install HomeTV v0.</strong> In Dev Manager open the TV's <span class="path">Apps</span> page, click
-      <span class="path">Install</span>, and pick <code>com.hometv.app_0.0.1_all.ipk</code>. When it finishes,
-      HomeTV is in the TV's app list. Open it and go through its checks
-      (<span class="path">Home › Checks for the TV call</span>) with the person helping you.</p>
+    <p><strong>Install HomeTV v0.</strong> On the TV's <span class="path">Apps</span> page click
+      <span class="path">Install</span> and pick <code>com.hometv.app_0.0.1_all.ipk</code> (downloaded above). Open
+      it and go through its checks (<span class="path">Home › Checks for the TV call</span>) with the person helping
+      you.</p>
   </li>
   <li>
-    <p><strong>Install HomeTV v1 over it.</strong> In Dev Manager, <span class="path">Install</span> again and pick
-      <code>com.hometv.app_0.1.0_all.ipk</code>. It replaces v0 and keeps its settings; there is still one HomeTV.
-      The person helping you then walks you through v1 (a key typed on your phone, the film lists, signing in).</p>
-  </li>
-  <li>
-    <p><strong>Key Server: OFF</strong> in the Developer Mode app (it's only needed to install).</p>
+    <p><strong>Install HomeTV v1 over it:</strong> <span class="path">Install</span> again and pick
+      <code>com.hometv.app_0.1.1_all.ipk</code>. The person helping you then walks you through v1.</p>
   </li>
 </ol>
 
@@ -111,11 +135,12 @@
   Mode also switches itself off after 10 restarts with no network.</p>
 <p class="small"><strong>To undo:</strong> in HomeTV v1, sign out first (<span class="path">Home › API keys › TMDB account › Sign out</span>).
   Then delete HomeTV in the TV's app list, or delete the Developer Mode app (the apps go with it, and so do the keys
-  saved for HomeTV).</p>
+  saved for HomeTV). If <span class="path">Allow Automatic Updates</span> was on before, switch it back on
+  (<span class="path">Settings › Support › Software Update</span>).</p>
 <p class="small">If HomeTV can't be installed, the person helping you may ask for the separate test app instead:
   <a href="https://github.com/rebeccamcfadden/hometv-webos/releases/download/check-lg-v1/com.hometv.checks_0.1.0_all.ipk">com.hometv.checks_0.1.0_all.ipk</a>,
   release <code>check-lg-v1</code>, SHA-256 <code id="sha-ipk">4e2be9d8706a21e4447106d3c8fa798248007d81e4c4cca85432bccf9e34ca44</code>.
-  Install it the same way as step 5.</p>
+  Install it the same way as HomeTV in the Dev Manager steps.</p>
 
 <p class="small">HomeTV for LG is open source: <a href="https://github.com/rebeccamcfadden/hometv-webos">github.com/rebeccamcfadden/hometv-webos</a>.</p>
 </main>

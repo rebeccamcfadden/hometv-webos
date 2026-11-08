@@ -24,22 +24,41 @@ doesn't change LG's software.
 1. **Switch Developer Mode on.** On the TV, install LG's **Developer Mode** app from the TV's app store (**Apps**, or **LG Content Store** on older TVs), open it,
    sign in with an LG Developer account, press **Dev Mode Status** (the TV restarts), then open the app again and
    press **Key Server**. The app now shows a 6-letter **passphrase**.
-2. **Get the laptop tools.** On a Windows laptop, `hometv-lg get dev-manager` downloads webosbrew's free
-   [Dev Manager](https://github.com/webosbrew/dev-manager-desktop) and starts its installer. The download is checked
-   against a pinned SHA-256 first. (Step-by-step, for someone who isn't technical:
-   [docs/install/index.html](install/index.html).)
-3. **Add the TV in Dev Manager:** *Add new device...*, the TV's IP address (for example `192.168.1.50`), and the
-   passphrase from the TV.
-4. **Install HomeTV:** on the Apps page click *Install* and pick the `.ipk`. To make one from this repository:
-   `npm run package:app` (it refuses a build that still has the sample catalogue).
-5. **Open HomeTV** from the TV's app list.
+2. **Run the laptop tool:** `hometv-lg devmode <tv address>` (or double-click `hometv-lg.exe` and choose 2). It
+   downloads HomeTV v0 and v1 and checks each against its pinned SHA-256, gets the Developer Mode key from the TV
+   (you type the passphrase), and then:
+   - **First, automatic updates off.** It asks you to switch off *Settings › Support › Software Update › Allow
+     Automatic Updates*, so the TV doesn't update itself during the checks. It reads the setting if the TV says,
+     otherwise it asks two yes/no questions (was it on, is it off now). It never changes the setting itself.
+   - **v0:** installs it the way LG's own `ares-install` does (SSH to the Developer Mode account `prisoner` on port
+     9922, the `.ipk` copied to `/media/developer/temp` and installed with `luna-send-pub`, the copy deleted after),
+     opens it and checks: the TV lists it, it comes to the front, the app list is read or denied, it is still open
+     after 30 s, and an app launch (YouTube by contentId).
+   - **v1 over v0:** the same checks, plus the settings kept through the update and the key page reachable.
+   - It drives the app through the TV's Web Inspector (an SSH tunnel to the TV's port 9998). Where the script can't
+     see something it asks a plain yes/no question ("Is HomeTV on the TV screen now?"). If the inspector isn't
+     reachable, more of the checks become questions.
+   - It writes `lg-devmode-<date>.txt` and `.json` in the HomeTV folder, with no IP address, serial number or device
+     id. Code: [tools/lib/devmode.mjs](../tools/lib/devmode.mjs); tests against a pretend TV:
+     [tests/devmode.test.mjs](../tests/devmode.test.mjs). `--only v0` or `--only v1` installs one; `--v0 <file>` and
+     `--v1 <file>` use files you have (held to the same SHA-256).
+   (Step-by-step, for someone who isn't technical: [docs/install/index.html](install/index.html).)
+3. **If the tool can't install (fallback): Dev Manager.** `hometv-lg get dev-manager` downloads webosbrew's free
+   [Dev Manager](https://github.com/webosbrew/dev-manager-desktop), checked against a pinned SHA-256, and starts its
+   installer. *Add new device...* with the TV's IP address (for example `192.168.1.50`) and the passphrase, then on
+   the Apps page click *Install* and pick the `.ipk`. To make one from this repository: `npm run package:app` (it
+   refuses a build that still has the sample catalogue).
+4. **Open HomeTV** from the TV's app list (the tool opens it for you).
+5. **Afterwards:** switch Key Server off in the Developer Mode app.
 
 **The catch: Developer Mode runs out.** A session lasts about 1,000 hours (about 41 days). Before then, open the
 Developer Mode app and press **Extend**. If it runs out, LG removes the apps installed this way and HomeTV has to be
 installed again. Developer Mode also switches off after 10 restarts without a network. HomeTV can't press Extend for
 you yet.
 
-**Undo:** delete HomeTV from the TV's app list, or delete the Developer Mode app (its apps go with it).
+**Undo:** delete HomeTV from the TV's app list, or delete the Developer Mode app (its apps go with it). To let the TV
+update itself again: *Settings › Support › Software Update › Allow Automatic Updates* on (if it was on before; the
+report says).
 
 What this path can't do: replace LG's Home, or start HomeTV when the TV switches on. HomeTV is an app you open.
 More in [jailbreak.md](jailbreak.md) and [launcher-replacement.md](launcher-replacement.md).
@@ -61,7 +80,8 @@ test first, then the backup, then root).
 
 ## The laptop tool's install steps
 
-`hometv-lg install <tv address>` (or double-click `hometv-lg.exe` and choose 2) takes the test TV from "Developer Mode
+`hometv-lg install <tv address>` (or double-click `hometv-lg.exe` and choose 3; built with `npm run exe -- --root` only,
+the released exe leaves it out until root is reviewed) takes the test TV from "Developer Mode
 on" to "HomeTV is Home (root edition)", in the order decided in [root-plan.md](root-plan.md). Code:
 [tools/lib/install-steps.mjs](../tools/lib/install-steps.mjs); tests against pretend TVs:
 [tests/install.test.mjs](../tests/install.test.mjs).
