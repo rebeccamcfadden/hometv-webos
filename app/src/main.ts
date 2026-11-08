@@ -16,6 +16,7 @@ import { theme } from './theme/theme';
 import './ui/themeHome.css';
 // After every screen's styles: the themes' variables override the shared tokens of the same specificity.
 import './ui/themes.css';
+import { rootEdition, startWayOut } from './webos/rootEdition';
 
 // HomeTV for Samsung: the shell (screen stack, focus, keys) and its screens. Home first; Movies, TV Shows and Search are
 // its tabs, ported from design_preview.
@@ -73,6 +74,10 @@ async function start() {
   initScreensaver();
   const homeShownMs = Date.now() - t0;
   bridge.platform.started();
+  // The root edition: Home pressed three times puts LG's Home back until the next restart; Settings shows "Use LG's
+  // Home" once the service says root/ is here (webos/rootEdition.ts).
+  startWayOut((text, bad) => shell.toast(text, !!bad));
+  void rootEdition.refresh();
   startUpdateNotice(stage);
   // A failed page-update check goes to the problem log, once per check (the loader checks 10 s after Home, then every 12 h).
   const updateCheck = () => noteUpdateCheck(bridge.platform.pageUpdates());
