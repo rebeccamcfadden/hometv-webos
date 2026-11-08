@@ -1,7 +1,9 @@
 #!/bin/sh
 # One per boot, started by 10-hometv-home. While HomeTV is LG's Home, it checks every 10 seconds that HomeTV's page is
 # alive (the page's service touches $ALIVE while the page shows). If Home is on screen and the page hasn't been alive for
-# about a minute, LG's Home comes back until the next restart (undo-home.sh temp). Idea and shape from lasharor's
+# about a minute, LG's Home comes back until the next restart (undo-home.sh temp). It keeps watching after "Use LG's Home"
+# is chosen in HomeTV (DISABLE, from the next restart: HomeTV is Home until then) and ends when LG's Home is back (no
+# mount). Idea and shape from lasharor's
 # watchdog.sh (MIT); the heartbeat from Hearth's /tmp/launcher-alive (MIT).
 {
   . "$(dirname "$0")/lib.sh"
@@ -9,7 +11,7 @@
   LIMIT=${HOMETV_WATCH_LIMIT:-6}
   bad=0
   n=0
-  while [ -f "$D/decide.js" ] && [ ! -e "$D/DISABLE" ]; do
+  while [ -f "$D/decide.js" ]; do
     n=$((n + 1))
     [ -n "$HOMETV_WATCH_MAX" ] && [ $n -gt "$HOMETV_WATCH_MAX" ] && break   # tests only
     sleep "$EVERY"

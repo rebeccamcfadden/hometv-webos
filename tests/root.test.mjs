@@ -167,6 +167,9 @@ test('undo-home at-restart (HomeTV\'s "Use LG\'s Home"): hooks gone and DISABLE 
     assert.deepEqual(fs.readdirSync(path.join(s.t, 'initd')), []);
     assert.ok(fs.existsSync(path.join(s.D, 'DISABLE')));
     assert.match(s.read('lastapp.json'), /com\.webos\.app\.home/);
+    // HomeTV stays Home until the restart, and the watchdog still guards it
+    s.run('watchdog.sh');
+    assert.ok(!s.mounted(), 'a page that stops answering still gives LG\'s Home back');
     // the way back: install.sh links the hooks again and removes DISABLE
     s.run('install.sh');
     assert.deepEqual(fs.readdirSync(path.join(s.t, 'initd')).sort(), ['10-hometv-home', '15-hometv-debloat']);
