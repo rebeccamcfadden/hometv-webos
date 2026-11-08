@@ -452,7 +452,7 @@ test('the command line: --list, usage, and the double-click menu\'s install choi
       const timer = setTimeout(() => { p.kill(); reject(new Error('timed out:\n' + text)); }, 40000);
       p.stdout.on('data', (d) => {
         text += d;
-        if (/\[1\]: $/.test(text)) p.stdin.write('2\n');
+        if (/\[1\]: $/.test(text)) p.stdin.write('3\n');
         else if (/address and press Enter: $/.test(text)) p.stdin.write('127.0.0.1\n');
         else if (/\[y\/N\] $/.test(text)) p.stdin.write('n\n');
         else if (/Press Enter to close\. $/.test(text)) p.stdin.write('\n');

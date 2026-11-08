@@ -30,6 +30,20 @@ export const PINNED = {
     size: null,
     // GitHub's published digest for the release asset
     sha256: 'b0a7cb1294daf37d0f6eac404604dab468af700462de7a7ed41a0ed8df7f1ad8'
+  },
+  'hometv-v0': {
+    what: 'HomeTV v0 for LG (app-v0.0.1), the earlier version',
+    url: 'https://github.com/rebeccamcfadden/hometv-webos/releases/download/app-v0.0.1/com.hometv.app_0.0.1_all.ipk',
+    file: 'com.hometv.app_0.0.1_all.ipk',
+    size: null,
+    sha256: '945d9c0d00a6258b4d7ba4d558be9c1264950c53d5f3d5c40ea87afae9f003d8'
+  },
+  'hometv-v1': {
+    what: 'HomeTV v1 for LG (app-v0.1.0)',
+    url: 'https://github.com/rebeccamcfadden/hometv-webos/releases/download/app-v0.1.0/com.hometv.app_0.1.0_all.ipk',
+    file: 'com.hometv.app_0.1.0_all.ipk',
+    size: null,
+    sha256: '6f6abc8348abcaf4349091d9be9d6051c8966bd672e6c9e379af4ff57560cb03'
   }
 };
 

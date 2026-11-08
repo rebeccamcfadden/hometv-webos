@@ -41,11 +41,12 @@ export async function open(host, { clientKey, onPrompt, timeoutMs = 60000, ports
   });
 
   const key = await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { waiting.delete('register_0'); reject(new Error('no answer to pairing (was "Allow" pressed?)')); }, timeoutMs);
+    const fail = (e) => { try { ws.close(); } catch { /* already closed */ } reject(e); };
+    const timer = setTimeout(() => { waiting.delete('register_0'); fail(new Error('no answer to pairing (was "Allow" pressed?)')); }, timeoutMs);
     waiting.set('register_0', (msg) => {
       if (msg.type === 'response' && msg.payload && msg.payload.pairingType === 'PROMPT') { if (onPrompt) onPrompt(); return; }
       if (msg.type === 'registered') { clearTimeout(timer); waiting.delete('register_0'); resolve(msg.payload['client-key']); return; }
-      if (msg.type === 'error') { clearTimeout(timer); waiting.delete('register_0'); reject(new Error('pairing refused: ' + msg.error)); }
+      if (msg.type === 'error') { clearTimeout(timer); waiting.delete('register_0'); fail(new Error('pairing refused: ' + msg.error)); }
     });
     const payload = {
       forcePairing: false,

@@ -35,6 +35,14 @@ export function keyPaths(dir) {
   return { key: process.env.HOMETV_ROOT_KEY || path.join(dir, 'lg-root-key'), knownHosts: path.join(dir, 'lg-known-hosts') };
 }
 
+/** Windows' ssh ignores a private key other accounts can read: this account only (icacls is part of Windows). */
+export function lockFile(file) {
+  if (process.platform !== 'win32') return;
+  try {
+    execFileSync('icacls', [file, '/inheritance:r', '/grant:r', os.userInfo().username + ':F'], { stdio: 'ignore' });
+  } catch { /* the key still works for this tool; ssh may warn */ }
+}
+
 /** The key pair (lg-root-key and lg-root-key.pub in the HomeTV folder), made once and kept. */
 export function laptopKey(dir) {
   const { key: file } = keyPaths(dir);
@@ -44,12 +52,7 @@ export function laptopKey(dir) {
     const k = makeKey();
     fs.writeFileSync(file, k.privatePem, { mode: 0o600 });
     fs.writeFileSync(file + '.pub', k.publicLine + '\n');
-    // Windows' ssh ignores a private key other accounts can read: this account only (icacls is part of Windows)
-    if (process.platform === 'win32') {
-      try {
-        execFileSync('icacls', [file, '/inheritance:r', '/grant:r', os.userInfo().username + ':F'], { stdio: 'ignore' });
-      } catch { /* the key still works for this tool; ssh may warn */ }
-    }
+    lockFile(file);
   }
   return { file, publicLine: fs.readFileSync(file + '.pub', 'utf8').trim() };
 }

@@ -49,7 +49,7 @@ export function scrub(text, host) {
     .replace(/\b([0-9a-f]{2}[:-]){5}[0-9a-f]{2}\b/gi, '<mac>');
 }
 
-async function withTv(ctx, fn) {
+export async function withTv(ctx, fn) {
   const keyFile = path.join(ctx.dir, 'lg-client-key');
   const clientKey = fs.existsSync(keyFile) ? fs.readFileSync(keyFile, 'utf8').trim() : undefined;
   const tv = await open(ctx.host, {
@@ -61,13 +61,13 @@ async function withTv(ctx, fn) {
   try { return await fn(tv); } finally { tv.close(); }
 }
 
-async function appIds(tv) {
+export async function appIds(tv) {
   const r = await tv.request('com.webos.applicationManager/listLaunchPoints');
   if (r.returnValue === false || !Array.isArray(r.launchPoints)) throw new Error('the TV didn\'t list its apps (' + (r.errorText || 'no list') + ')');
   return new Set(r.launchPoints.map((a) => String(a.id)));
 }
 
-async function foreground(tv) {
+export async function foreground(tv) {
   const r = await tv.request('com.webos.applicationManager/getForegroundAppInfo');
   return r.returnValue === false ? '' : String(r.appId || '');
 }
