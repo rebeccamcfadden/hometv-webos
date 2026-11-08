@@ -14,16 +14,18 @@ that ends root, or Homebrew Channel's failsafe start) leaves LG's Home as it was
 | `10-hometv-home` | Homebrew Channel start-up hook: elevates HomeTV's service (Homebrew Channel's `elevate-service`, so its heartbeat reaches the real `/tmp`), mounts HomeTV over LG's Home, restarts the app manager (sam), starts the watchdog |
 | `stage-home.sh` | Builds the folder mounted over LG's Home from HomeTV's installed page and the TV's own stock Home appinfo |
 | `after-sam.sh` | Restarts the services that lose track of the app manager (webOS 25: videooutputd, umediaserver) |
-| `undo-home.sh` | Puts LG's Home back: `temp` until the next start, or for good ("Use LG's Home") |
+| `undo-home.sh` | Puts LG's Home back: `temp` now until the next start (Home pressed three times, the watchdog); no argument, now and for good; `at-restart`, for good from the next restart (HomeTV's Settings › Use LG's Home). For good = the two hooks removed and `DISABLE` written; `install.sh` undoes it |
 | `watchdog.sh` | Puts LG's Home back until the next start if HomeTV's page stops answering while on screen |
 | `decide.js` | Which way, which services, and the appinfo for the mount |
 | `debloat-stop.sh`, `debloat-undo.sh`, `15-hometv-debloat` | Stops LG's ad and telemetry services while HomeTV is Home (four groups; the ad servers blocked in a copy of `/etc/hosts` mounted in memory, never in the file itself), and puts them back |
 | `install.sh` | Run as root once (`hometv-lg install` copies this folder, all but this README, to `/media/developer/hometv` with Unix line ends and runs it there): refuses without Homebrew Channel's hooks, with the Developer Mode app, without HomeTV, or with a native Home; saves LG Home's own appinfo; adds the two hooks |
-| `uninstall.sh` | LG's Home back now, the hooks and the HomeTV folder gone; restart afterwards |
+| `uninstall.sh` | LG's Home back now, the hooks and the HomeTV folder gone; restart afterwards (`hometv-lg unroot-home` runs it and checks). HomeTV uninstalled in Homebrew Channel first leaves the hooks, which then do nothing |
 | `lib.sh` | Paths, each overridable for the tests |
 
 Tested on a PC only, with stub commands (`tests/root.test.mjs`). The heartbeat: HomeTV's page calls its service
-(`service/service.js`) every 10 seconds while it shows, and the service touches `/tmp/hometv-alive`. Elevation only
+(`service/service.js`) every 10 seconds while it shows, and the service touches `/tmp/hometv-alive`. The same service
+runs `undo-home.sh` for HomeTV's page only: `temp` when Home is pressed three times, `at-restart` from Settings › Use
+LG's Home (`rootState`, `useLgHome`; elevated, so as root). Elevation only
 changes HomeTV's own service registration (`/var/luna-service2-dev`); removing the HomeTV app removes it. The
 settings backup and restore run from the laptop, not from here ([../docs/backup.md](../docs/backup.md)). HomeTV's own
 updates on a rooted TV (Homebrew Channel's repository, and a new .ipk reaching Home after the next restart):

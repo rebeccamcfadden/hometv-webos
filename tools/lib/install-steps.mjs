@@ -33,7 +33,7 @@ export const TV_PATHS = {
   tmp: '/tmp'
 };
 
-const RESTART = 'unplug the TV from the wall, wait 30 seconds, plug it back in and turn it on (the remote\'s power ' +
+export const RESTART = 'unplug the TV from the wall, wait 30 seconds, plug it back in and turn it on (the remote\'s power ' +
   'button isn\'t a restart: Quick Start+ keeps the TV half-awake)';
 const KEY_FILE = '%USERPROFILE%\\HomeTV\\lg-root-key';
 const yes = (a) => /^\s*y/i.test(a || '');
@@ -46,12 +46,12 @@ const LOCK = { telnetDisabled: 'Telnet off', sshdEnabled: 'SSH on', blockUpdates
 
 /** The way back, lightest first (docs/root-plan.md, "The way back"), as it can be done today. */
 export const WAY_BACK = [
-  '0  One-off trouble: unplug the TV for 30 seconds. LG\'s Home until the next start. (HomeTV\'s own way out, Home ' +
-    'pressed three times, is still to build.)',
-  '1  LG\'s Home for good, HomeTV kept: ssh -i ' + KEY_FILE + ' root@<tv ip> sh ' + TV_PATHS.dir + '/undo-home.sh , then ' +
-    'restart. (HomeTV\'s own "Use LG\'s Home" setting is still to build.)',
-  '2  Remove HomeTV: ssh -i ' + KEY_FILE + ' root@<tv ip> sh ' + TV_PATHS.dir + '/uninstall.sh , restart, then uninstall ' +
-    'HomeTV in Homebrew Channel. Homebrew Channel stays.',
+  '0  One-off trouble: press Home three times within two seconds while HomeTV is Home: LG\'s Home until the next ' +
+    'restart. Or unplug the TV for 30 seconds for a fresh start.',
+  '1  LG\'s Home for good, HomeTV kept as an app: in HomeTV, Settings > Use LG\'s Home, then restart (or from the laptop: ' +
+    'ssh -i ' + KEY_FILE + ' root@<tv ip> sh ' + TV_PATHS.dir + '/undo-home.sh). Back: hometv-lg root <tv ip> --home-again.',
+  '2  Remove HomeTV\'s root edition: hometv-lg unroot-home <tv ip> (LG\'s Home back, checked after a restart), then ' +
+    'uninstall HomeTV in Homebrew Channel if you like. Homebrew Channel stays.',
   '3  Full unroot: Settings > General > System > Reset to Initial Settings (a factory reset), then set the TV up again ' +
     'with the backup, the photos and the sign-in list (hometv-lg restore puts back what it can).',
   '4  The TV won\'t finish starting: unplug it for 30 seconds and let Homebrew Channel\'s failsafe start skip every ' +
@@ -378,8 +378,8 @@ export const STEPS = [
       'HomeTV\'s root scripts to ' + TV_PATHS.dir + ', puts HomeTV back if root\'s set-up removed it, runs install.sh ' +
       '(two start-up hooks: HomeTV takes over LG\'s Home at each start, in memory only), adds this laptop\'s SSH key, and ' +
       'asks Homebrew Channel to switch Telnet off and SSH on from the next restart.',
-    undo: 'LG\'s Home back for good: over SSH, sh ' + TV_PATHS.dir + '/undo-home.sh (HomeTV\'s own "Use LG\'s Home" setting ' +
-      'is still to build); remove it: sh ' + TV_PATHS.dir + '/uninstall.sh, restart, then uninstall HomeTV in Homebrew Channel. ' +
+    undo: 'LG\'s Home back for good: HomeTV\'s Settings > Use LG\'s Home, or over SSH sh ' + TV_PATHS.dir + '/undo-home.sh ' +
+      '(back: hometv-lg root <tv address> --home-again); remove it: hometv-lg unroot-home <tv address>, then uninstall HomeTV in Homebrew Channel. ' +
       'Telnet and SSH: Homebrew Channel > Settings, then restart. The SSH key: the line ending "hometv-lg" in ' + TV_PATHS.ssh + '/authorized_keys.',
     async run(ctx) {
       const P = { ...TV_PATHS, ...ctx.tvPaths };

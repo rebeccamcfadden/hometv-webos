@@ -85,9 +85,9 @@ LG TVs have no settings export, so the backup is three parts, kept on the laptop
 
 | Level | When | What to do | End state | Needs |
 |---|---|---|---|---|
-| 0 | One-off trouble | Press Home three times in two seconds (HomeTV's way out, to build, as Razdva122's), or unplug for 30 seconds | LG's Home until the next start | Nothing |
-| 1 | **LG's Home is preferred instead** | HomeTV's setting "Use LG's Home" (to build: removes its start-up hook), restart | LG's Home; HomeTV still installed as an app; root stays, unused | The remote |
-| 2 | Remove HomeTV | Uninstall HomeTV in Homebrew Channel, restart | LG's Home; Homebrew Channel stays | The remote |
+| 0 | One-off trouble | Press Home three times within two seconds while HomeTV is Home (**built**: HomeTV's page counts the presses, its service runs `undo-home.sh temp`; the idea is Razdva122's launcher's, no code taken; unchecked on a real TV), or unplug for 30 seconds for a fresh start | LG's Home until the next start | Nothing |
+| 1 | **LG's Home is preferred instead** | HomeTV's Settings › Use LG's Home (**built**, root edition only: a confirm says what happens and how to come back; `undo-home.sh at-restart` removes HomeTV's two start-up hooks and writes a `DISABLE` mark), restart. Back: `hometv-lg root <tv address> --home-again` (runs `install.sh` again, then checks after a restart) | LG's Home; HomeTV still installed as an app; root stays, unused; nothing of HomeTV runs at the start | The remote |
+| 2 | Remove HomeTV | `hometv-lg unroot-home <tv address>` (**built**: `uninstall.sh`, restart, LG's Home and Homebrew Channel checked), then uninstall the HomeTV app in Homebrew Channel if wanted. Uninstalled in Homebrew Channel first, the hooks left behind do nothing (and `unroot-home` still removes them) | LG's Home; Homebrew Channel stays | The remote; the laptop for `unroot-home` |
 | 3 | **Full unroot** | Settings › General › System › Reset to Initial Settings; then the setup wizard and the backup | Stock TV on its current firmware: no root, no Homebrew Channel, no HomeTV | The remote; an hour to set up again |
 | 4 | The TV won't finish starting | Wait for Homebrew Channel's failsafe start (the next start skips every customisation and opens a repair shell for the laptop), unplug 30 s; then level 3 | A working TV | The laptop on the same Wi-Fi |
 | 5 | Still won't start | LG's USB recovery: the test TV's model's firmware file in a folder named `LG_DTV` on a FAT32 stick, TV off, stick in, TV on | Firmware reinstalled (same or newer version only) | The stick, prepared in step 4 |
@@ -124,6 +124,11 @@ SlopBro's bug, and may stop the start-up scripts. Then:
   are ready either way, and LG may update the TV in between (accepted).
 - **LG's firmware file for the test TV's model goes on a USB stick** before root (level 5); LG's US support page
   offers it.
+- **"Use LG's Home" (level 1) removes the start-up hooks and leaves a `DISABLE` mark** (2026-11-08, B2): with the hooks
+  gone nothing of HomeTV runs at the start, which is the least that can go wrong across an LG update or a later root;
+  the mark is what the hooks and the watchdog honour should a hook be linked again, and what tells HomeTV and the
+  laptop the choice was made. Both are undone by one command (`install.sh`, through `hometv-lg root --home-again`).
+  HomeTV's setting takes effect at the next restart, so its own page is never pulled from under the confirm.
 
 ## Sources
 
