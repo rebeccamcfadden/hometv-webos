@@ -1,5 +1,6 @@
 // Settings (design_preview's screens/settings.ts at 2bf3c2d, "Launcher settings"), slimmed for v0 on Samsung:
-// Performance (Motion), Screensaver, Home row apps, Weather, Region and About, and a way back into first run. Sections on the left with their values; the pane on
+// Performance (Motion), Screensaver, Home row apps, Weather, Region and About, and a way back into first run; on the LG
+// root edition, Use LG's Home (panes/lgHome.ts). Sections on the left with their values; the pane on
 // the right shows the focused section at once. → or OK enters the pane (its border brightens), ← from its left edge
 // returns to the section. Back in the pane leaves a sub-state first (Change city, an app being moved), then the pane;
 // Back on the list closes the page. Changes save at once. Not in v0 (docs/versions.md): account, streaming services,
@@ -17,14 +18,15 @@ import { aboutValue } from '../updates';
 import { PAGE_VERSION } from '../version';
 import { aboutPane } from './panes/about';
 import { appsPane } from './panes/apps';
+import { lgHomePane, lgHomeValue } from './panes/lgHome';
+import { rootEdition } from '../webos/rootEdition';
 import { performancePane, screensaverPane } from './panes/look';
 import type { Pane, PaneHost } from './panes/pane';
 import { regionPane } from './panes/region';
 import { weatherPane } from './panes/weather';
 import { showSetup } from './setup';
+import { groupsNow, type SectionId } from './settingsGroups';
 import { weather } from '../weather/homeWeather';
-
-export type SectionId = 'performance' | 'screensaver' | 'apps' | 'weather' | 'region' | 'setup' | 'about';
 
 interface Section {
   id: SectionId;
@@ -42,14 +44,11 @@ const SECTIONS: Section[] = [
   { id: 'weather', label: 'Weather', icon: 'cloud', value: () => (prefs.get().place ? prefs.get().place!.name : 'Not set') },
   { id: 'region', label: 'Region', icon: 'pin', value: () => (prefs.get().region ? REGION_LABELS[prefs.get().region!] : 'Not set') },
   { id: 'setup', label: 'First run', icon: 'home', value: () => '' },
+  { id: 'lghome', label: 'Use LG’s Home', icon: 'home', value: lgHomeValue },
   { id: 'about', label: 'About', icon: 'info', value: () => aboutValue(bridge.platform.pageUpdates(), PAGE_VERSION) },
 ];
 
-/** design_preview's groups (F23), with the sections v0 has. */
-const GROUPS: { title: string; items: SectionId[] }[] = [
-  { title: 'Home & look', items: ['performance', 'screensaver', 'apps', 'weather'] },
-  { title: 'This TV', items: ['region', 'setup', 'about'] },
-];
+export type { SectionId };
 
 /** First run again, from Settings: the same steps as on the first start. */
 const setupAgainPane = (): Pane => ({
@@ -66,7 +65,8 @@ const setupAgainPane = (): Pane => ({
 });
 
 export function settingsScreen(initial: SectionId = 'apps'): Screen {
-  const sections = GROUPS.reduce((all: Section[], g) => all.concat(g.items.map((id) => SECTIONS.filter((s) => s.id === id)[0])), []);
+  const groups = groupsNow(rootEdition.shows());
+  const sections = groups.reduce((all: Section[], g) => all.concat(g.items.map((id) => SECTIONS.filter((s) => s.id === id)[0])), []);
   let current: SectionId = initial;
   let shown: SectionId | null = null;
   let inPane = false;
@@ -92,6 +92,7 @@ export function settingsScreen(initial: SectionId = 'apps'): Screen {
     weather: weatherPane(host),
     region: regionPane(),
     setup: setupAgainPane(),
+    lghome: lgHomePane(host),
     about: aboutPane(),
   };
 
@@ -106,7 +107,7 @@ export function settingsScreen(initial: SectionId = 'apps'): Screen {
   );
   replace(
     list,
-    GROUPS.map((g) => [h('div.sec-head', g.title), g.items.map((id) => rows[sections.map((s) => s.id).indexOf(id)])]),
+    groups.map((g) => [h('div.sec-head', g.title), g.items.map((id) => rows[sections.map((s) => s.id).indexOf(id)])]),
   );
   const rowOf = (id: SectionId) => rows[sections.map((s) => s.id).indexOf(id)];
 
@@ -191,7 +192,7 @@ export function settingsScreen(initial: SectionId = 'apps'): Screen {
   };
 
   // Live values: the place, the region, the unit; the weather that arrives for a new place.
-  const offs = [prefs.on(() => rerender()), weather.on(() => current === 'weather' && rerender())];
+  const offs = [prefs.on(() => rerender()), weather.on(() => current === 'weather' && rerender()), rootEdition.on(() => current === 'lghome' && rerender())];
   const offStack = shell.onChange(() => {
     if (shell.has(screen)) return;
     offs.forEach((off) => off());

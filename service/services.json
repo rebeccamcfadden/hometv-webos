@@ -1,6 +1,6 @@
 {
   "id": "com.hometv.app.service",
-  "description": "HomeTV: the heartbeat for the rooted edition's watchdog",
+  "description": "HomeTV: the heartbeat for the rooted edition's watchdog, its way back to LG's Home, and the key page",
   "services": [
     {
       "name": "com.hometv.app.service",
