@@ -25,7 +25,7 @@ export function showAccount() {
   const row = h('div.lowerrow');
   const cols = h('div.keycols', qrBox, h('div.keyside', heading, address, lines, row));
   el.appendChild(cols);
-  el.appendChild(h('p.hint', 'Back: the API keys page. Back while a code shows drops the code.'));
+  el.appendChild(h('p.hint', 'Back returns to the page before. Back while a code shows drops the code.'));
 
   let confirming = false;
   let shownQr: string | null = '';

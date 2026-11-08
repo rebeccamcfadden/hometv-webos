@@ -7,8 +7,9 @@ import { homeScreen } from './screens/home';
 import { showChecks } from './screens/checks';
 import { v1Tabs } from '@v1';
 import { initScreensaver } from './ui/screensaver';
-import { pageStorage, prefs, setupDone } from './launcherSettings';
+import { markSetupDone, pageStorage, prefs, setupDone, SETUP_V1_KEY } from './launcherSettings';
 import { showSetup } from './screens/setup';
+import { routes } from './screens/routes';
 import { startUpdateNotice } from './ui/updateNotice';
 
 // HomeTV for Samsung: the shell (screen stack, focus, keys) and its screens. Home first; Movies, TV Shows and Search are
@@ -53,8 +54,16 @@ async function start() {
   const updateCheck = () => noteUpdateCheck(bridge.platform.pageUpdates());
   window.setInterval(updateCheck, 60000);
   document.addEventListener('visibilitychange', updateCheck);
-  // First run, once: where the TV is and the weather place (screens/setup.ts). Home is already there underneath.
-  if (!setupDone(pageStorage())) showSetup();
+  // First run, once: where the TV is and the weather place (screens/setup.ts). Home is already there underneath. v1 adds
+  // the TMDB key and sign-in; after an update from v0 it shows once more for them, unless the key is already saved.
+  const storage = pageStorage();
+  const tmdb = routes.tmdbSetup;
+  if (!setupDone(storage)) showSetup();
+  else if (tmdb && !setupDone(storage, SETUP_V1_KEY))
+    void tmdb.keySaved().then((saved) => {
+      if (saved) markSetupDone(storage, SETUP_V1_KEY);
+      else showSetup();
+    });
   if (bridge.mode() === 'app') shell.toast(`Home in ${homeShownMs} ms · ${(/Chrome\/(\d+)/.exec(navigator.userAgent) || ['', '?'])[1]}`);
   if (bridge.mode() === 'tv' || bridge.mode() === 'fake-tv') {
     bridge.check('timing', {

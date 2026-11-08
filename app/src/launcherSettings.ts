@@ -115,18 +115,21 @@ export const UNIT_LABELS = (p: Prefs): Record<Unit, string> => ({
   region: `Region’s (${p.region === 'us' ? '°F' : '°C'})`,
 });
 
-export function setupDone(storage: KeyValueStore | null): boolean {
+/** v1's First run, with the TMDB steps, has ended once: after an update from v0 it shows again until then. */
+export const SETUP_V1_KEY = 'hometv-setup-v1-done';
+
+export function setupDone(storage: KeyValueStore | null, key = SETUP_KEY): boolean {
   try {
-    return !!storage && storage.getItem(SETUP_KEY) === '1';
+    return !!storage && storage.getItem(key) === '1';
   } catch (e) {
     // Blocked storage: first run shows each start rather than never; it can be skipped.
     return false;
   }
 }
 
-export function markSetupDone(storage: KeyValueStore | null): void {
+export function markSetupDone(storage: KeyValueStore | null, key = SETUP_KEY): void {
   try {
-    if (storage) storage.setItem(SETUP_KEY, '1');
+    if (storage) storage.setItem(key, '1');
   } catch (e) {
     // Shows again next start.
   }

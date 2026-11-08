@@ -159,7 +159,7 @@ export function showKeys() {
       h('div.keyside', h('div.keylabel', 'On a laptop, open'), address, h('div.keylabel', 'and type the code'), codeEl, value, list, h('div.lowerrow', newCode, account, note)),
     ),
   );
-  el.appendChild(h('p.hint', 'OK on a key checks it again. New code: a phone that has the old one can’t send keys any more. Back: Home.'));
+  el.appendChild(h('p.hint', 'OK on a key checks it again. New code: a phone that has the old one can’t send keys any more. Back returns to the page before.'));
 
   function paint() {
     if (!state) return;

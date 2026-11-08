@@ -697,3 +697,12 @@
 .screen--setup:not(.setup--open) .setup-panel {
   display: none;
 }
+/* v1's TMDB steps: where the step stands, then the button that opens its screen. */
+.setup-step-status {
+  margin-top: 28px;
+  font-size: 24px;
+  color: var(--text-2);
+}
+.setup-step-action {
+  margin-top: 24px;
+}

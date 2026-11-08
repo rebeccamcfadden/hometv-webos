@@ -5,19 +5,25 @@
 // tabs and the panel takes the right, the same pane as Settings with a footer ("Step 1 of 2", Next or Done). Back on a
 // tab closes the panel; Back on the checklist, or Start using Home, ends first run. It shows once, on the first start
 // (`hometv-setup-done`), and again from Settings › First run.
+//
+// v1 (v1.ts fills routes.tmdbSetup) adds Android's two TMDB steps after Region: TMDB key, only when no key was saved as
+// First run opened, and Sign in to TMDB. Their panels say what each is for and open the API keys page (its QR leads a
+// phone to the key page, which explains getting the key) or the TMDB account screen over First run; Back returns here.
+// After an update from v0, main.ts shows First run once more (`hometv-setup-v1-done`) unless the key is already saved.
 import './settings.css';
-import { markSetupDone, pageStorage, prefs, REGION_LABELS } from '../launcherSettings';
+import { markSetupDone, pageStorage, prefs, REGION_LABELS, SETUP_V1_KEY } from '../launcherSettings';
 import { shell, type Screen } from '../shell/app';
 import { h, replace } from '../shell/dom';
 import { focusable } from '../shell/focus';
 import { icon } from '../ui/icons';
 import { button } from '../ui/widgets';
-import type { Pane, PaneHost } from './panes/pane';
+import { paneHead, type Pane, type PaneHost } from './panes/pane';
 import { regionPane } from './panes/region';
 import { weatherPane } from './panes/weather';
 import { weather } from '../weather/homeWeather';
+import { routes, type TmdbSetup } from './routes';
 
-type StepId = 'region' | 'weather';
+type StepId = 'region' | 'weather' | 'tmdbKey' | 'account';
 
 interface Step {
   id: StepId;
@@ -59,9 +65,59 @@ export const STEPS: Step[] = [
   },
 ];
 
+/** v1's TMDB steps, with the key's state as First run last read it. */
+function tmdbSteps(tmdb: TmdbSetup, keySaved: () => boolean): Step[] {
+  return [
+    {
+      id: 'tmdbKey',
+      title: 'TMDB key',
+      sub: 'Movies, TV Shows and Search',
+      value: () => (keySaved() ? 'Saved' : ''),
+      pill: () => (keySaved() ? 'Saved' : 'Not sent'),
+      help: {
+        eyebrow: 'TMDB key',
+        title: 'Send the TMDB key from a phone',
+        body: 'Movies, TV Shows and Search come from TMDB, the free film and TV database. The API keys page shows a QR code: the page it opens on a phone explains making a free TMDB account and copying its key, and sends the key to this TV.',
+        note: '→ opens this step; Show the QR code opens the same page as Settings › API keys.',
+      },
+    },
+    {
+      id: 'account',
+      title: 'Sign in to TMDB',
+      sub: 'My list, Favorites and Seen',
+      value: () => tmdb.signedInAs(),
+      pill: () => (tmdb.signedInAs() ? 'Signed in' : 'Not signed in'),
+      help: {
+        eyebrow: 'TMDB account',
+        title: 'Sign in to TMDB?',
+        body: 'Signed in, My list, Favorites and Seen are kept on the TMDB account too, so they follow it to a phone or another TV. Sign in with a phone: scan the code and approve this TV on TMDB. It needs the TMDB key first.',
+        note: 'Optional. → opens this step; the same screen is under Settings › API keys › TMDB account.',
+      },
+    },
+  ];
+}
+
+/** The panel for a TMDB step: what it is for, where it stands, and the button that opens its screen. */
+function tmdbPane(body: () => { eyebrow: string; title: string; sub: string; status: string; label: string; open: () => void }): Pane {
+  return {
+    render() {
+      const b = body();
+      return [
+        ...paneHead(b.eyebrow, b.title, b.sub),
+        h('div.setup-step-status', b.status),
+        h('div.setup-step-action', button(b.label, { icon: 'chevRight', primary: true, key: 'tmdb-open', onOk: b.open })),
+      ];
+    },
+  };
+}
+
 export function setupScreen(): Screen {
+  const tmdb = routes.tmdbSetup;
+  /** The TMDB key's state; null until First run has read it once. */
+  let keySaved: boolean | null = null;
+  let steps: Step[] = tmdb ? [STEPS[0], ...tmdbSteps(tmdb, () => !!keySaved), STEPS[1]] : STEPS;
   const done: Record<string, boolean> = {};
-  const doneCount = () => STEPS.filter((s) => done[s.id]).length;
+  const doneCount = () => steps.filter((s) => done[s.id]).length;
   /** The panel showing on the right; null while the checklist is wide. */
   let open: StepId | null = null;
   let inPanel = false;
@@ -76,7 +132,7 @@ export function setupScreen(): Screen {
 
   const start = button('Start using Home', { icon: 'home', primary: true, key: 'start', onOk: () => shell.goTab('home') });
 
-  const stepOf = (id: StepId | null) => STEPS.filter((s) => s.id === id)[0];
+  const stepOf = (id: StepId | null) => steps.filter((s) => s.id === id)[0];
   const tabOf = (id: StepId) => rowsEl.querySelector(`[data-key="step-${id}"]`) as HTMLElement | null;
   const entryOf = () => (scroll.querySelector('[data-entry]') || scroll.querySelector('[data-focus]') || foot.querySelector('[data-focus]')) as HTMLElement | null;
 
@@ -88,11 +144,33 @@ export function setupScreen(): Screen {
     },
     setup: true,
   };
-  const panes: Record<StepId, Pane> = { region: regionPane(), weather: weatherPane(host) };
+  const panes: Record<StepId, Pane> = {
+    region: regionPane(),
+    weather: weatherPane(host),
+    tmdbKey: tmdbPane(() => ({
+      eyebrow: 'TMDB key',
+      title: 'Send the TMDB key from a phone',
+      sub: 'Show the QR code and scan it with a phone on this Wi-Fi. The page on the phone explains making a free TMDB account and copying its API Read Access Token, then sends it to this TV. Back on that page returns here.',
+      status: keySaved ? 'A TMDB key is saved on this TV.' : 'No TMDB key on this TV yet.',
+      label: 'Show the QR code',
+      open: () => tmdb && tmdb.openKeys(),
+    })),
+    account: tmdbPane(() => {
+      const who = tmdb ? tmdb.signedInAs() : '';
+      return {
+        eyebrow: 'TMDB account',
+        title: 'Sign in to TMDB',
+        sub: 'Scan the code with a phone and approve this TV on TMDB. My list, Favorites and Seen then follow the account. Back on that screen returns here.',
+        status: who ? `Signed in as ${who}.` : keySaved ? 'Not signed in.' : 'Not signed in. Signing in needs the TMDB key first.',
+        label: who ? 'TMDB account' : 'Sign in with a phone',
+        open: () => tmdb && tmdb.openAccount(),
+      };
+    }),
+  };
 
   const paintHelp = (step: Step | null) => {
-    const all = doneCount() === STEPS.length;
-    const left = STEPS.length - doneCount();
+    const all = doneCount() === steps.length;
+    const left = steps.length - doneCount();
     replace(
       help,
       step
@@ -120,11 +198,11 @@ export function setupScreen(): Screen {
   function paintPanel() {
     if (!open) return;
     replace(scroll, panes[open].render());
-    const i = STEPS.map((s) => s.id).indexOf(open);
-    const next = STEPS[i + 1];
+    const i = steps.map((s) => s.id).indexOf(open);
+    const next = steps[i + 1];
     replace(
       foot,
-      h('span.pane-foot-note', `Step ${i + 1} of ${STEPS.length} · changes save at once`),
+      h('span.pane-foot-note', `Step ${i + 1} of ${steps.length} · changes save at once`),
       h(
         'div.pane-foot-actions',
         button(next ? `Next: ${next.title}` : 'Done', {
@@ -141,13 +219,18 @@ export function setupScreen(): Screen {
 
   /** The tabs: the checklist rows, wide or cut down beside an open panel. */
   function paint() {
-    const all = doneCount() === STEPS.length;
+    const all = doneCount() === steps.length;
     el.classList.toggle('setup--open', !!open);
     replace(titleEl, all ? 'You’re all set' : 'Set up your Home screen');
-    replace(leadEl, all ? 'Every row is done. Change any of them now, or start.' : 'Two quick choices. Move right to open a row, or start right away.');
+    replace(
+      leadEl,
+      all
+        ? 'Every row is done. Change any of them now, or start.'
+        : `${tmdb ? 'A few steps' : 'Two quick choices'}. Move right to open a row, or start right away.`,
+    );
     replace(
       rowsEl,
-      STEPS.map((s, i) => {
+      steps.map((s, i) => {
         const isDone = !!done[s.id];
         const value = s.value();
         return focusable(
@@ -216,7 +299,7 @@ export function setupScreen(): Screen {
 
   /** Done on the last step: the checklist widens, focus on the first row not done, or Start. */
   function finish() {
-    const next = STEPS.filter((s) => !done[s.id])[0];
+    const next = steps.filter((s) => !done[s.id])[0];
     close();
     shell.focus(next ? tabOf(next.id) : start);
   }
@@ -239,7 +322,11 @@ export function setupScreen(): Screen {
     label: 'First run',
     el,
     defaultFocus: () => (inPanel ? entryOf() : null) || (open ? tabOf(open) : null) || (rowsEl.querySelector('[data-focus]') as HTMLElement | null),
-    onShow: () => paint(),
+    onShow: () => {
+      paint();
+      // Back from the API keys page or the account screen: the key may have just come.
+      readKey();
+    },
     onFocus(f) {
       const was = inPanel;
       inPanel = panel.contains(f);
@@ -294,6 +381,16 @@ export function setupScreen(): Screen {
     paint();
     paintPanel();
   };
+  /** Reads the TMDB key's state. The first answer decides the key step: a TV that already had a key doesn't show it. */
+  function readKey() {
+    if (!tmdb) return;
+    void tmdb.keySaved().then((saved) => {
+      const first = keySaved === null;
+      keySaved = saved;
+      if (first && saved && open !== 'tmdbKey') steps = steps.filter((s) => s.id !== 'tmdbKey');
+      if (shell.has(screen)) repaint();
+    });
+  }
   const offs = [
     prefs.on(repaint),
     // The forecast for a city just chosen arrives after the pane drew "Getting the weather…".
@@ -301,16 +398,18 @@ export function setupScreen(): Screen {
       if (open === 'weather') paintPanel();
     }),
   ];
+  if (tmdb) offs.push(tmdb.on(repaint));
   // First run has ended (Start, Back, the nav): it doesn't show by itself again.
   const offStack = shell.onChange(() => {
     if (shell.has(screen)) return;
     offs.forEach((off) => off());
     offStack();
     markSetupDone(pageStorage());
+    if (tmdb) markSetupDone(pageStorage(), SETUP_V1_KEY);
   });
 
   paint();
-  paintHelp(STEPS[0]);
+  paintHelp(steps[0]);
   return screen;
 }
 

@@ -90,6 +90,16 @@ test('first run shows once: until it ends (done or skipped) it shows at every st
   assert.equal(ls.setupDone(null), false);
 });
 
+test('v1’s First run has its own flag: done on v0 still shows the TMDB steps once after the update', () => {
+  const storage = memory();
+  ls.markSetupDone(storage);
+  assert.equal(ls.setupDone(storage), true);
+  assert.equal(ls.setupDone(storage, ls.SETUP_V1_KEY), false, 'v0’s flag does not cover v1’s steps');
+  ls.markSetupDone(storage, ls.SETUP_V1_KEY);
+  assert.equal(storage.map.get('hometv-setup-v1-done'), '1');
+  assert.equal(ls.setupDone(storage, ls.SETUP_V1_KEY), true);
+});
+
 test('the v1 stand-in reads the region from Settings: Sweden until one is chosen, then that one’s lists', () => {
   assert.ok(data.pickServices().some((x) => x.id === 'svtplay'));
   ls.prefs.set({ region: 'us' });
