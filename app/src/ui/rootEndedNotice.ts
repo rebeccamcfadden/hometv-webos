@@ -18,6 +18,8 @@ import {
 import { button } from './widgets';
 
 export const ROOT_ENDED_LABEL = 'Root ended';
+/** How long after the first "root ended" answer the page asks again. */
+export const CONFIRM_MS = 90000;
 
 /** The guide's address as it reads on a TV (no scheme). */
 const shortUrl = (u: string) => u.replace(/^https:\/\//, '');
@@ -56,6 +58,10 @@ function dialog(): Screen {
 /** Call once the root state is read (rootEdition.refresh()). Shows over Home, now or the next time Home is on top. */
 export async function startRootEndedNotice(): Promise<void> {
   if (!rootEnded(rootEdition.get(), isLgHome())) return;
+  // HomeTV may be opened at a start before Homebrew Channel ran the hook (the TV reopening the last app): ask again once
+  // the hook has surely had its turn, and say it only if the answer stands.
+  await new Promise((r) => window.setTimeout(r, CONFIRM_MS));
+  if (!rootEnded(await rootEdition.refresh(), isLgHome())) return;
   const firmware = await tvFirmware();
   const show = () => {
     if (takeRootEndedNotice(pageStorage(), firmware)) shell.push(dialog());

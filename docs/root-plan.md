@@ -116,11 +116,13 @@ SlopBro's bug, and may stop the start-up scripts. Then:
   `started` in its folder at each start it runs. HomeTV opened from its tile asks its service; when the root edition is
   still there and hooked, "Use LG's Home" isn't chosen, and the note is from an older start, it shows one notice: LG's
   Home is back, HomeTV works as an app on its tile, nothing is broken, the choices above and the guide's
-  `/root/#after-an-update`. Once per TV software version, with "Don't show again"; no network call. A TV never
+  `/root/#after-an-update`. Once per TV software version, with "Don't show again"; no network call. The page asks
+  again 90 s later and shows it only if the answer stands (HomeTV reopened at a start before the hook's turn). A TV never
   rooted, a hook that ran, or a service that can't tell (no note since install, a jailed service) shows nothing.
   Homebrew Channel's failsafe start also skips the hook and so shows it too (still true for that start). On the laptop,
-  `hometv-lg check` on a TV this laptop rooted says "Root: still on", "Root: ended" with the three choices (Homebrew
-  Channel gone, or its SSH not answering: one read-only `id -u`), or "can't tell" (SSH answers, the key doesn't log in).
+  `hometv-lg check` on a TV this laptop rooted (root done or the root key here, and this address in `lg-known-hosts`)
+  says "Root: still on", "Root: ended" with the three choices (Homebrew Channel gone, or its SSH refusing or timing out:
+  one read-only `id -u`), or "can't tell" (in fixed words, never SSH's own text, which names the TV).
   First real-TV check: that LG's update leaves HomeTV's folder (`/media/developer/hometv`) readable to its service.
 
 ## Decided
