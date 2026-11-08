@@ -360,7 +360,15 @@ async function firstRun(page, v) {
     const hit = await until(() => page.eval(q('has', 'wr-0')), 15000);
     notes.push(hit && (await click(page, 'wr-0')) ? 'weather city Stockholm' : 'weather city: not chosen (the search didn\'t answer)');
     await sleep(500);
-  } else notes.push('Start using Home');
+  } else {
+    // v1's First run lists the TMDB key (only while no key is saved) and Sign in to TMDB; the person walks
+    // through them after the checks, from Settings › Open first run
+    const key = await page.eval(q('has', 'step-tmdbKey'));
+    const account = await page.eval(q('has', 'step-account'));
+    notes.push(`TMDB steps: key ${key ? 'listed' : 'not listed'}, sign-in ${account ? 'listed' : 'not listed'}`);
+    if (!account) out.ok = false;
+    notes.push('Start using Home');
+  }
   await click(page, 'start');
   let gone = await until(async () => !/screen--setup/.test(await top(page)), 4000);
   // Back on the remote ends first run too

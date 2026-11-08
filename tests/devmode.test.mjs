@@ -397,7 +397,7 @@ test('devmode: settings lost in the update are a failed check, with which ones d
   } finally { await s.done(); }
 });
 
-test('devmode: v1\'s first run after the update is passed (Start) and recorded, not a failure', async () => {
+test('devmode: v1\'s first run after the update lists the TMDB steps, is passed (Start) and recorded, not a failure', async () => {
   const s = await setup({ page: { firstRunAfterUpdate: true } });
   try {
     const r = await s.run();
@@ -406,11 +406,11 @@ test('devmode: v1\'s first run after the update is passed (Start) and recorded, 
     const c = checkOf(v1, 'firstrun');
     assert.equal(c.status, 'ok');
     assert.equal(c.label, 'first run shown after the update');
-    assert.match(c.note, /Start using Home/);
+    assert.match(c.note, /TMDB steps: key listed, sign-in listed; Start using Home/);
     assert.equal(checkOf(v1, 'settings').status, 'ok');
     assert.equal(checkOf(v1, 'launchpoints').status, 'ok');
     assert.equal(r.failed, 0, s.out.join('\n'));
-    assert.match(fs.readFileSync(r.files[1], 'utf8'), /first run shown after the update: Start using Home/);
+    assert.match(fs.readFileSync(r.files[1], 'utf8'), /first run shown after the update: TMDB steps: key listed, sign-in listed; Start using Home/);
   } finally { await s.done(); }
 });
 
