@@ -58,6 +58,7 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
   const asked = [];
   const slopbro = [];
   const logins = [];
+  const sticks = [];
   const flags = { defaultPassword: false, lost: [] };
   const ctx = {
     host: '127.0.0.1', dir: laptop, ipk, kit,
@@ -65,6 +66,8 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
     reachAddress: '127.0.0.1', reachWaitMs: 5000, launchWaitMs: 2000,
     telnetPort, sshPort, tvPaths: rooted.tvPaths, telnetTimeoutMs: 60000,
     say: (s) => out.push(s),
+    // the USB stick check reads a drive on the laptop (tests/recovery.test.mjs); here every stick is a good one
+    checkStick: (drive, tv) => { sticks.push({ drive, ...tv }); return { good: ['a pretend stick'], problems: [], unsure: [] }; },
     ask: async (q) => {
       asked.push(q);
       for (const [re, fn] of Object.entries(hooks)) if (q.includes(re)) await fn();
@@ -97,14 +100,14 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
     if (tn) await tn.stop();
     fs.rmSync(t, { recursive: true, force: true });
   };
-  return { t, ctx, state, out, asked, slopbro, logins, tn, rooted, laptop, flags, done, text: () => out.join('\n') };
+  return { t, ctx, state, out, asked, slopbro, logins, sticks, tn, rooted, laptop, flags, done, text: () => out.join('\n') };
 }
 
 // The answers a person gives on the happy path; the hooks do what the person does on the TV meanwhile.
 function happy(s) {
   return {
     replies: {
-      'Dev Manager says': '', 'Go on to the root steps': 'y', 'restarted since': 'y', 'USB stick': 'y',
+      'Dev Manager says': '', 'Go on to the root steps': 'y', 'restarted since': 'y', 'USB stick': 'E',
       'Automatic Updates': 'y', 'root the TV': 'Root the TV', 'HomeTV on screen': 'y'
     },
     hooks: {
@@ -493,7 +496,7 @@ async function rootSetup({ replies = {}, hooks = {}, ...opts } = {}) {
   const s = await setup({
     ...opts,
     replies: {
-      'Dev Manager says': '', 'Go on to the root steps': 'n', 'photographed': 'y', 'written down': 'y', 'USB stick': 'y',
+      'Dev Manager says': '', 'Go on to the root steps': 'n', 'photographed': 'y', 'written down': 'y', 'USB stick': 'E',
       'Automatic Updates': 'y', 'owner agrees': 'root', 'restarted since': 'y', 'root the TV': 'Root the TV', 'HomeTV on screen': 'y',
       ...replies
     },
@@ -534,6 +537,11 @@ test('hometv-lg root, the whole way: checklist, clear the way, root, lock-down, 
     assert.deepEqual(s.slopbro, ['127.0.0.1']);
     // asked once each: no second restart or USB question in root-checks
     assert.equal(s.asked.filter((q) => q.includes('USB stick')).length, 1);
+    // the stick is read on the laptop, for this TV's model and software (tools/lib/recovery.mjs)
+    assert.equal(s.sticks.length, 1);
+    assert.equal(s.sticks[0].drive, 'E');
+    assert.equal(s.sticks[0].software, '33.31.61');
+    assert.match(s.text(), /✓ USB stick: a pretend stick/);
     assert.equal(s.asked.filter((q) => q.includes('restarted since')).length, 0);
     assert.match(s.text(), /✓ restarted since \(checked in "Clear the way"\)/);
     assert.match(s.text(), /✓ the backup on this laptop: lg-backup-/);
@@ -572,6 +580,27 @@ test('hometv-lg root: a "no" at each checklist question stops before anything ch
       assert.ok(s.state.apps.includes(DEVMODE), 'nothing asked to be deleted yet');
       assert.match(report(s), /\[stopped\] Before root: the checklist/);
       assert.match(report(s), /\[not run\] Root with SlopBro/);
+      noSecrets(s);
+    } finally {
+      await s.done();
+    }
+  }
+});
+
+test('hometv-lg root: the USB stick is read, not taken on trust; a problem stops, a "?" is asked', async () => {
+  const cases = [
+    [{ good: [], problems: ['no folder LG_DTV at the top of the stick'], unsure: [] }, {}, /USB stick with LG's firmware isn't ready: no folder LG_DTV/],
+    [{ good: ['formatted FAT32'], problems: [], unsure: ['the stick\'s format'] }, { 'Check by hand': 'n' }, /isn't ready: the stick's format isn't confirmed/],
+    [{ good: ['formatted FAT32'], problems: [], unsure: ['the stick\'s format'] }, { 'Check by hand': 'y', 'owner agrees': 'no' }, /owner hasn't agreed/]
+  ];
+  for (const [result, replies, msg] of cases) {
+    const s = await rootSetup({ telnet: false, replies });
+    s.ctx.checkStick = () => result;
+    try {
+      assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'root-preflight' }, String(msg));
+      assert.match(s.text(), msg);
+      assert.match(s.text(), /hometv-lg get recovery <drive letter> checks it|owner hasn't agreed/);
+      assert.deepEqual(s.slopbro, []);
       noSecrets(s);
     } finally {
       await s.done();

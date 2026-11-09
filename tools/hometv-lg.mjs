@@ -5,6 +5,7 @@
 //   hometv-lg install <tv address> [--ipk <file>] [--from <step>]   (docs/install.md)
 //   hometv-lg root <tv address> [--ipk <file>] [--from <step>]      the rooted path alone, with a checklist and a report
 //   hometv-lg root <tv address> --home-again | unroot-home <tv address>   the light ways back (docs/root-plan.md)
+//   hometv-lg get recovery <stick drive letter>   checks the USB stick for level 5 (docs/recovery.md)
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -130,7 +131,7 @@ if (cmd === 'check') {
 } else if (cmd === DEVMODE_CMD) {
   process.argv = [process.argv[0], DEVMODE_CMD, ...rest];
   await import('./devmode.mjs');
-} else if (cmd === 'install' || cmd === 'root' || cmd === 'unroot-home' || (cmd === 'get' && rest[0] === 'root-kit')) {
+} else if (cmd === 'install' || cmd === 'root' || cmd === 'unroot-home' || (cmd === 'get' && (rest[0] === 'root-kit' || rest[0] === 'recovery'))) {
   if (!ROOT) {
     console.log(NO_ROOT);
     process.exitCode = 2;
@@ -159,7 +160,7 @@ if (cmd === 'check') {
     (ROOT ? '  hometv-lg install <tv address> [--ipk <file>] [--from <step>]   (or: install --list)\n' +
       '  hometv-lg root <tv address> [--ipk <file>] [--from <step>]      (or: root --list)\n' +
       '  hometv-lg root <tv address> --home-again   |   hometv-lg unroot-home <tv address>\n' : '') +
-    '  hometv-lg get dev-manager' + (ROOT ? ' | root-kit' : '') + '\n' +
+    '  hometv-lg get dev-manager' + (ROOT ? ' | root-kit | recovery <stick drive letter>' : '') + '\n' +
     '  hometv-lg restore <backup file> <tv address> [--root] [--dry-run]\n\n' +
     'check   reads the TV (model, apps, inputs, what v0 needs) after its "Allow" prompt;\n' +
     '        --backup also saves the settings it can read; --launch opens Netflix and YouTube, asking first;\n' +
@@ -172,6 +173,8 @@ if (cmd === 'check') {
     '        USB stick, automatic updates off, the owner types root), Clear the way, root, the lock-down, and a report.\n' +
     '        --home-again: HomeTV as Home again after its "Use LG\'s Home" setting (docs/root-plan.md, level 1).\n' +
     'unroot-home  removes HomeTV\'s root edition (level 2): LG\'s Home back, Homebrew Channel and root stay; checked after\n' +
-    '        a restart. The full unroot is level 3, a factory reset.' : ''));
+    '        a restart. The full unroot is level 3, a factory reset.\n' +
+    'get recovery  checks the USB stick for LG\'s USB recovery (level 5): FAT32, LG_DTV, one firmware file for this\n' +
+    '        model, not older than the TV\'s software. Reads the stick only (docs/recovery.md).' : ''));
   process.exitCode = 2;
 }

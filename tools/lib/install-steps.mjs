@@ -16,6 +16,7 @@ import { reach } from './reach.mjs';
 import { PINNED, sha256 } from './fetch.mjs';
 import { telnetShell, pushFile, portOpen, q } from './telnet.mjs';
 import { laptopKey, keyPaths } from './sshkey.mjs';
+import { checkStick } from './recovery.mjs';
 
 export const ROOT_SW = '33.31.61';
 const APP = 'com.hometv.app';
@@ -55,8 +56,9 @@ export const WAY_BACK = [
   '3  Full unroot: Settings > General > System > Reset to Initial Settings (a factory reset), then set the TV up again ' +
     'with the backup, the photos and the sign-in list (hometv-lg restore puts back what it can).',
   '4  The TV won\'t finish starting: unplug it for 30 seconds and let Homebrew Channel\'s failsafe start skip every ' +
-    'customisation; then level 3.',
-  '5  Still won\'t start: LG\'s USB recovery, the firmware file in LG_DTV on the FAT32 stick: TV off, stick in, TV on.',
+    'customisation (a "Failsafe mode!" message: choose Reboot later); then level 3. Steps: docs/recovery.md.',
+  '5  Still won\'t start: LG\'s USB recovery, the firmware file in LG_DTV on the FAT32 stick (hometv-lg get recovery <drive> ' +
+    'checks it): TV off, stick in, TV on. Steps: docs/recovery.md.',
   '6  Nothing works: LG service.'
 ];
 
@@ -129,6 +131,27 @@ async function updatesOff(ctx, confirmed) {
   if (confirmed) { ctx.say('  ✓ Allow Automatic Updates is off (confirmed in the checklist)'); return null; }
   if (!yes(await ctx.ask('  Is Allow Automatic Updates switched off (' + UPDATES_WHERE + ')? [y/N] '))) {
     return stop('LG\'s automatic updates may still be on.', 'Switch Allow Automatic Updates off, then run this again.');
+  }
+  return null;
+}
+
+const STICK_NOT_READY = 'The USB stick with LG\'s firmware isn\'t ready';
+const STICK_NEXT = 'It\'s the way back if the TV ever won\'t start (docs/root-plan.md, level 5). Prepare it as docs/recovery.md ' +
+  'says (hometv-lg get recovery <drive letter> checks it), then run this again.';
+
+/**
+ * The USB stick for level 5, read on this laptop (tools/lib/recovery.mjs), never only taken on trust: the person
+ * gives its drive letter; what the check can't read (the format, a file name without the model) is asked, one line each.
+ */
+async function stickReady(ctx, tv) {
+  const a = (await ctx.ask('  Which drive is the USB stick with LG\'s firmware for this TV? Type its letter (for example E), ' +
+    'or press Enter if it isn\'t ready: ')).trim();
+  if (!a || /^(n|no)$/i.test(a)) return stop(STICK_NOT_READY + '.', STICK_NEXT);
+  const r = (ctx.checkStick || checkStick)(a, tv);
+  for (const l of r.good) ctx.say('  ✓ USB stick: ' + l);
+  if (r.problems.length) return stop(STICK_NOT_READY + ': ' + r.problems.join('; ') + '.', STICK_NEXT);
+  for (const u of r.unsure) {
+    if (!yes(await ctx.ask('  Check by hand: ' + u + '. Is it so? [y/N] '))) return stop(STICK_NOT_READY + ': ' + u + ' isn\'t confirmed.', STICK_NEXT);
   }
   return null;
 }
@@ -271,10 +294,12 @@ export const STEPS = [
       '(the TV\'s browser opens for a moment to check it can reach this laptop).',
     undo: 'Nothing to undo.',
     async run(ctx) {
+      let tvInfo = {};
       const tvDone = await withTv(ctx, async (tv) => {
         const apps = await appIds(tv);
         if (apps.has(HBC)) return { note: 'skipped: the TV is already rooted (Homebrew Channel is installed)' };
         const sw = await softwareVersion(tv);
+        tvInfo = { software: sw, model: await modelName(tv) };
         if (sw !== ROOT_SW) {
           return stop('The TV\'s software is ' + (sw || 'unknown') + ', not ' + ROOT_SW + ' (the version SlopBro is known to work on).',
             'Don\'t root. Tell the HomeTV team: root has to be checked again on CanI.RootMy.TV for this version.');
@@ -310,9 +335,10 @@ export const STEPS = [
       ctx.say('  ✓ the root kit (Python, and SlopBro with its SHA-256 checked)');
       const checklist = doneNow(ctx, 'root-preflight');
       if (checklist) {
-        ctx.say('  ✓ the USB stick with LG\'s firmware (confirmed in the checklist)');
-      } else if (!yes(await ctx.ask('  Is LG\'s firmware file for this TV on a USB stick, in a folder named LG_DTV? [y/N] '))) {
-        return stop('The USB stick with LG\'s firmware isn\'t ready.', 'It\'s the way back if the TV ever won\'t start (docs/root-plan.md, level 5). Prepare it, then run this again.');
+        ctx.say('  ✓ the USB stick with LG\'s firmware (checked in the checklist)');
+      } else {
+        const stick = await stickReady(ctx, tvInfo);
+        if (stick) return stick;
       }
       const upd = await updatesOff(ctx, checklist);
       if (upd) return upd;
@@ -540,10 +566,7 @@ const PREFLIGHT = [
   ['Have you written down which apps you would need to sign in to again, the LG account if there is one, and the ' +
     'Wi-Fi name (no passwords)? [y/N] ',
   'The sign-in list isn\'t written.',
-  'It\'s what a factory reset would ask for again (docs/root-plan.md, Backup, part 3). Write it, then run this again.'],
-  ['Is LG\'s firmware file for this TV on a USB stick, in a folder named LG_DTV? [y/N] ',
-    'The USB stick with LG\'s firmware isn\'t ready.',
-    'It\'s the way back if the TV ever won\'t start (docs/root-plan.md, level 5). Prepare it, then run this again.']
+  'It\'s what a factory reset would ask for again (docs/root-plan.md, Backup, part 3). Write it, then run this again.']
 ];
 
 export const ROOT_PRE = [
@@ -554,7 +577,7 @@ export const ROOT_PRE = [
       'at a time, and stops at the first "no". Changes nothing on the TV.',
     undo: 'Nothing to undo.',
     async run(ctx) {
-      const tv = await withTv(ctx, async (t) => ({ apps: await appIds(t), model: await modelName(t) }));
+      const tv = await withTv(ctx, async (t) => ({ apps: await appIds(t), model: await modelName(t), software: await softwareVersion(t) }));
       if (tv.apps.has(HBC)) return { note: 'skipped: the TV is already rooted (Homebrew Channel is installed)' };
       ctx.say('  ✓ the TV answers and knows this laptop');
       const b = latestBackup(ctx.dir);
@@ -571,13 +594,15 @@ export const ROOT_PRE = [
       for (const [question, why, next] of PREFLIGHT) {
         if (!yes(await ctx.ask('  ' + question))) return stop(why, next);
       }
+      const stick = await stickReady(ctx, { model: tv.model, software: tv.software });
+      if (stick) return stick;
       const upd = await updatesOff(ctx, false);
       if (upd) return upd;
       ctx.say('  Root changes the TV\'s writable storage, never LG\'s signed firmware. There is no unroot button: the full undo\n' +
         '  is a factory reset (level 3 below), which also clears the TV\'s settings, apps and sign-ins.');
       const a = (await ctx.ask('  If the TV\'s owner agrees to root it, type  root  and press Enter (anything else stops here): ')).trim().toLowerCase();
       if (a !== 'root') return stop('The TV\'s owner hasn\'t agreed to root it.', 'Nothing changed on the TV. Run this again when they agree.');
-      return { note: 'backup ' + b.file + '; photos, sign-in list and USB stick confirmed; automatic updates off; the owner agreed' };
+      return { note: 'backup ' + b.file + '; photos and sign-in list confirmed; USB stick checked; automatic updates off; the owner agreed' };
     }
   },
   {
