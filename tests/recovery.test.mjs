@@ -109,6 +109,10 @@ test('wrong model, an older version, or a name that says neither', () => {
     assert.deepEqual(p.problems, []);
     assert.match(p.unsure.join('\n'), /is the file LG's support page gives for 43UT73006LA/);
     assert.match(p.unsure.join('\n'), /version is 33\.31\.61 or newer/);
+    // the TV's version unknown (no backup, or the TV didn't say): never taken as checked, even with the right model
+    const noSw = check(older, { software: '' });
+    assert.equal(noSw.ok, false);
+    assert.match(noSw.unsure.join('\n'), /version is at least the TV's/);
   } finally {
     for (const d of [other, older, plain]) fs.rmSync(d, { recursive: true, force: true });
   }

@@ -48,20 +48,26 @@ When: the TV stops at LG's logo, restarts again and again, or shows a black scre
 Home doesn't help.
 
 1. **Unplug the TV at the wall for 30 seconds**, plug it in, turn it on. Many one-off troubles end here (level 0).
-2. **Homebrew Channel's failsafe start.** At each start, Homebrew Channel notes that a start is under way and clears
+2. **If the remote still works** (Settings opens, even over a black Home): do the level 3 factory reset now. It is
+   the surest way out and doesn't need the failsafe start below.
+3. **Homebrew Channel's failsafe start.** At each start, Homebrew Channel notes that a start is under way and clears
    the note about ten seconds after its start-up scripts (HomeTV's hooks among them) have run. If the TV restarts or
-   is unplugged before then, the **next** start is a failsafe start: none of the start-up scripts run, so nothing of
-   HomeTV runs, and LG's Home comes up. So if the TV hangs or keeps restarting during the start, unplug it while it
-   does, wait 30 seconds, and turn it on again.
-3. A failsafe start says so: a message **"Failsafe mode! A crash has occured during startup"**, then a box offering
+   is unplugged **before then**, the next start is a failsafe start: none of the start-up scripts run, so nothing of
+   HomeTV runs, and LG's Home comes up. So the power has to be cut **early in the start**: turn the TV on, and pull
+   the plug while LG's logo still shows (within about 15 seconds), before Home appears; wait 30 seconds; turn it on
+   again. A TV that restarts again and again by itself does this on its own. Once Home has been up for a while, the
+   note is cleared and unplugging gives a normal start.
+4. A failsafe start says so: a message **"Failsafe mode! A crash has occured during startup"**, then a box offering
    **Reboot now** or **Reboot later**. Choose **Reboot later**: a normal restart runs the start-up scripts again and
    the trouble may come back.
-4. **Don't leave the TV in this state.** During a failsafe start Homebrew Channel opens a root shell (Telnet) without
-   a password, to anyone on the same Wi-Fi, until the next restart. Go straight on to step 5.
-5. With LG's Home working, do the level 3 factory reset above (Settings › All Settings › General › System › Reset
+5. **Don't leave the TV in this state.** During a failsafe start Homebrew Channel opens a root shell (Telnet) without
+   a password, to anyone on the same Wi-Fi, until the next restart. Go straight on to step 6.
+6. With LG's Home working, do the level 3 factory reset above (Settings › All Settings › General › System › Reset
    to Initial Settings). It removes the start-up scripts for good. Tell the HomeTV team what happened (the start-up
    notes are lost with the reset; a photo of the screen helps).
-6. No failsafe message, and the TV still never reaches Home after a few tries: level 5.
+7. No failsafe message: the plug was most likely pulled too late; try step 3 again, earlier. Only if a few early tries
+   give no "Failsafe mode!" and the TV never reaches a Home where Settings opens: level 5, then level 3 (the USB update
+   may leave root's files in place).
 
 ## Level 5: LG's USB recovery
 
@@ -108,7 +114,8 @@ For a first real-TV run (or a rehearsal on another LG, if one turns up); nothing
 
 - After **Reset to Initial Settings**: Homebrew Channel is gone, `ssh` to port 22 and Telnet on 23 are closed, LG's
   Home is Home, and the app list matches a fresh TV (the root-plan.md table, item by item).
-- **The failsafe start** on this firmware: cutting a start short brings up "Failsafe mode!", no HomeTV hook runs
+- **The failsafe start** on this firmware: how early in the start the plug has to be pulled (the 15 seconds above is
+  a guess from `startup.sh`), that it brings up "Failsafe mode!", no HomeTV hook runs
   (`/tmp/hometv-boot.log` absent), and LG's Home works; the next normal restart runs the hooks again.
 - **LG's USB recovery** on this model: a running TV offers the stick's file; the version it runs is accepted (LG's
   rule is "same or newer"); whether it acts at power-on on a TV that doesn't finish starting.
