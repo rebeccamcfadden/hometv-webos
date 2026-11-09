@@ -165,6 +165,8 @@ export function checkStick(where, { model = '', software = '', volume = readVolu
     else good.push('version ' + v + ', not older than the TV\'s ' + software);
   } else if (software) {
     unsure.push('that the file\'s version is ' + software + ' or newer (LG\'s support page lists it next to the download)');
+  } else {
+    unsure.push('that the file\'s version is at least the TV\'s (Settings > All Settings > Support > TV Information)');
   }
   return done(file);
 }
