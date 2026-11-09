@@ -42,7 +42,7 @@ window) runs them in order and stops on any failed check.
 | 1 | **Laptop check** (LG's remote-control connection: model, firmware, apps, inputs, Netflix and YouTube open) | One "Allow" pairing for the laptop | Nothing needed (a factory reset clears it) | None | Built and tested against a pretend TV; the TV proves it |
 | 2 | **HomeTV unrooted** (LG developer account, Developer Mode, HomeTV and its checks screen from the laptop) | Developer Mode on; HomeTV installed as a developer app | Delete HomeTV; delete the Developer Mode app | Very low | Packaging works; the TV proves it |
 | 3 | **Backup** (below; [backup.md](backup.md)) | Nothing | - | None | Built and tested against pretend TVs; the TV proves it |
-| 4 | **The way back, ready before root** (below): the undo for each level, LG's firmware file for the test TV's model on a USB stick, the steps printed | Nothing | - | None | On paper; the USB stick is checked on the PC |
+| 4 | **The way back, ready before root** (below): the undo for each level, LG's firmware file for the test TV's model on a USB stick, the steps printed ([recovery.md](recovery.md)) | Nothing | - | None | On paper; the USB stick is checked on the PC (`hometv-lg get recovery`, and in `hometv-lg root`'s checklist: FAT32, `LG_DTV`, one firmware file, its model family and version when its name says them) |
 | 5 | **Clear the way:** delete HomeTV and the Developer Mode app, restart, confirm Home and the apps work | Back to stock | - | Very low | The TV |
 | 6 | **Root** with SlopBro (pinned to the reviewed commit `21023d5`) from the laptop; restart; confirm Homebrew Channel opens | See [What root changes](#what-root-changes) | Level 3 (factory reset) | Low but not zero; see the warning for the test TV's firmware | Footprint on paper; success only on the TV |
 | 7 | **Lock it down:** SSH with a key only (no default password), Telnet off, "Block system updates" **on** as a second layer behind LG's own Allow Automatic Updates (switched off on the first call; undone in LG's menu), never `chattr` | Three flag files | Switch back in Homebrew Channel | None | On paper |
@@ -82,6 +82,8 @@ LG TVs have no settings export, so the backup is three parts, kept on the laptop
    passwords written down by us), the Wi-Fi name (typed in again), the LG account, if there is one.
 
 ## The way back (step 4), from lightest to heaviest
+
+Levels 3-5 step by step, with what to have ready and how the USB stick is prepared and checked: [recovery.md](recovery.md).
 
 | Level | When | What to do | End state | Needs |
 |---|---|---|---|---|

@@ -21,6 +21,7 @@ on a TV.
 | [docs/jailbreak.md](docs/jailbreak.md) | Developer Mode and root options, safest first, with their risks |
 | [docs/root-plan.md](docs/root-plan.md) | Research: rooting with a way back (backup, what root changes, undo levels, an LG update ending root) |
 | [docs/install.md](docs/install.md) | How HomeTV v0 gets onto an LG TV: Developer Mode (renew about every 1,000 hours) or rooted (research only) |
+| [docs/recovery.md](docs/recovery.md) | Research: the heavy ways back (factory reset, failsafe start, LG's USB recovery) and `hometv-lg get recovery`, the USB stick check |
 | [docs/backup.md](docs/backup.md) | The settings backup and `hometv-lg restore`: what is saved, where, what restore writes, its limits |
 | [docs/launchers.md](docs/launchers.md), [docs/launcher-replacement.md](docs/launcher-replacement.md) | Other LG home screens compared, and ways to replace LG's Home |
 | [tools/](tools/tv-check.mjs) | `hometv-lg check`: the read-only laptop check over LG's remote-control connection; `hometv-lg install`: the guided install, step by step, and `hometv-lg root`: its rooted path alone, with a checklist and a report ([docs/install.md](docs/install.md#the-laptop-tools-install-steps)) |

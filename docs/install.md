@@ -88,7 +88,7 @@ on" to "HomeTV is Home (root edition)", in the order decided in [root-plan.md](r
 
 `hometv-lg root <tv address>` (same build) is the rooted path alone, for a TV that passed the unrooted install: a
 checklist first (`root-preflight`: the backup file is on the laptop and of this model; the photos, the sign-in list
-and the USB stick, asked; Allow Automatic Updates read from the TV, asked only if it doesn't say; the owner types
+asked; the USB stick read on the laptop (its drive letter: `tools/lib/recovery.mjs`, [recovery.md](recovery.md)); Allow Automatic Updates read from the TV, asked only if it doesn't say; the owner types
 `root`), then `clear-the-way` (HomeTV and the Developer Mode app deleted, a restart, LG's Home on screen and the
 backup's apps all there), then steps 4-8 below, sharing `install-state.json`. It ends with a report,
 `lg-root-report-<date>.txt`: each step done, skipped, stopped or not run, its undo, and the way back levels.
@@ -98,7 +98,7 @@ backup's apps all there), then steps 4-8 below, sharing `install-state.json`. It
 | 1 | `backup` | The settings backup of [backup.md](backup.md) (`tools/lib/backup.mjs`, as `hometv-lg check --backup`): what LG's remote-control connection lets it read, into `lg-backup-….json` | The TV can't be reached or paired | Nothing |
 | 2 | `dev-install` | Shows the webOS Dev Manager steps for HomeTV's `.ipk`, then checks the TV lists `com.hometv.app` and that it opens. Skipped if Homebrew Channel is already there | HomeTV isn't listed, or doesn't open | HomeTV as a Developer Mode app (the person installs it) |
 | 3 | `go-on` | Asks whether to root now. "No" stops here; the next run asks again | - | Nothing |
-| 4 | `root-checks` | Software is 33.31.61 (only `major_ver` and `minor_ver` are read); neither the Developer Mode app nor HomeTV's Developer Mode copy is listed ([root-plan.md](root-plan.md), step 5), and the person confirms a restart since; Python and SlopBro are in the HomeTV folder with SlopBro's pinned SHA-256; the person confirms the USB stick (LG's firmware in `LG_DTV`) and Allow Automatic Updates off (read from the TV when it says); the TV reaches the laptop | Any of these | Nothing (the TV's browser opens for a moment) |
+| 4 | `root-checks` | Software is 33.31.61 (only `major_ver` and `minor_ver` are read); neither the Developer Mode app nor HomeTV's Developer Mode copy is listed ([root-plan.md](root-plan.md), step 5), and the person confirms a restart since; Python and SlopBro are in the HomeTV folder with SlopBro's pinned SHA-256; the USB stick is read on the laptop (FAT32, one firmware file in `LG_DTV`, [recovery.md](recovery.md)) and Allow Automatic Updates off (read from the TV when it says); the TV reaches the laptop | Any of these | Nothing (the TV's browser opens for a moment) |
 | 5 | `root` | Says what SlopBro does and that the full undo is a factory reset, then runs it only after the person types `root the TV`. Checks SlopBro's SHA-256 again first. Skipped if Homebrew Channel is already there | Anything else is typed (nothing runs); SlopBro ends with an error | Root and Homebrew Channel ([root-plan.md](root-plan.md), "What root changes") |
 | 6 | `hbc-check` | After root's restart, `org.webosbrew.hbchannel` must be in the app list | It isn't (Q-R2): don't run SlopBro again, tell the team; level 3 if the TV misbehaves | Nothing |
 | 7 | `root-install` | Over Homebrew Channel's Telnet (below): copies `root/` to `/media/developer/hometv`, puts HomeTV back if it's gone, runs `install.sh`, adds the laptop's SSH key, switches Telnet off, SSH on and Block system updates on (from the next start; once more if one didn't take) | Telnet closed; the shell isn't root; `base64`, `sha256sum`, `node` or `luna-send` missing; no start-up hooks folder; Homebrew Channel not running as root; a file arrives damaged; HomeTV can't be installed; `install.sh` refuses; Homebrew Channel doesn't take the switches | The root edition's files and two start-up hooks; HomeTV; one line in `/home/root/.ssh/authorized_keys`; three of Homebrew Channel's switches |
@@ -111,7 +111,7 @@ How it behaves:
 - **Run again to carry on.** Finished steps are kept in `install-state.json` (HomeTV folder) and skipped.
   `--from <step>` runs again from a step on; `--list` shows each step's state. A "no" or a stop leaves the step to run
   again next time.
-- **Questions only the person can answer** (a restart, the USB stick, LG's update switch, what's on screen) are
+- **Questions only the person can answer** (a restart, LG's update switch, what's on screen; for the USB stick, its drive letter) are
   `[y/N]`: anything but "y" stops.
 - **What it keeps, in `%USERPROFILE%\HomeTV`:** `lg-backup-….json` (may hold identifiers: it stays on the laptop,
   [backup.md](backup.md)), `lg-client-key` (the pairing, shared with `hometv-lg check`), `install-state.json`,
