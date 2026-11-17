@@ -45,6 +45,10 @@
   margin-left: 32px;
 }
 #stage[data-ui-size='large'] .home-tile,
+#stage[data-ui-size='large'] .home-group--short .ht-label,
+#stage[data-ui-size='larger'] .home-group--short .ht-label {
+  white-space: normal;
+}
 #stage[data-ui-size='larger'] .home-tile {
   flex: 1 1 0;
   width: auto;
@@ -58,6 +62,10 @@
 #stage[data-ui-size='large'] .home-group--short .home-tiles,
 #stage[data-ui-size='larger'] .home-group--short .home-tiles {
   width: auto;
+}
+#stage[data-ui-size='large'] .home-group--short .ht-label,
+#stage[data-ui-size='larger'] .home-group--short .ht-label {
+  white-space: normal;
 }
 #stage[data-ui-size='larger'] .home-tile {
   font-size: 20px;

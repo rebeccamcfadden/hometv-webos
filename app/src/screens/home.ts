@@ -94,6 +94,7 @@ export function homeScreen(): Screen & { setApps(apps: AppInfo[] | null): void }
   // Everything but the nav moves together when Down reaches Inputs, Shortcuts and the weather (is-scrolled, home.css).
   const content = h('div.home-content');
   let inputsBox: HTMLElement | null = null;
+  let checksTile: HTMLElement | null = null;
   /**
    * The Inputs tiles: Live TV, then the HDMI and other ports the TV lists (a device's name when it knows it), four at
    * most. When the TV won't list them (a PC, or eim refusing), one tile that opens the TV's own inputs page.
@@ -112,6 +113,8 @@ export function homeScreen(): Screen & { setApps(apps: AppInfo[] | null): void }
         )
       : [homeTile(asked ? 'TV inputs' : 'Inputs', 'input', 'in-tv', 'inputs', () => openTvPage('inputs', 'The TV’s inputs'))];
     replace(inputsBox, tiles);
+    // The call's checks tile only when it fits beside the Shortcuts in the row; Blue and Info open Checks either way.
+    if (checksTile) checksTile.style.display = tiles.length > 3 ? 'none' : '';
     if (had) shell.refocus();
   };
   const askInputs = () => {
@@ -165,13 +168,12 @@ export function homeScreen(): Screen & { setApps(apps: AppInfo[] | null): void }
       fillRow();
       // Inputs and Shortcuts, as design_preview's Home has them, and the weather card under them.
       inputsBox = h('div.home-tiles');
-      paintInputs(null, false);
       const shortcuts = [
         homeTile('All apps', 'apps', 'sc-apps', 'shortcuts', showAllApps),
         homeTile('Launcher settings', 'home', 'sc-launcher', 'shortcuts', () => showSettings()),
         homeTile('TV Settings', 'settings', 'sc-settings', 'shortcuts', () => openTvPage('main', 'The TV’s settings')),
         // The first call's checks (Blue or Info open them too); the key page is v1's.
-        homeTile('Call checks', 'info', 'checks', 'shortcuts', showChecks),
+        (checksTile = homeTile('Call checks', 'info', 'checks', 'shortcuts', showChecks)),
         V1 ? homeTile('API keys', 'filter', 'keys', 'shortcuts', showKeys) : null,
       ];
       content.appendChild(
@@ -181,6 +183,7 @@ export function homeScreen(): Screen & { setApps(apps: AppInfo[] | null): void }
           h('div.home-group.home-group--short', h('div.home-heading', 'Shortcuts'), h('div.home-tiles', shortcuts)),
         ),
       );
+      paintInputs(null, false);
       content.appendChild(weatherCard(focusable(h('div.weather'), { group: 'weather', key: 'weather', onOk: () => showSettings('weather') })));
       askInputs();
       shell.refocus();
