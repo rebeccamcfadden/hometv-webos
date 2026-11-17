@@ -1,0 +1,36 @@
+/* Text and UI size (launcherSettings.ts uiSize; main.ts sets data-ui-size on the stage and shell.setUiScale shrinks the
+   layout canvas, so Large lays out on 1536×864 and Larger on 1280×720, shown at full screen). The screens were drawn
+   for 1920×1080: these rules keep a long label on one line, let a flexible one wrap, and tighten Home's vertical gaps
+   so its rows stay inside the title-safe area on the shorter canvas. */
+
+.button,
+.pill,
+.nav-tab,
+.menu-label {
+  white-space: nowrap;
+}
+
+.lowerrow .hint {
+  flex: 1;
+  min-width: 0;
+}
+
+#stage[data-ui-size='large'] .lowerrow {
+  margin-top: 36px;
+}
+#stage[data-ui-size='large'] .home .nav + .rowtitle {
+  margin-top: 28px;
+}
+
+#stage[data-ui-size='larger'] .lowerrow {
+  margin-top: 32px;
+}
+#stage[data-ui-size='larger'] .home .nav + .rowtitle {
+  margin-top: 16px;
+}
+#stage[data-ui-size='larger'] .home .nav {
+  margin-top: 8px;
+}
+#stage[data-ui-size='larger'] .approw {
+  height: 200px;
+}

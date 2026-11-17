@@ -23,6 +23,12 @@ export type ScreensaverAfter = 'off' | '5' | '15' | '30';
  */
 export type ScreensaverBack = 'glow' | 'black';
 
+/** Settings › Text and UI size: the whole screen's scale, Normal being the design (shell.setUiScale). */
+export type UiSize = 'normal' | 'large' | 'larger';
+export const UI_SIZES: UiSize[] = ['normal', 'large', 'larger'];
+export const UI_SIZE_LABELS: Record<UiSize, string> = { normal: 'Normal', large: 'Large', larger: 'Larger' };
+export const UI_SIZE_SCALE: Record<UiSize, number> = { normal: 1, large: 1.25, larger: 1.5 };
+
 export const MOTIONS: Motion[] = ['full', 'reduced', 'off'];
 export const MOTION_LABELS: Record<Motion, string> = { full: 'Full', reduced: 'Reduced', off: 'Off' };
 export const SCREENSAVER_AFTER: ScreensaverAfter[] = ['off', '5', '15', '30'];
@@ -47,6 +53,7 @@ export interface Prefs {
   recentPlaces: Place[];
   unit: Unit;
   motion: Motion;
+  uiSize: UiSize;
   /** Off until the person picks a time (design_preview's first-run value). */
   screensaverAfter: ScreensaverAfter;
   screensaverBack: ScreensaverBack;
@@ -58,6 +65,7 @@ export const defaults = (): Prefs => ({
   recentPlaces: [],
   unit: 'region',
   motion: 'full',
+  uiSize: 'normal',
   screensaverAfter: 'off',
   screensaverBack: 'glow',
 });
@@ -82,6 +90,7 @@ export function loadPrefs(storage: KeyValueStore | null): Prefs {
       }
       if (saved.unit === 'c' || saved.unit === 'f' || saved.unit === 'region') out.unit = saved.unit;
       out.motion = oneOf(MOTIONS, saved.motion, out.motion);
+      out.uiSize = oneOf(UI_SIZES, saved.uiSize, out.uiSize);
       out.screensaverAfter = oneOf(SCREENSAVER_AFTER, saved.screensaverAfter, out.screensaverAfter);
       out.screensaverBack = oneOf(SCREENSAVER_BACKS, saved.screensaverBack, out.screensaverBack);
     }
@@ -148,6 +157,7 @@ export function createPrefs(storage: KeyValueStore | null) {
         recentPlaces: data.recentPlaces,
         unit: data.unit,
         motion: data.motion,
+        uiSize: data.uiSize,
         screensaverAfter: data.screensaverAfter,
         screensaverBack: data.screensaverBack,
       };

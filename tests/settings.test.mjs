@@ -24,8 +24,19 @@ const NYC = { name: 'New York', region: 'New York', country: 'United States', la
 
 test('nothing chosen at first: no region, no place (no sample data), the unit follows the region', () => {
   const p = ls.loadPrefs(memory());
-  assert.deepEqual(p, { region: null, place: null, recentPlaces: [], unit: 'region', motion: 'full', screensaverAfter: 'off', screensaverBack: 'glow' });
+  assert.deepEqual(p, { region: null, place: null, recentPlaces: [], unit: 'region', motion: 'full', uiSize: 'normal', screensaverAfter: 'off', screensaverBack: 'glow' });
   assert.equal(ls.fahrenheit(p), false);
+});
+
+test('Text and UI size: Normal by default, saved, an unknown value falls back, and each size has a scale', () => {
+  const storage = memory();
+  const store = ls.createPrefs(storage);
+  assert.equal(store.get().uiSize, 'normal');
+  store.set({ uiSize: 'larger' });
+  assert.equal(ls.loadPrefs(storage).uiSize, 'larger');
+  storage.setItem(ls.SETTINGS_KEY, JSON.stringify({ uiSize: 'huge' }));
+  assert.equal(ls.loadPrefs(storage).uiSize, 'normal');
+  assert.deepEqual(ls.UI_SIZES.map((s) => ls.UI_SIZE_SCALE[s]), [1, 1.25, 1.5]);
 });
 
 test('choices are saved under hometv-settings-v1 and read back; unreadable ones fall back', () => {
@@ -40,7 +51,7 @@ test('choices are saved under hometv-settings-v1 and read back; unreadable ones 
   assert.equal(told, 2, 'a listener stops when asked');
   const saved = JSON.parse(storage.map.get(ls.SETTINGS_KEY));
   assert.equal(saved.region, 'us');
-  assert.deepEqual(ls.loadPrefs(storage), { region: 'us', place: NYC, recentPlaces: [], unit: 'c', motion: 'full', screensaverAfter: 'off', screensaverBack: 'glow' });
+  assert.deepEqual(ls.loadPrefs(storage), { region: 'us', place: NYC, recentPlaces: [], unit: 'c', motion: 'full', uiSize: 'normal', screensaverAfter: 'off', screensaverBack: 'glow' });
 
   storage.setItem(ls.SETTINGS_KEY, JSON.stringify({ region: 'fr', place: { name: 'Nowhere', latitude: 200, longitude: 0 }, unit: 'k', recentPlaces: 'x' }));
   assert.deepEqual(ls.loadPrefs(storage), ls.defaults());

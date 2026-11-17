@@ -1,5 +1,6 @@
 import './styles.css';
 import './ui/motion.css';
+import './ui/uiSize.css';
 import { noteUpdateCheck, watchErrors } from './errors';
 import { bridge } from './bridge';
 import { shell } from './shell/app';
@@ -7,7 +8,7 @@ import { homeScreen } from './screens/home';
 import { showChecks } from './screens/checks';
 import { v1Tabs } from '@v1';
 import { initScreensaver } from './ui/screensaver';
-import { markSetupDone, pageStorage, prefs, setupDone, SETUP_V1_KEY } from './launcherSettings';
+import { markSetupDone, pageStorage, prefs, setupDone, SETUP_V1_KEY, UI_SIZE_SCALE } from './launcherSettings';
 import { showSetup } from './screens/setup';
 import { routes } from './screens/routes';
 import { startUpdateNotice } from './ui/updateNotice';
@@ -24,6 +25,13 @@ const stage = document.getElementById('stage') as HTMLElement;
 const applyMotion = () => stage.setAttribute('data-motion', prefs.get().motion);
 applyMotion();
 prefs.on(applyMotion);
+// Text and UI size (Settings › Text and UI size): one scale for the whole screen, set before the first screen shows.
+const applyUiSize = () => {
+  stage.setAttribute('data-ui-size', prefs.get().uiSize);
+  shell.setUiScale(UI_SIZE_SCALE[prefs.get().uiSize]);
+};
+applyUiSize();
+prefs.on(applyUiSize);
 
 const home = homeScreen();
 

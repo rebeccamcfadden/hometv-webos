@@ -14,9 +14,12 @@ import {
   SCREENSAVER_AFTER_LABELS,
   SCREENSAVER_BACK_LABELS,
   SCREENSAVER_BACKS,
+  UI_SIZE_LABELS,
+  UI_SIZES,
   type Motion,
   type ScreensaverAfter,
   type ScreensaverBack,
+  type UiSize,
 } from '../../launcherSettings';
 import { shell, type Key } from '../../shell/app';
 import { h } from '../../shell/dom';
@@ -74,6 +77,33 @@ export const performancePane = (host: PaneHost): Pane => ({
           get: () => prefs.get().motion,
           set: (motion) => prefs.set({ motion }),
           group: 'seg-motion',
+          small: true,
+          entry: true,
+        }),
+      ),
+    ),
+  ],
+});
+
+export const textSizePane = (host: PaneHost): Pane => ({
+  onKey(key: Key, focused: HTMLElement) {
+    if (key === 'left') return leftInControl(focused, 'size');
+    return key === 'right' ? rightInControl(host, focused) : false;
+  },
+  render: () => [
+    h('div.eyebrow', 'Text and UI size'),
+    h('div.pane-title', 'Text and UI size'),
+    h('div.pane-sub', 'Makes the text, tiles, menus and buttons bigger together, so everything stays in step. Fewer tiles fit on each screen.'),
+    h(
+      'div.perf-rows',
+      perfRow(
+        'Size',
+        'Normal is the design; Large and Larger are easier to read from the sofa',
+        segmented<UiSize>({
+          options: UI_SIZES.map((s): [UiSize, string] => [s, UI_SIZE_LABELS[s]]),
+          get: () => prefs.get().uiSize,
+          set: (uiSize) => prefs.set({ uiSize }),
+          group: 'seg-size',
           small: true,
           entry: true,
         }),
