@@ -476,6 +476,7 @@ export const STEPS = [
           if (!ipk) return stop('HomeTV isn\'t on the TV any more (deleting the Developer Mode app removes it), and its .ipk file isn\'t here.', 'Put the com.hometv.app_….ipk file in the HomeTV folder (or name it with --ipk), then run this again.');
           const tmp = P.tmp + '/hometv.ipk';
           const out = P.tmp + '/hometv-install.out';
+          const ipkVersion = (/^com\.hometv\.app_(\d+\.\d+\.\d+)_/.exec(path.basename(ipk)) || [])[1] || '';
           await pushFile(sh, tmp, fs.readFileSync(ipk));
           // As Homebrew Channel's own tools/install.sh and SlopBro's autoroot.sh: LG's installer, as root
           const payload = JSON.stringify({ id: 'com.ares.defaultName', ipkUrl: tmp, subscribe: true });
@@ -483,7 +484,8 @@ export const STEPS = [
             ' > ' + q(out) + ' 2>&1 & p=$!; i=0; while [ $i -lt 90 ] && ! grep -q -e installed -e failed ' + q(out) +
             '; do sleep 1; i=$((i+1)); done; kill $p 2>/dev/null; ' +
             // kept for Settings › Updates: the copy an in-TV update falls back to (service/update-apply.js)
-            'grep -q installed ' + q(out) + ' && mkdir -p ' + q(P.dir + '/updates') + ' && cp ' + q(tmp) + ' ' + q(P.dir + '/updates/current.ipk') + '; rm -f ' + q(tmp), { ms: 120000 });
+            'grep -q installed ' + q(out) + ' && mkdir -p ' + q(P.dir + '/updates') + ' && cp ' + q(tmp) + ' ' + q(P.dir + '/updates/current.ipk') +
+            (ipkVersion ? ' && echo ' + q(ipkVersion) + ' > ' + q(P.dir + '/updates/current.version') : '') + '; rm -f ' + q(tmp), { ms: 120000 });
           const ok = await sh.run('grep -q installed ' + q(out) + ' && [ -f ' + q(P.app + '/index.html') + ' ]');
           if (ok.code !== 0) return stop('HomeTV couldn\'t be installed again on the rooted TV.', 'Install it from Homebrew Channel, or tell the HomeTV team.');
           ctx.say('  ✓ HomeTV installed again (' + path.basename(ipk) + ')');

@@ -58,6 +58,7 @@ function makeTv({ uid = 0, keptIpk = true } = {}) {
   if (keptIpk) {
     fs.mkdirSync(path.join(D, 'updates'));
     fs.writeFileSync(path.join(D, 'updates', 'current.ipk'), 'IPK 0.1.1 starts');
+    fs.writeFileSync(path.join(D, 'updates', 'current.version'), '0.1.1\n');
   }
   const mounts = path.join(t, 'mounts');
   fs.writeFileSync(mounts, `/dev/x ${HOME} none bind 0 0\n`);
@@ -142,6 +143,7 @@ test('root update: look, Install update, swap in; the new version answers, the o
   assert.equal(tv.version(), '0.2.0');
   assert.match(tv.script('lib.sh'), /lib\.sh 0\.2\.0/);
   assert.equal(String(fs.readFileSync(path.join(tv.D, 'updates', 'current.ipk'))), 'IPK 0.2.0 starts');
+  assert.equal(fs.readFileSync(path.join(tv.D, 'updates', 'current.version'), 'utf8'), '0.2.0\n');
   assert.match(fs.readFileSync(path.join(tv.D, 'updates', 'prev', 'lib.sh'), 'utf8'), /0\.1\.1/, 'the previous scripts kept');
   assert.equal(String(fs.readFileSync(path.join(tv.D, 'updates', 'prev', 'app.ipk'))), 'IPK 0.1.1 starts');
   assert.equal(tv.shell.filter((c) => /10-hometv-home/.test(c)).length, 1, 'HomeTV as LG’s Home refreshed in place');
@@ -228,6 +230,41 @@ test('root update: without a kept copy of the app, the scripts still go back and
   assert.equal(r.state, 'rolled back');
   assert.match(r.note, /no copy of the previous app was kept: reinstall it from Homebrew Channel/);
   assert.match(tv.script('lib.sh'), /0\.1\.1/);
+});
+
+test('root update: a kept .ipk of another version than the installed app is never put back', async () => {
+  const tv = makeTv();
+  fs.writeFileSync(path.join(tv.D, 'updates', 'current.ipk'), 'IPK 0.1.0 starts');
+  fs.writeFileSync(path.join(tv.D, 'updates', 'current.version'), '0.1.0\n');
+  tv.offer = release('0.2.0', { behaves: 'dead' });
+  await tv.install('0.2.0');
+  const r = await tv.apply({ answerMs: 4000 });
+  assert.equal(r.state, 'rolled back');
+  assert.match(r.note, /no copy of the previous app was kept/);
+  assert.ok(!tv.shell.some((c) => /0\.1\.0/.test(c) && /dev\/install/.test(c)), 'the stale 0.1.0 never installed');
+  assert.equal(fs.readFileSync(path.join(tv.D, 'updates', 'failed'), 'utf8'), '0.2.0\n');
+});
+
+test('root update: a disk error while swapping in still swaps back and marks the version failed', async () => {
+  const tv = makeTv();
+  tv.offer = release('0.2.0');
+  await tv.install('0.2.0');
+  const realWrite = fs.writeFileSync;
+  fs.writeFileSync = function (p, ...rest) {
+    if (String(p) === path.join(tv.D, 'watchdog.sh') && /0\.2\.0/.test(String(rest[0]))) throw Object.assign(new Error('no space'), { code: 'ENOSPC' });
+    return realWrite.call(this, p, ...rest);
+  };
+  let r;
+  try {
+    r = await tv.apply();
+  } finally {
+    fs.writeFileSync = realWrite;
+  }
+  assert.equal(r.state, 'rolled back');
+  assert.match(r.note, /couldn't be copied \(ENOSPC\); 0\.1\.1 is back/);
+  assert.equal(tv.version(), '0.1.1');
+  assert.match(tv.script('lib.sh'), /0\.1\.1/);
+  assert.equal(fs.readFileSync(path.join(tv.D, 'updates', 'failed'), 'utf8'), '0.2.0\n');
 });
 
 test('root update: no network says so and changes nothing', async () => {

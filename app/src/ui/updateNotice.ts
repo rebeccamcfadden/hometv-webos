@@ -7,7 +7,7 @@ import { bridge } from '../bridge';
 import { pageStorage } from '../launcherSettings';
 import { shell } from '../shell/app';
 import { h, replace } from '../shell/dom';
-import { offerOf, rootLookDue, takeNotice, type RootUpdates } from '../updates';
+import { DAY_MS, offerOf, rootLookDue, takeNotice, type RootUpdates } from '../updates';
 import { rootEdition } from '../webos/rootEdition';
 import { rootUpdateCheck } from '../webos/rootUpdates';
 import { icon } from './icons';
@@ -19,6 +19,8 @@ export function startUpdateNotice(stage: HTMLElement): void {
   /** This start's notice, so blocked storage still shows it only once a start. */
   let shown = '';
   let root: RootUpdates | null = null;
+  /** The service's look this start: at most one a start even when storage can't keep the time. */
+  let rootLooked = 0;
   const hide = () => {
     window.clearTimeout(hideTimer);
     el.classList.remove('is-shown');
@@ -38,7 +40,9 @@ export function startUpdateNotice(stage: HTMLElement): void {
     if (!top || top.label !== 'Home') return hide();
     if (document.hidden) return;
     const s = bridge.platform.pageUpdates();
-    if (rootEdition.shows() && rootLookDue(pageStorage(), !s || s.checkOn, Date.now())) {
+    const now = Date.now();
+    if (rootEdition.shows() && (!rootLooked || now - rootLooked >= DAY_MS) && rootLookDue(pageStorage(), !s || s.checkOn, now)) {
+      rootLooked = now;
       void rootUpdateCheck().then((r) => {
         root = r;
         check();

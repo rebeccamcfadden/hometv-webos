@@ -42,9 +42,14 @@ test('the service in the package: v1 has the key page, v0 does not; neither has 
     fs.mkdirSync('service/.private', { recursive: true });
     fs.writeFileSync('service/.private/probe.json', '{}');
     serviceStage(out, true);
-    assert.deepEqual(fs.readdirSync(out).sort(), ['keys-page.html', 'package.json', 'pages.js', 'service.js', 'services.json']);
+    const updater = ['nacl-fast.min.js', 'update-apply.js', 'update-config.json', 'update.js'];
+    assert.deepEqual(fs.readdirSync(out).sort(), ['keys-page.html', 'package.json', 'pages.js', 'service.js', 'services.json', ...updater].sort());
     serviceStage(out, false);
-    assert.deepEqual(fs.readdirSync(out).sort(), ['package.json', 'service.js', 'services.json']);
+    assert.deepEqual(fs.readdirSync(out).sort(), ['package.json', 'service.js', 'services.json', ...updater].sort());
+    // The root edition's updater: off without HOMETV_ROOT_UPDATE_URL; the service answers with the app's version.
+    const conf = JSON.parse(fs.readFileSync(path.join(out, 'update-config.json'), 'utf8'));
+    if (!process.env.HOMETV_ROOT_UPDATE_URL) assert.equal(conf.url, '');
+    assert.equal(JSON.parse(fs.readFileSync(path.join(out, 'package.json'), 'utf8')).version, JSON.parse(fs.readFileSync('package.json', 'utf8')).appVersion);
   } finally {
     fs.rmSync('service/.private', { recursive: true, force: true });
     fs.rmSync(out, { recursive: true, force: true });

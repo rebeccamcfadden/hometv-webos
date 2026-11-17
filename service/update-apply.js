@@ -86,15 +86,27 @@ function apply(o, cb) {
   var from = U.installedVersion(o.app);
   U.writeResult(dir, { version: v, state: 'installing', note: '' });
 
-  // The running version, kept until the next update: its root scripts and, when one was kept, its .ipk.
-  U.rmrf(prev);
-  fs.mkdirSync(prev);
-  U.ROOT_FILES.forEach(function (n) {
-    if (exists(path.join(dir, n))) copy(path.join(dir, n), path.join(prev, n));
-  });
-  var prevIpk = exists(path.join(upd, 'current.ipk'));
-  if (prevIpk) copy(path.join(upd, 'current.ipk'), path.join(prev, 'app.ipk'));
-  fs.writeFileSync(path.join(prev, 'version'), from + '\n');
+  // The running version, kept until the next update: its root scripts and, when one was kept, its .ipk. A kept .ipk
+  // counts only when its version note says it is the app installed now (Homebrew Channel may have installed another).
+  var keptVersion = '';
+  try {
+    keptVersion = fs.readFileSync(path.join(upd, 'current.version'), 'utf8').trim();
+  } catch (e) {
+    keptVersion = '';
+  }
+  var prevIpk = !!from && keptVersion === from && exists(path.join(upd, 'current.ipk'));
+  try {
+    U.rmrf(prev);
+    fs.mkdirSync(prev);
+    U.ROOT_FILES.forEach(function (n) {
+      if (exists(path.join(dir, n))) copy(path.join(dir, n), path.join(prev, n));
+    });
+    if (prevIpk) copy(path.join(upd, 'current.ipk'), path.join(prev, 'app.ipk'));
+    fs.writeFileSync(path.join(prev, 'version'), from + '\n');
+  } catch (e) {
+    // Nothing changed yet: without a copy of the running version, no update.
+    return finish({ version: v, state: 'failed', note: 'couldn\'t keep the running version (' + (e.code || e.message) + ')' });
+  }
 
   function mounted() {
     try {
@@ -141,12 +153,21 @@ function apply(o, cb) {
   }
 
   function rollBack(why) {
-    U.ROOT_FILES.forEach(function (n) {
-      if (exists(path.join(prev, n))) copy(path.join(prev, n), path.join(dir, n), modeOf(n));
-      else if (scripts.indexOf(n) >= 0) U.rmrf(path.join(dir, n));
-    });
+    // The failed note first: whatever else goes wrong, this version is never offered again.
     var failed = U.failedVersions(dir);
-    if (failed.indexOf(v) < 0) fs.writeFileSync(path.join(upd, 'failed'), failed.concat(v).join('\n') + '\n');
+    try {
+      if (failed.indexOf(v) < 0) fs.writeFileSync(path.join(upd, 'failed'), failed.concat(v).join('\n') + '\n');
+    } catch (e) {
+      why += '; couldn\'t note it as failed';
+    }
+    U.ROOT_FILES.forEach(function (n) {
+      try {
+        if (exists(path.join(prev, n))) copy(path.join(prev, n), path.join(dir, n), modeOf(n));
+        else if (scripts.indexOf(n) >= 0) U.rmrf(path.join(dir, n));
+      } catch (e) {
+        why += '; ' + n + ' not put back';
+      }
+    });
     function done(appBack) {
       refreshHome(function () {
         finish({
@@ -162,13 +183,23 @@ function apply(o, cb) {
 
   installIpk(path.join(o.stage, ipkName), v, function (ok) {
     if (!ok) return rollBack('the new app didn\'t install');
-    scripts.forEach(function (n) {
-      copy(path.join(o.stage, n), path.join(dir, n), modeOf(n));
-    });
+    try {
+      scripts.forEach(function (n) {
+        copy(path.join(o.stage, n), path.join(dir, n), modeOf(n));
+      });
+    } catch (e) {
+      return rollBack('the new scripts couldn\'t be copied (' + (e.code || e.message) + ')');
+    }
     refreshHome(function () {
       answers(v, function (up) {
         if (!up) return rollBack('the new version didn\'t answer within ' + Math.round(answerMs / 1000) + ' s');
-        copy(path.join(o.stage, ipkName), path.join(upd, 'current.ipk'));
+        try {
+          copy(path.join(o.stage, ipkName), path.join(upd, 'current.ipk'));
+          fs.writeFileSync(path.join(upd, 'current.version'), v + '\n');
+        } catch (e) {
+          // The update is in and answers; only the copy for the next rollback is missing.
+          U.rmrf(path.join(upd, 'current.version'));
+        }
         finish({ version: v, state: 'done', from: from, note: '' });
       });
     });
