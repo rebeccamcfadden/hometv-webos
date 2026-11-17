@@ -118,7 +118,7 @@ export async function runDevmode(ctx) {
     for (const v of wanted) ipks[v] = await getIpk(v, ctx);
 
     say('\n  Getting the Developer Mode key from the TV …');
-    const key = await getKey(ctx.host, ctx.dir, ctx.ask, say, { port: ctx.keyPort });
+    const key = await getKey(ctx.host, ctx.dir, ctx.ask, say, { port: ctx.keyPort, waitMs: ctx.keyWaitMs, stepMs: ctx.keyStepMs });
     if (key.error) throw Object.assign(new Error(key.error), { plain: true });
     shell = sshShell({
       host: ctx.host, key: key.file, knownHosts: path.join(ctx.dir, 'devmode-known-hosts'), port: ctx.sshPort || 9922, user: 'prisoner',
@@ -262,14 +262,28 @@ async function runVersion(ctx, shell, v, ipk, expected, before, yes) {
 
   // Opens
   const launchedAt = Date.now();
-  const launched = await launchApp(shell, ctx);
-  const open = launched && (await waitForeground(ctx, (id) => id === APP, ctx.openWaitMs || 20000));
+  let launched = await launchApp(shell, ctx);
+  const fg = {};
+  const openWait = ctx.openWaitMs || 30000;
+  let open = launched && !!(await waitForeground(ctx, (id) => id === APP, openWait, fg));
+  if (!open) {
+    // On the real TV v1 opened by hand but the foreground read missed it once: launch again and wait once more.
+    launched = (await launchApp(shell, ctx)) || launched;
+    open = launched && !!(await waitForeground(ctx, (id) => id === APP, openWait, fg));
+  }
+  let toldOpen = false;
+  if (!open && launched) {
+    toldOpen = (await yes('The script can\'t see HomeTV in front (the TV says: ' + scrub(String(fg.last || 'nothing'), ctx.host) + '). Is HomeTV on the TV screen now?', v)) === true;
+    open = toldOpen;
+  }
   lap('open');
-  rec('opens', 'launches and comes to the front', open ? 'ok' : 'failed', open ? '' : launched ? 'the TV\'s foreground app isn\'t HomeTV' : 'the launch call failed');
-  if (open) {
+  rec('opens', 'launches and comes to the front', open ? 'ok' : 'failed',
+    toldOpen ? 'told by person; the TV\'s foreground read: ' + (fg.last || 'nothing')
+      : open ? '' : launched ? 'the TV\'s foreground app isn\'t HomeTV (' + (fg.last || 'nothing read') + ')' : 'the launch call failed');
+  if (open && !toldOpen) {
     const on = await yes('Is HomeTV on the TV screen now?', v);
     rec('screen', 'the person sees HomeTV on screen', on ? 'ok' : 'failed', on === null ? 'no answer' : '');
-  }
+  } else if (toldOpen) rec('screen', 'the person sees HomeTV on screen', 'ok', '');
 
   // the Web Inspector
   let page = null;
@@ -335,10 +349,22 @@ function describeSettings(s) {
   return { region: p.region || null, weatherCity: (p.place && p.place.name) || null, setupDone: s['hometv-setup-done'] === '1' };
 }
 
-async function waitForeground(ctx, test, ms) {
-  try {
-    return await withTv(ctx, async (tv) => until(async () => { const id = await foreground(tv); return test(id) ? id : ''; }, ms, 1000));
-  } catch { return null; }
+/**
+ * Polls the TV's foreground app until `test` passes or `ms` has gone by. A failed read (the remote-control connection
+ * dropping, say while the TV starts the app) is retried with a new connection instead of ending the wait. `seen.last`
+ * gets the last app id read, or the last error.
+ */
+async function waitForeground(ctx, test, ms, seen = {}) {
+  return until(async () => {
+    try {
+      const id = await withTv(ctx, foreground);
+      seen.last = id || '(none)';
+      return test(id) ? id : '';
+    } catch (e) {
+      seen.last = 'no answer (' + String((e && e.message) || e).slice(0, 80) + ')';
+      return '';
+    }
+  }, ms, 1000);
 }
 
 const top = async (page) => String((await page.eval(q('top'))) || '');
