@@ -1,6 +1,6 @@
 // Settings (design_preview's screens/settings.ts at 2bf3c2d, "Launcher settings"), slimmed for v0 on Samsung:
 // Performance (Motion), Screensaver, Home row apps, Weather, Region and About, and a way back into first run; on the LG
-// root edition, Use LG's Home (panes/lgHome.ts). Sections on the left with their values; the pane on
+// root edition, Use LG's Home (panes/lgHome.ts); Updates (panes/updates.ts: Check for updates, Install update). Sections on the left with their values; the pane on
 // the right shows the focused section at once. → or OK enters the pane (its border brightens), ← from its left edge
 // returns to the section. Back in the pane leaves a sub-state first (Change city, an app being moved), then the pane;
 // Back on the list closes the page. Changes save at once. Not in v0 (docs/versions.md): account, streaming services,
@@ -14,7 +14,7 @@ import { h, replace } from '../shell/dom';
 import { focusable } from '../shell/focus';
 import { icon, type IconName } from '../ui/icons';
 import { button } from '../ui/widgets';
-import { aboutValue } from '../updates';
+import { aboutValue, updatesValue } from '../updates';
 import { PAGE_VERSION } from '../version';
 import { aboutPane } from './panes/about';
 import { appsPane } from './panes/apps';
@@ -23,6 +23,7 @@ import { rootEdition } from '../webos/rootEdition';
 import { performancePane, screensaverPane, textSizePane } from './panes/look';
 import type { Pane, PaneHost } from './panes/pane';
 import { regionPane } from './panes/region';
+import { updatesPane } from './panes/updates';
 import { weatherPane } from './panes/weather';
 import { showSetup } from './setup';
 import { groupsNow, type SectionId } from './settingsGroups';
@@ -49,6 +50,7 @@ const SECTIONS: Section[] = [
   { id: 'region', label: 'Region', icon: 'pin', value: () => (prefs.get().region ? REGION_LABELS[prefs.get().region!] : 'Not set') },
   { id: 'setup', label: 'First run', icon: 'home', value: () => '' },
   { id: 'lghome', label: 'Use LG’s Home', icon: 'home', value: lgHomeValue },
+  { id: 'updates', label: 'Updates', icon: 'sync', value: () => updatesValue(bridge.platform.pageUpdates(), null) },
   { id: 'about', label: 'About', icon: 'info', value: () => aboutValue(bridge.platform.pageUpdates(), PAGE_VERSION) },
 ];
 
@@ -99,6 +101,7 @@ export function settingsScreen(initial: SectionId = 'apps'): Screen {
     region: regionPane(),
     setup: setupAgainPane(),
     lghome: lgHomePane(host),
+    updates: updatesPane(host),
     about: aboutPane(),
   };
 

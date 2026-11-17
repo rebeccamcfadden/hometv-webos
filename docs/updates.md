@@ -4,12 +4,27 @@ How HomeTV on an LG TV gets new versions without the laptop. Two ways, for two d
 
 | What changes | How it reaches the TV | Needs |
 |---|---|---|
-| **The page**: HomeTV's screens, their styles and scripts (everything Vite builds into `dist/app/` except the loader) | **A page update**: HomeTV downloads a newer, signed page by itself and shows it at the next start | Nothing on the TV; an update address and a signing key built into the app |
-| **The app**: the loader, `appinfo.json`, icons, HomeTV's service (`service/`), the public keys, the update address | **A new .ipk**: from Homebrew Channel on a rooted TV, or from the laptop (webOS Dev Manager) in Developer Mode | Root and Homebrew Channel, or the laptop |
+| **The page**: HomeTV's screens, their styles and scripts (everything Vite builds into `dist/app/` except the loader) | **A page update**: HomeTV finds a newer, signed page; **Settings › Updates › Install update** downloads and checks it, and HomeTV starts again with it | Nothing on the TV; an update address and a signing key built into the app |
+| **The app**: the loader, `appinfo.json`, icons, HomeTV's service (`service/`), the public keys, the update address; on a rooted TV also the root scripts (`root/`) | **A new .ipk**: on a rooted TV from **Settings › Updates › Install update** (HomeTV's service, as root) or Homebrew Channel; in Developer Mode from the laptop (webOS Dev Manager) | Root, or the laptop |
 
-Most changes are page changes, so most updates need nothing from anyone. A new .ipk is only needed when the app part
-changes. Nothing is published yet: apps are built with page updates **off**, and no Homebrew Channel repository is
-online. Both need the project lead's go (see [Open points](#open-points)).
+Most changes are page changes, so most updates need nothing but a press of Install update. A new .ipk is only needed
+when the app part changes. Nothing is published yet: apps are built with both kinds of update **off**, and no Homebrew
+Channel repository is online. All need the project lead's go (see [Open points](#open-points)).
+
+## Settings › Updates
+
+As on Android: the person decides, and nothing is downloaded before **Install update** is pressed.
+
+- **Check for updates** (on by default): HomeTV looks at most **once a day while Home shows** (the time of the last
+  look is kept, so restarts add none). A look reads only the signed manifest. **Check now** looks at once, on or off.
+- **Install update** shows only when a newer version is on offer. On a page: it downloads and checks the page, then
+  HomeTV starts again with it (below, [When a new page fails](#when-a-new-page-fails)). On a rooted TV with a new app:
+  HomeTV's service installs the app and the root scripts ([The root edition's own updates](#the-root-editions-own-updates)).
+- **In Developer Mode** only pages update from the TV: a page can't install an app. When the release names a newer app
+  (`appVersion`), Updates says in plain words that it goes on from the laptop.
+- Home's notice says **once per version** that an update is available (`app/src/ui/updateNotice.ts`).
+
+The code: `app/src/screens/panes/updates.ts`, its words in `app/src/updates.ts` (tested in `tests/settings.test.mjs`).
 
 **Not tested on a TV.** Everything here runs against a pretend TV on a PC (`npm test`); [What only a TV can
 show](#what-only-a-tv-can-show) lists what's left.
@@ -57,8 +72,10 @@ storage either**: if reading a downloaded page takes more than 5 seconds, the ap
 
 The page calls `bridge.platform.started()` (in `app/src/main.ts`), which calls the loader's `HomeTVBoot.started()`
 and then starts the heartbeat the rooted edition's watchdog reads (`app/src/platform.ts`; a loader error never stops
-the heartbeat). The loader marks the page as good and tidies the store. Ten seconds later `update.js` loads and checks
-for a newer page, then every 12 hours while HomeTV stays open:
+the heartbeat). The loader marks the page as good and tidies the store. Ten seconds later, when Check for updates is on
+and a day has passed since the last look, `update.js` loads and **looks** (steps 1 to 3; it notes the version on offer
+and, if the manifest names one, the newest app), then looks again each day while HomeTV stays open. Steps 4 and 5 run
+only when the person presses **Install update** (`HomeTVBoot.installNow()`):
 
 1. It fetches `manifest.json` and `manifest.json.sig` from the update address.
 2. It checks the signature (Ed25519, over the manifest's exact bytes) against the app's public keys. A bad or missing
@@ -68,7 +85,7 @@ for a newer page, then every 12 hours while HomeTV stays open:
 4. It downloads each file from `<version>/<path>` beside the manifest, checks its size and SHA-512, and saves it. One
    bad file and the whole download is deleted.
 5. Only when every file is saved does it mark the page as ready. **It shows at the next start**, never in the middle
-   of one.
+   of one; Settings › Updates starts HomeTV again at once (`HomeTVBoot.restart()`).
 
 The TV keeps **at most two** downloaded pages: the one in use and one more.
 
@@ -219,6 +236,45 @@ as the first install did.
   into the folder mounted over LG's Home at each start. Until then Home shows the previous app, and the HomeTV tile
   the new one.
 
+## The root edition's own updates
+
+On a rooted TV, **Settings › Updates › Install update** also brings a new app and its root scripts, with no laptop and
+no Homebrew Channel. Adapted from [lasharor/cleanyourtv-WebOS](https://github.com/lasharor/cleanyourtv-WebOS) (MIT,
+read at `2debe62`: `helper/updates.js`, `helper/selfupdate.js`, `scripts/bootstrap.sh`; notice in
+[../THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)), with **our signature** instead of their `.sha256` beside each
+file (a hash from the same server catches damage, not a hacked release).
+
+- **The release**: `node tools/root-release.mjs --key <private key>` writes `.data/root-release/`: the .ipk, the root
+  scripts (every file of `root/` but `README.md` and `package.json`, Unix line ends) and `hometv-root.json`, which lists
+  each file's name, size and SHA-512 and is signed (`hometv-root.json.sig`) with **the same LG key as the page updates**.
+  It refuses an .ipk whose service doesn't carry the app's version. Upload them as assets of one GitHub release,
+  `hometv-root.json` and its `.sig` last. It publishes nothing.
+- **The build**: `$env:HOMETV_ROOT_UPDATE_URL='https://github.com/rebeccamcfadden/hometv-webos/releases/latest/download/hometv-root.json'; npm run package:app`
+  puts the address, the public keys (`app/loader/page-keys.txt`) and TweetNaCl into the service
+  (`update-config.json`). Without the address it is off. Only https.
+- **A look** (`updateCheck`, at most once a day while Home shows, or Check now): the service downloads the manifest and
+  its signature only, checks the signature, and offers a version newer than the installed app that hasn't failed here.
+- **Install update** (`updateInstall`; HomeTV's page only, the service running as root, the root edition on the TV,
+  one at a time): the service downloads each file from the manifest's own release (its `tag`) into
+  `/media/developer/hometv/updates/stage`, and **refuses any file whose size or SHA-512 differs**, or that the manifest
+  doesn't list (only the .ipk and the known root scripts). Then `service/update-apply.js` runs on its own, as root:
+  1. checks the stage **again** against the signed manifest, with the keys of the app installed now;
+  2. keeps the running version in `updates/prev` (the root scripts, and the .ipk `hometv-lg root` or the last update
+     left in `updates/current.ipk`);
+  3. installs the .ipk with LG's installer (as Homebrew Channel and `hometv-lg root` do), copies the root scripts in, and
+     refreshes HomeTV as LG's Home in place (`root/10-hometv-home`, which also elevates the new service);
+  4. waits up to **40 seconds** for the new service to answer with the new version (`version`);
+  5. if it doesn't, **swaps back**: the previous scripts and .ipk, and writes the version to `updates/failed`, so it is
+     **never offered again**. The result is in `updates/last.json`; Settings › Updates says it in plain words.
+- Without a kept .ipk (a TV rooted before this), a failed update still puts the scripts back, and says the previous app
+  is reinstalled from Homebrew Channel if HomeTV doesn't open; the watchdog gives LG's Home back meanwhile.
+- **Not taken from lasharor**, on purpose: its LAN pages and plain-HTTP tokens, its MCP and network notifications, the dev
+  channel, and `libinputhookpp.so` (GPL-3.0). The TV only makes outbound HTTPS requests.
+
+Tests: `tests/root-updates.test.mjs` (a good update, a bad signature, a bad checksum, a stage changed after download, a
+version that doesn't answer and is swapped back, a failed version not offered again, no network), and
+`tests/hbc-repo.test.mjs` for `tools/root-release.mjs`.
+
 ## Open points
 
 For the project lead:
@@ -228,7 +284,9 @@ For the project lead:
 - **The Homebrew Channel repository's address** (`--base-url`, default `https://rebeccamcfadden.github.io/hometv-webos/hbc/`)
   and **the release tag** for the .ipk (default `app-v<appVersion>`).
 - **The signing key**: made on the project lead's PC with `tools/page-key.mjs`; one LG key (the default), or the
-  Samsung one for both.
+  Samsung one for both. The root edition's updates use the same key.
+- **The root update address** (`HOMETV_ROOT_UPDATE_URL`, for example the latest release's `hometv-root.json`) and the
+  release that carries it.
 
 ## What only a TV can show
 
@@ -242,3 +300,6 @@ For the project lead:
 - Homebrew Channel on the test TV: adding the repository, Update, the `addRepository` launch, and HomeTV as Home after
   the restart.
 - Times: reading a page back at start, and the 20-second limit against the watchdog's minute.
+- Settings › Updates on a rooted TV: the elevated service's HTTPS downloads from GitHub (redirects, LG's certificates),
+  LG's installer called from the detached `update-apply.js`, the service answering `version` within 40 s of a new
+  .ipk, and HomeTV as LG's Home refreshed in place.

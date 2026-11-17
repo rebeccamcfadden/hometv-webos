@@ -9,6 +9,12 @@ LG-TV-HA-Home-Launcher and OpenLauncher are only described and linked).
 `root/` (all of it) is adapted from its `scripts/10-cleanyourtv-home`, `stage-home.sh`, `undo-home.sh`,
 `after-sam.sh`, `watchdog.sh`, `jtool.js` and `helper/tvprofile.js` (read at `3b2158f`).
 
+`service/update.js` and `service/update-apply.js` (the root edition's Settings › Updates) are adapted from its
+`helper/updates.js`, `helper/selfupdate.js` and `scripts/bootstrap.sh` (read at `2debe62`): the release check, the
+refusal of an unchecked file, swap in and wait 40 s, keep the previous version and swap back, and the note that stops a
+failed version being tried again. Our Ed25519 signature check replaces its `.sha256` files. Not copied: its LAN pages and
+tokens, MCP, the dev channel, and its bundled `libinputhookpp.so` (GPL-3.0).
+
 ```
 MIT License
 

@@ -1,13 +1,15 @@
-// Home's update notice (design_preview's ui/updateNotice.ts at 2bf3c2d, the install plan, step 5), as it applies on
-// Samsung: once per new version, when Home shows with a newer page downloaded and checked, a pill for 8 s, "HomeTV
-// 0.0.3 is ready · it shows the next time HomeTV starts" (updates.ts). Never focusable, gone for that version after
-// once, and taken away by any screen over Home. Nothing shows outside the installed app (no loader).
+// Home's update notice (design_preview's ui/updateNotice.ts at 2bf3c2d, the install plan, step 5): once per new
+// version on offer, when Home shows, a pill for 8 s, "HomeTV 0.0.3 is available · Settings › Updates" (updates.ts).
+// Never focusable, gone for that version after once, and taken away by any screen over Home. Nothing shows outside the
+// installed app (no loader). On the rooted edition the service's look (a new app) runs at most once a day too.
 import './updateNotice.css';
 import { bridge } from '../bridge';
 import { pageStorage } from '../launcherSettings';
 import { shell } from '../shell/app';
 import { h, replace } from '../shell/dom';
-import { takeNotice } from '../updates';
+import { offerOf, rootLookDue, takeNotice, type RootUpdates } from '../updates';
+import { rootEdition } from '../webos/rootEdition';
+import { rootUpdateCheck } from '../webos/rootUpdates';
 import { icon } from './icons';
 
 export function startUpdateNotice(stage: HTMLElement): void {
@@ -16,13 +18,14 @@ export function startUpdateNotice(stage: HTMLElement): void {
   let hideTimer = 0;
   /** This start's notice, so blocked storage still shows it only once a start. */
   let shown = '';
+  let root: RootUpdates | null = null;
   const hide = () => {
     window.clearTimeout(hideTimer);
     el.classList.remove('is-shown');
     el.setAttribute('aria-hidden', 'true');
   };
   const show = (version: string) => {
-    replace(el, h('span', { html: icon('sync', 22) }), `HomeTV ${version} is ready · it shows the next time HomeTV starts`);
+    replace(el, h('span', { html: icon('sync', 22) }), `HomeTV ${version} is available · Settings › Updates`);
     el.classList.add('is-shown');
     el.setAttribute('aria-hidden', 'false');
     window.clearTimeout(hideTimer);
@@ -35,9 +38,16 @@ export function startUpdateNotice(stage: HTMLElement): void {
     if (!top || top.label !== 'Home') return hide();
     if (document.hidden) return;
     const s = bridge.platform.pageUpdates();
-    if (!s || !s.next || s.next === shown) return;
-    const v = takeNotice(pageStorage(), s);
-    shown = s.next;
+    if (rootEdition.shows() && rootLookDue(pageStorage(), !s || s.checkOn, Date.now())) {
+      void rootUpdateCheck().then((r) => {
+        root = r;
+        check();
+      });
+    }
+    const o = offerOf(s, root);
+    if (!o || o.version === shown) return;
+    const v = takeNotice(pageStorage(), o.version);
+    shown = o.version;
     if (v) show(v);
   };
   shell.onChange(check);

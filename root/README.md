@@ -28,5 +28,5 @@ runs `undo-home.sh` for HomeTV's page only: `temp` when Home is pressed three ti
 LG's Home (`rootState`, `useLgHome`; elevated, so as root). Elevation only
 changes HomeTV's own service registration (`/var/luna-service2-dev`); removing the HomeTV app removes it. The
 settings backup and restore run from the laptop, not from here ([../docs/backup.md](../docs/backup.md)). HomeTV's own
-updates on a rooted TV (Homebrew Channel's repository, and a new .ipk reaching Home after the next restart):
-[../docs/updates.md](../docs/updates.md).
+updates on a rooted TV (Settings › Updates through HomeTV's service, which also replaces these scripts, and Homebrew
+Channel's repository): [../docs/updates.md](../docs/updates.md).

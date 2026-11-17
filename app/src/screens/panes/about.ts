@@ -1,5 +1,5 @@
 // Settings › About, from design_preview's screens/panes/misc.ts aboutPane at 2bf3c2d, as far as it applies on Samsung:
-// the version, where updates stand (updates.ts: signed page updates, shown at the next start, so no Install button),
+// the version, where updates stand (updates.ts; Install update is in Settings › Updates),
 // and Report a problem (not in design_preview: HomeTV's own problem report, screens/report.ts), and in a v1 build TMDB's
 // notice. Not here: the catalogue cache, licences and Clear cache.
 import { bridge } from '../../bridge';
@@ -35,7 +35,7 @@ export const aboutPane = (): Pane => ({
       h(
         'div.about-updates',
         h('div.perf-title', 'Updates'),
-        h('div.about-update-line', updateLine(u, (ms) => ago(ms, now))),
+        h('div.about-update-line', updateLine(u, null, (ms) => ago(ms, now)) + ' More in Settings › Updates.'),
       ),
       // Report a problem: the problems HomeTV noted on this TV, to read out or scan (screens/report.ts).
       h('div.pane-actions', button('Report a problem', { icon: 'alert', key: 'about-report', onOk: showReport })),

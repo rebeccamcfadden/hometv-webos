@@ -149,21 +149,47 @@ test('Home’s top bar: greeting, date and time, from the TV’s clock', () => {
   assert.equal(clock.ago(0, 26 * 3600000), '1 day ago');
 });
 
-test('About’s update line and Home’s notice, once per version', () => {
+test('Settings › Updates: what it says and offers; Home’s notice once per version', () => {
   const ago = () => '5 minutes ago';
-  assert.match(up.updateLine(null, ago), /isn’t the installed Samsung app/);
-  const base = { app: '0.0.2', page: '0.0.1', on: true, next: null, checkedAt: null, failed: false };
-  assert.match(up.updateLine({ ...base, on: false }, ago), /off in this build/);
-  assert.match(up.updateLine(base, ago), /shortly after Home shows/);
-  assert.equal(up.updateLine({ ...base, checkedAt: 1 }, ago), 'Up to date · checked 5 minutes ago');
-  assert.match(up.updateLine({ ...base, checkedAt: 1, failed: true }, ago), /Couldn’t check/);
-  const ready = { ...base, next: '0.0.3' };
-  assert.match(up.updateLine(ready, ago), /Version 0\.0\.3 is downloaded and checked\. It shows the next time HomeTV starts/);
+  assert.match(up.updateLine(null, null, ago), /isn’t the installed LG app/);
+  const base = { app: '0.0.2', page: '0.0.1', on: true, next: null, checkedAt: null, failed: false, checkOn: true, available: null, appNewer: null, busy: false };
+  assert.match(up.updateLine({ ...base, on: false }, null, ago), /off in this build/);
+  assert.match(up.updateLine(base, null, ago), /Not checked yet.*nothing is downloaded until you press Install update/);
+  assert.equal(up.updateLine({ ...base, checkedAt: 1 }, null, ago), 'Up to date · checked 5 minutes ago');
+  assert.match(up.updateLine({ ...base, checkedAt: 1, failed: true }, null, ago), /Couldn’t check/);
+  const offered = { ...base, available: '0.0.3' };
+  assert.deepEqual(up.offerOf(offered, null), { kind: 'page', version: '0.0.3' });
+  assert.match(up.updateLine(offered, null, ago), /HomeTV 0\.0\.3 is available\. Install update downloads it, checks its signature/);
+  assert.equal(up.updatesValue(offered, null), '0.0.3 available');
+  assert.equal(up.updatesValue({ ...base, checkOn: false }, null), 'Off');
+  const ready = { ...base, next: '0.0.3', available: '0.0.3' };
+  assert.equal(up.offerOf(ready, null), null, 'downloaded: nothing more to install');
+  assert.match(up.updateLine(ready, null, ago), /Version 0\.0\.3 is downloaded and checked\. It shows when HomeTV starts again/);
   assert.equal(up.aboutValue(ready, '0.0.1'), '0.0.3 ready');
+  assert.equal(up.aboutValue(offered, '0.0.1'), '0.0.3 available');
   assert.equal(up.aboutValue(null, '0.0.1'), '0.0.1');
+
+  // Rooted: the app comes first, through the service; Developer Mode: the laptop.
+  const root = { on: true, installed: '0.0.2', available: '0.1.0', failedBefore: null, refused: '', error: '', root: true };
+  assert.deepEqual(up.offerOf(offered, root), { kind: 'app', version: '0.1.0' });
+  assert.match(up.updateLine(offered, root, ago), /app and its start-up scripts.*within 40 seconds, this version comes back/);
+  assert.equal(up.appLine({ ...base, appNewer: '0.1.0' }, root), null);
+  assert.match(up.appLine({ ...base, appNewer: '0.1.0' }, { ...root, root: false, available: null }), /new HomeTV app \(0\.1\.0\).*from the laptop/);
+  assert.match(up.appLine({ ...base, appNewer: '0.1.0' }, null), /from the laptop/);
+  assert.equal(up.offerOf(base, { ...root, root: false }), null, 'a jailed service never installs');
+  assert.match(up.appLine(base, { ...root, available: null, failedBefore: '0.1.0' }), /0\.1\.0 didn’t start on this TV, so it isn’t offered again/);
+  assert.match(up.rootStatusLine({ version: '0.1.0', state: 'rolled back', note: '', from: '0.0.2' }), /0\.1\.0 didn’t start, so 0\.0\.2 is back/);
+  assert.match(up.rootStatusLine({ version: '0.1.0', state: 'refused', note: 'lib.sh: SHA-512 doesn\'t match' }), /wasn’t installed: lib\.sh.*Nothing changed/);
+  assert.match(up.rootStatusLine({ version: '0.1.0', state: 'installing', note: '' }), /40 seconds/);
+  assert.equal(up.rootStatusLine(null), null);
+
   const storage = memory();
-  assert.equal(up.takeNotice(storage, base), null);
-  assert.equal(up.takeNotice(storage, ready), '0.0.3');
-  assert.equal(up.takeNotice(storage, ready), null, 'once per version');
-  assert.equal(up.takeNotice(storage, { ...base, next: '0.0.4' }), '0.0.4');
+  assert.equal(up.takeNotice(storage, null), null);
+  assert.equal(up.takeNotice(storage, '0.0.3'), '0.0.3');
+  assert.equal(up.takeNotice(storage, '0.0.3'), null, 'once per version');
+  assert.equal(up.takeNotice(storage, '0.0.4'), '0.0.4');
+  assert.equal(up.rootLookDue(storage, true, 1000), true);
+  assert.equal(up.rootLookDue(storage, true, 1000 + 23 * 3600000), false, 'once a day');
+  assert.equal(up.rootLookDue(storage, true, 1000 + 24 * 3600000), true);
+  assert.equal(up.rootLookDue(memory(), false, 1000), false, 'Check for updates off');
 });

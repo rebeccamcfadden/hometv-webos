@@ -8,9 +8,9 @@ import path from 'node:path';
 const SRC = path.resolve(import.meta.dirname, '..', 'app', 'src');
 /**
  * The LG side: replaced as a set from hometv-tizen's (bridge.ts, platform.ts, pageChecks.ts), plus LG's Luna helpers and
- * the root edition's way back (webos/rootEdition.ts, LG only).
+ * the root edition's way back (webos/rootEdition.ts, LG only) and its own updates (webos/rootUpdates.ts, LG only).
  */
-const PLATFORM_FILES = new Set(['bridge.ts', 'platform.ts', 'pageChecks.ts', 'webos/luna.ts', 'webos/apps.ts', 'webos/rootEdition.ts']);
+const PLATFORM_FILES = new Set(['bridge.ts', 'platform.ts', 'pageChecks.ts', 'webos/luna.ts', 'webos/apps.ts', 'webos/rootEdition.ts', 'webos/rootUpdates.ts']);
 /** The TV's own APIs: Samsung's `tizen` and `webapis`, AeroTizen's scripts, LG's webOS objects, and the online state. */
 const PLATFORM_CALL = /\btizen\b|\bwebapis\b|\bAeroTizen\b|\bwebOS\b|\bPalmSystem\b|navigator\.onLine|HomeTVBoot/;
 

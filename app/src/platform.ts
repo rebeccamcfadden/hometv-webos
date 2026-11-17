@@ -27,9 +27,42 @@ export interface PageUpdates {
   on: boolean;
   /** A newer page downloaded and checked: it shows at the next start. */
   next: string | null;
-  /** The last check this start, epoch ms; null before the first. */
+  /** The last look, epoch ms (kept across starts); null before the first. */
   checkedAt: number | null;
   failed: boolean;
+  /** Settings › Updates' Check for updates: the loader looks by itself, at most once a day while Home shows. */
+  checkOn: boolean;
+  /** A newer page on offer (seen, not downloaded): Install update downloads it. */
+  available: string | null;
+  /** A newer app that the release names: a page can't install it. */
+  appNewer: string | null;
+  /** A look or an install is running. */
+  busy: boolean;
+}
+
+type BootApi = {
+  status?(): Record<string, unknown>;
+  checkNow?(done: (err: unknown, result?: string) => void): void;
+  installNow?(done: (err: unknown, result?: string) => void): void;
+  setCheck?(on: boolean): void;
+  restart?(): void;
+  started?(): void;
+};
+
+const bootApi = (): BootApi | null => (window as unknown as { HomeTVBoot?: BootApi }).HomeTVBoot || null;
+
+/** Runs one of the loader's update steps; its result ("available 1.2.0", "downloaded 1.2.0", "failed: …"). */
+function bootStep(name: 'checkNow' | 'installNow'): Promise<string> {
+  const boot = bootApi();
+  const fn = boot && boot[name];
+  if (!fn) return Promise.resolve('off');
+  return new Promise((resolve) => {
+    try {
+      fn.call(boot, (err, result) => resolve(err ? 'failed: ' + String((err as Error).message || err) : String(result || '')));
+    } catch (e) {
+      resolve('failed: ' + String((e as Error).message || e));
+    }
+  });
 }
 
 /** How the TV is connected: Wi-Fi, a cable, not at all, or it won't say (a PC, no webOS). */
@@ -331,22 +364,48 @@ export const platform = {
    * Null without the loader (a preview, the Simulator without the loader).
    */
   pageUpdates(): PageUpdates | null {
-    type BootStatus = { shell?: string; page?: string; updates?: string; next?: string | null; lastCheck?: { at: string; result?: string } };
-    const boot = (window as unknown as { HomeTVBoot?: { status?(): BootStatus } }).HomeTVBoot;
+    type BootStatus = {
+      shell?: string; page?: string; updates?: string; next?: string | null; lastCheck?: { at: string; result?: string } | null;
+      checkOn?: boolean; checkedAt?: number | null; available?: string | null; appNewer?: string | null; busy?: string | null;
+    };
+    const boot = bootApi();
     if (!boot || !boot.status) return null;
     try {
-      const s = boot.status();
+      const s = boot.status() as BootStatus;
+      const last = s.lastCheck ? Date.parse(s.lastCheck.at) || null : null;
       return {
         app: String(s.shell || ''),
         page: String(s.page || ''),
         on: !!s.updates && s.updates !== 'off',
         next: s.next || null,
-        checkedAt: s.lastCheck ? Date.parse(s.lastCheck.at) || null : null,
+        checkedAt: typeof s.checkedAt === 'number' ? s.checkedAt : last,
         failed: !!s.lastCheck && /^failed/.test(s.lastCheck.result || ''),
+        checkOn: s.checkOn !== false,
+        available: s.available || null,
+        appNewer: s.appNewer || null,
+        busy: !!s.busy,
       };
     } catch (e) {
       return null;
     }
+  },
+
+  /** Settings › Updates' page side, through the installed app's loader (docs/updates.md). */
+  pageUpdate: {
+    /** Looks now: "available 1.2.0", "up to date", "needs app 1.1.0", "refused: …", "failed: …", or "off". */
+    check: (): Promise<string> => bootStep('checkNow'),
+    /** Downloads and checks the page on offer: "downloaded 1.2.0", or why not. */
+    install: (): Promise<string> => bootStep('installNow'),
+    setCheck(on: boolean): void {
+      const boot = bootApi();
+      if (boot && boot.setCheck) boot.setCheck(on);
+    },
+    /** Starts HomeTV again so a downloaded page shows; one that doesn't start twice gives way to the previous one. */
+    restart(): void {
+      const boot = bootApi();
+      if (boot && boot.restart) boot.restart();
+      else window.location.reload();
+    },
   },
 
   /**
