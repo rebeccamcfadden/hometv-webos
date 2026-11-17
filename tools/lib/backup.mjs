@@ -12,6 +12,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { PERMISSIONS } from './ssap.mjs';
 import { luna } from './root-shell.mjs';
+import { notRead } from './checks.mjs';
 
 export const FORMAT = 'hometv-lg-backup';
 export const VERSION = 1;
@@ -36,7 +37,7 @@ export async function readSettings(tv, list = BACKUP_SETTINGS) {
     for (const key of keys) {
       const r = await tv.request('settings/getSystemSettings', { category, keys: [key] });
       out[category][key] = r.returnValue === false || !r.settings || !(key in r.settings)
-        ? { ok: false, error: r.errorText || 'not returned' }
+        ? notRead(r.errorText || 'not returned')
         : { ok: true, value: r.settings[key] };
     }
   }
@@ -89,7 +90,7 @@ async function readSsap(tv, settingsList) {
   out.settings = await readSettings(tv, settingsList);
   for (const [category, keys] of Object.entries(out.settings)) {
     for (const [key, v] of Object.entries(keys)) {
-      out.reads.push({ what: 'setting', uri: 'settings/getSystemSettings', category, key, permission: SETTINGS_PERMISSION, ok: v.ok, ...(v.ok ? {} : { error: v.error }) });
+      out.reads.push({ what: 'setting', uri: 'settings/getSystemSettings', category, key, permission: SETTINGS_PERMISSION, ok: v.ok, ...(v.ok ? {} : { error: v.error, ...(v.unknown ? { unknown: true } : {}) }) });
     }
   }
   return out;
@@ -231,10 +232,10 @@ export function version(sw) {
 
 /** Counts only: what was read and refused. Never values. */
 export function summarize(data) {
-  const sum = { settingsRead: 0, settingsRefused: 0, refused: [], apps: 0, inputs: 0, root: null };
+  const sum = { settingsRead: 0, settingsRefused: 0, settingsUnknown: 0, refused: [], apps: 0, inputs: 0, root: null };
   if (data.ssap) {
     for (const r of data.ssap.reads) {
-      if (r.what === 'setting') { if (r.ok) sum.settingsRead++; else sum.settingsRefused++; }
+      if (r.what === 'setting') { if (r.ok) sum.settingsRead++; else if (r.unknown) sum.settingsUnknown++; else sum.settingsRefused++; }
       else if (!r.ok) sum.refused.push(r.what + ' (' + r.permission + ')');
     }
     sum.apps = (data.ssap.apps || []).length;
@@ -256,6 +257,7 @@ export function summarize(data) {
 export function describe(sum) {
   const lines = [];
   lines.push('Settings read over the remote connection: ' + sum.settingsRead + (sum.settingsRefused ? ' (' + sum.settingsRefused + ' refused or unknown; photograph those)' : '') +
+    (sum.settingsUnknown ? ' (' + sum.settingsUnknown + ' unknown: this TV doesn\'t let the laptop read them; photograph those)' : '') +
     '; apps ' + sum.apps + '; inputs ' + sum.inputs + '.');
   if (sum.refused.length) lines.push('The TV refused: ' + sum.refused.join(', ') + '.');
   if (sum.root) {

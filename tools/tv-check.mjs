@@ -55,9 +55,12 @@ if (tv.clientKey && tv.clientKey !== clientKey) fs.writeFileSync(keyFile, tv.cli
 const report = await readOnlyChecks(tv);
 const c = report.checks;
 say('Model: ' + (c.system.modelName || c.software.model_name || '?') + ', software ' +
-  (c.software.major_ver ? c.software.major_ver + '.' + c.software.minor_ver : '?'));
+  (c.software.major_ver ? c.software.major_ver + '.' + c.software.minor_ver
+    : c.software.unknown ? 'version unknown (this TV doesn\'t let the laptop read it: read it on the TV under Settings › Support › TV Information)' : '?'));
 say('Apps: ' + (c.apps.ok ? c.apps.count + '; streaming: ' + (c.apps.streaming.map((a) => a.name).join(', ') || 'none known') : c.apps.error));
 say('Inputs: ' + (c.inputs.ok ? c.inputs.devices.map((d) => d.label).join(', ') : c.inputs.error));
+const unknown = Object.entries({ 'sound output': c.soundOutput, 'the app on screen': c.foreground }).filter(([, v]) => v && v.unknown).map(([k]) => k);
+if (unknown.length) say('Unknown (this TV doesn\'t let the laptop read it; not a problem): ' + unknown.join(', ') + '.');
 
 if (args.includes('--backup')) {
   let shell = null;
@@ -92,6 +95,10 @@ if (args.includes('--reach')) {
   say('Checking the TV can reach this laptop (the TV\'s browser opens for a moment; Windows may ask to allow it)…');
   report.reach = await reach(tv, host, { address: reachAddr || undefined });
   say('TV reaches the laptop: ' + (report.reach.ok ? 'yes' : 'no (' + report.reach.error + ')'));
+  if (!report.reach.ok) {
+    say('  The laptop\'s firewall may be blocking it: when Windows asks about hometv-lg, allow it on private networks,\n' +
+      '  and check the laptop is on the same Wi-Fi as the TV. Installing HomeTV with Developer Mode doesn\'t need this; only root does.');
+  }
 }
 
 report.readiness = readiness(report);
