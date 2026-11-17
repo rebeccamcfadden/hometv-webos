@@ -118,7 +118,8 @@ async function setup({ install = 'ok', replies = {}, keyPem = ENCRYPTED, noKeySe
     ...HANDLERS,
     'settings/getSystemSettings': (q) => (q.keys && q.keys[0] === 'country' ? { returnValue: true, settings: { country: read().country || 'USA' } } : read().autoUpdate && q.category === 'option' ? { returnValue: true, settings: { autoUpdate: read().autoUpdate } } : { returnValue: false, errorText: 'no such key' }),
     'com.webos.service.update/getCurrentSWInformation': () => ({ returnValue: true, major_ver: '33', minor_ver: '31.61', device_id: 'aa:bb:cc:dd:ee:ff', serial: 'SECRET123' }),
-    'com.webos.applicationManager/listLaunchPoints': () => ({ returnValue: true, launchPoints: read().apps.map((id) => ({ id, title: id })) }),
+    'com.webos.applicationManager/listLaunchPoints': () => (read().listRefused ? { returnValue: false, errorText: 'denied' }
+      : { returnValue: true, launchPoints: read().apps.map((id) => ({ id, title: id })) }),
     'com.webos.applicationManager/getForegroundAppInfo': () => ({ returnValue: true, appId: read().foreground, windowId: 'x' }),
     'com.webos.applicationManager/launch': (q) => {
       const s = read();
@@ -488,6 +489,26 @@ test('devmode: a rooted TV (Homebrew Channel listed) stops before the Developer 
     assert.equal(s.lines().length, 0, 'ssh never started');
     noLeaks(s, r);
   } finally { await s.done(); }
+});
+
+test('devmode: an unreadable app list stops unless the person confirms there is no Homebrew Channel', async () => {
+  const s = await setup({ only: 'v0', replies: { 'NO Homebrew Channel': 'n' } });
+  fs.writeFileSync(s.stateFile, JSON.stringify({ apps: ['netflix'], listRefused: true, foreground: 'com.webos.app.home' }));
+  try {
+    const r = await s.run();
+    assert.equal(r.stopped, true);
+    assert.match(r.report.stopped, /couldn't tell whether this TV is rooted/);
+    assert.equal(s.asked.filter((q) => /passphrase/.test(q)).length, 0, 'no key asked');
+    assert.equal(s.lines().length, 0, 'ssh never started');
+    noLeaks(s, r);
+  } finally { await s.done(); }
+  const ok = await setup({ only: 'v0', noKeyServer: true });
+  fs.writeFileSync(ok.stateFile, JSON.stringify({ apps: ['netflix'], listRefused: true, foreground: 'com.webos.app.home' }));
+  try {
+    const r = await ok.run();
+    assert.ok(ok.asked.some((q) => /NO Homebrew Channel/.test(q)), 'asked');
+    assert.doesNotMatch(String(r.report.stopped), /rooted/, 'went on to the key step');
+  } finally { await ok.done(); }
 });
 
 test('devmode: key server off stops with the plain message; no report holds the address', async () => {

@@ -119,8 +119,19 @@ export async function runDevmode(ctx) {
 
     // On a rooted TV LG's Developer Mode app must not come back: deleting it again later takes the "Developer Mode on"
     // flag with it, and LG then wipes /media/developer, Homebrew Channel included (webosbrew issue 256, 33.31.75)
-    let rooted = false;
-    try { rooted = (await withTv(ctx, appIds)).has('org.webosbrew.hbchannel'); } catch { /* the key step says what's wrong */ }
+    // A list that can't be read never counts as "not rooted": the person confirms, or it stops
+    let rooted = null;
+    try { rooted = (await withTv(ctx, appIds)).has('org.webosbrew.hbchannel'); } catch { /* asked below */ }
+    if (rooted === null) {
+      say('  The laptop couldn\'t read the TV\'s list of apps, so it can\'t tell whether this TV is rooted.');
+      const none = await yes('Look at the TV\'s apps: is it true there is NO Homebrew Channel on it?', 'setup');
+      if (none !== true) {
+        throw Object.assign(new Error('Stopped: the laptop couldn\'t tell whether this TV is rooted (its list of apps couldn\'t be ' +
+          'read), and Developer Mode must never go on a rooted TV. Check the TV is on and the laptop can reach it, then run this ' +
+          'again; if Homebrew Channel is on the TV, don\'t use Developer Mode on it: ask the HomeTV team.'), { plain: true });
+      }
+      rooted = false;
+    }
     if (rooted) {
       throw Object.assign(new Error('This TV is rooted (Homebrew Channel is installed): HomeTV goes on it through Homebrew ' +
         'Channel, not Developer Mode. Don\'t install, switch on or delete LG\'s Developer Mode app on it; ask the HomeTV team.'), { plain: true });
