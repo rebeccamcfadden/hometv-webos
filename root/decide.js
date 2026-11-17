@@ -26,9 +26,12 @@ function takeover(homeKind) {
   return /^com\.webos\.app\.home (flutter|web)$/.test(homeKind) ? 'mount' : 'unsupported';
 }
 
-// lasharor's findings: webOS 25 (SDK 10) video apps could play black after the sam restart until videooutputd and
-// umediaserver were restarted (its issue 122); webOS 26 (SDK 11) lost HDMI ARC sound until arccontroller (issue 21)
-// and video until umediaserver (pull request 73).
+// lasharor's findings (helper/tvprofile.js afterSam, compared again at 2debe62), for the flutter or web Home only:
+// webOS 25 (SDK 10): on an OLED65B2RLA (SDK 10.3.2, 33.31.75, the test TV's firmware) video apps now and then played
+// with a black picture after the sam restart until videooutputd and then umediaserver were restarted, in that order
+// (its issue 122); eARC is kept there, so arccontroller is left alone. Other webOS 25 TVs were fine without it, which is
+// what after-sam-services is for. webOS 26 (SDK 11) lost HDMI ARC sound until arccontroller was restarted (issue 21)
+// and video until umediaserver (pull request 73). The native Home's list (webOS 5-23) isn't carried.
 function afterSam(sdk, homeKind) {
   var major = parseInt(String(sdk || '').split('.')[0], 10) || 0;
   if (!/\s(flutter|web)$/.test(homeKind)) return '';

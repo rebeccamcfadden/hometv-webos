@@ -7,7 +7,9 @@ LG-TV-HA-Home-Launcher and OpenLauncher are only described and linked).
 ## lasharor/cleanyourtv-WebOS (MIT)
 
 `root/` (all of it) is adapted from its `scripts/10-cleanyourtv-home`, `stage-home.sh`, `undo-home.sh`,
-`after-sam.sh`, `watchdog.sh`, `jtool.js` and `helper/tvprofile.js` (read at `3b2158f`).
+`after-sam.sh`, `watchdog.sh`, `jtool.js` and `helper/tvprofile.js` (read at `3b2158f`). Compared again at `2debe62`
+(B8): `root/after-sam.sh` and `decide.js aftersam` (the webOS 25 list, issue 122, and the state logged after each
+restart).
 
 `service/update.js` and `service/update-apply.js` (the root edition's Settings › Updates) are adapted from its
 `helper/updates.js`, `helper/selfupdate.js` and `scripts/bootstrap.sh` (read at `2debe62`): the release check, the
