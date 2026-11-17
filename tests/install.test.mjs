@@ -147,9 +147,16 @@ test('the steps are data, in the decided order (docs/root-plan.md)', () => {
   for (const s of STEPS) assert.ok(s.title && s.what && s.undo && typeof s.run === 'function', s.id);
 });
 
-test('scrub takes out addresses, MACs and the home folder, keeps software versions', () => {
+test('scrub takes out addresses, MACs, URL paths, secrets and the home folder, keeps software versions', () => {
   const s = scrub('wss://192.168.1.50:3001/ aa:bb:cc:dd:ee:ff 33.31.61 10.3.1-3001 ' + path.join(os.homedir(), 'HomeTV') + ' tv.local', 'tv.local');
   assert.equal(s, 'wss://<ip>:3001/ <mac> 33.31.61 10.3.1-3001 ' + path.join('%USERPROFILE%', 'HomeTV') + ' <tv ip>');
+  // lasharor's sharelog.js rules (tools/lib/mask.mjs): URL paths, secret values; and IPv6; times and versions stay
+  assert.equal(scrub('http://192.168.1.50:8766/report?code=1 https://example.com/u/someone/list'),
+    'http://<ip>:8766/… https://example.com/…');
+  assert.equal(scrub('{"token": "abc", "apiKey": "z", "password":"p"} token=abc123secret&x=1 secret=s'),
+    '{"token": "…", "apiKey": "…", "password":"…"} token=…&x=1 secret=…');
+  assert.equal(scrub('fe80::1 2001:db8::8a2e:370:7334 at 12:30:45 on 2026-11-18, luna://com.webos.service.tv.systemproperty/getSystemInfo'),
+    '<ip6> <ip6> at 12:30:45 on 2026-11-18, luna://com.webos.service.tv.systemproperty/getSystemInfo');
 });
 
 test('root files go with Unix line ends, all but the README', () => {

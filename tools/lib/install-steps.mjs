@@ -18,6 +18,7 @@ import { telnetShell, pushFile, portOpen, q } from './telnet.mjs';
 import { laptopKey, keyPaths } from './sshkey.mjs';
 import { checkStick } from './recovery.mjs';
 import { ROOTABLE } from './checks.mjs';
+import { mask } from './mask.mjs';
 
 const ROOT_SWS = Object.keys(ROOTABLE).join(' or ');
 const SW_WHERE = 'Settings > All Settings > Support > TV Information, Software Version';
@@ -69,15 +70,9 @@ export const WAY_BACK = [
   '6  Nothing works: LG service.'
 ];
 
-/** Takes out anything that identifies the TV or the laptop's user: addresses, MACs, the home folder. */
+/** Takes out anything that identifies the TV or the laptop's user (tools/lib/mask.mjs: addresses, MACs, URL paths, secrets, the home folder). */
 export function scrub(text, host) {
-  let s = String(text);
-  if (host) s = s.split(host).join('<tv ip>');
-  const home = os.homedir();
-  if (home) s = s.split(home).join('%USERPROFILE%');
-  return s
-    .replace(/\b(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}\b/g, '<ip>')
-    .replace(/\b([0-9a-f]{2}[:-]){5}[0-9a-f]{2}\b/gi, '<mac>');
+  return mask(text, { host, home: os.homedir() });
 }
 
 export async function withTv(ctx, fn) {

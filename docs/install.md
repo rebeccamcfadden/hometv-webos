@@ -118,7 +118,9 @@ How it behaves:
   [backup.md](backup.md)), `lg-client-key` (the pairing, shared with `hometv-lg check`), `install-state.json`,
   `install-log.txt` (everything it printed), `lg-root-key` with its `.pub`, and `lg-known-hosts`: the key and known
   hosts `hometv-lg check` and `hometv-lg restore` use with root. Nothing it prints, logs or keeps in its state holds
-  the TV's address, serial number, device id, MAC or the Windows user name. SlopBro's own messages (step 5) do show the TV's address: they're on screen only.
+  the TV's address, serial number, device id, MAC or the Windows user name: `tools/lib/mask.mjs` masks every line (IPv4 and
+  IPv6 addresses, MACs, URL paths, the values of token, key, password and secret fields; the rules of lasharor's Share log,
+  MIT), and the error report to come uses the same rules. SlopBro's own messages (step 5) do show the TV's address: they're on screen only.
 - `--ipk <file>` names HomeTV's `.ipk`; otherwise it takes the newest `com.hometv.app_*.ipk` in the current folder,
   next to the exe, in the HomeTV folder or in `dist/` (`npm run package:app`).
 

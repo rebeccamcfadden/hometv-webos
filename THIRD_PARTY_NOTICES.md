@@ -17,7 +17,8 @@ it reports "installed" and the app is registered (`tools/lib/install-steps.mjs`)
 at `2debe62`): the check after the install's restart that the new Home came up, and the roll back when it didn't
 (`homeCameUp` and `rollBack` in `tools/lib/install-steps.mjs`, used by `hometv-lg install`/`root` and `--home-again`). The idea of its
 `compat.json` (also at `2debe62`; our own entries): `root/compat.json`, `decide.js compat` and `family`, checked by
-`install.sh` and the start-up hook.
+`install.sh` and the start-up hook. From its `helper/sharelog.js` (also at `2debe62`; not its LAN page): the masking rules
+in `tools/lib/mask.mjs`.
 
 `service/update.js` and `service/update-apply.js` (the root edition's Settings › Updates) are adapted from its
 `helper/updates.js`, `helper/selfupdate.js` and `scripts/bootstrap.sh` (read at `2debe62`): the release check, the
