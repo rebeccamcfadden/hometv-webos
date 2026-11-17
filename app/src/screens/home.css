@@ -1,0 +1,230 @@
+/* Home's layout, from design_preview's Home (screens.css at 2bf3c2d: .home-content, .home-hero, .home-apps, .home-lower,
+   .weather): the nav at the top, the greeting and clock at the middle of the picture, the row of apps below them, and,
+   off the bottom, Inputs, Shortcuts and the weather card. Down from the apps slides everything but the nav up by --hs
+   (is-scrolled, set by screens/home.ts) and fades the hero. The positions are variables because Text and UI size shrinks
+   the canvas (ui/uiSize.css sets the other sizes). Chromium 53: no grid, no gap (margins). */
+
+.home {
+  --ht: 540px;
+  --ha: 777px;
+  --hl: 1166px;
+  --hw: 1405px;
+  --hs: 577px;
+  --tile-h: 136px;
+  --in-h: 141px;
+  --wx-h: 190px;
+}
+.home-content {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  transition: transform var(--slow) var(--ease);
+}
+.home.is-scrolled .home-content {
+  transform: translateY(calc(-1 * var(--hs)));
+}
+.home.is-scrolled .home-hero {
+  opacity: 0;
+}
+.home-hero {
+  position: absolute;
+  top: var(--ht);
+  left: var(--safe-x);
+  right: var(--safe-x);
+  height: 140px;
+}
+
+/* The row of apps: seven across, the name always under the tile. */
+.home .approw {
+  position: absolute;
+  top: var(--ha);
+  left: var(--safe-x);
+  right: var(--safe-x);
+  height: calc(var(--tile-h) + 40px);
+}
+.home .tile {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+  height: var(--tile-h);
+  margin-right: 22px;
+  border-radius: var(--radius-l);
+  box-shadow: inset 0 0 0 var(--line-w) var(--line);
+}
+.home .tile:last-child {
+  margin-right: 0;
+}
+.home .tile .mark {
+  font-size: 32px;
+}
+.home .tile .art {
+  border-radius: var(--radius-l);
+}
+.home .tile .name {
+  top: calc(var(--tile-h) + 14px);
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-small);
+  color: var(--text-2);
+  opacity: 1;
+}
+.home .tile.is-focused {
+  transform: scale(1.05);
+  box-shadow: var(--focus-ring);
+}
+.home .tile.is-focused .name {
+  color: var(--text-1);
+}
+.home .tile.is-moving {
+  transform: translateY(-14px) scale(1.08);
+  box-shadow: var(--focus-ring), 0 24px 48px rgba(0, 0, 0, 0.5);
+}
+.home .approw-empty {
+  padding-top: 40px;
+  font-size: var(--t-body);
+  color: var(--text-2);
+}
+.home .movehint {
+  position: absolute;
+  top: calc(var(--ha) + var(--tile-h) + 56px);
+  left: var(--safe-x);
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--accent);
+}
+
+/* Inputs, Shortcuts and the weather are only seen once Down has slid them up; until then they are clear, so on a smaller
+   canvas their tops don't show at the bottom edge (they stay in the layout, so Down reaches them). */
+.home-lower,
+.home .weather {
+  opacity: 0;
+  transition: opacity var(--slow) ease;
+}
+.home.is-scrolled .home-lower,
+.home.is-scrolled .weather {
+  opacity: 1;
+}
+
+/* Inputs and Shortcuts. */
+.home-lower {
+  position: absolute;
+  top: var(--hl);
+  left: var(--safe-x);
+  right: var(--safe-x);
+  display: flex;
+  justify-content: space-between;
+}
+.home-heading {
+  margin-bottom: 18px;
+  font-size: var(--t-h3);
+}
+.home-tiles {
+  display: flex;
+}
+.home-tile {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 208px;
+  height: var(--in-h);
+  margin-left: 22px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border-radius: var(--radius-l);
+  background: var(--tile);
+  box-shadow: inset 0 0 0 var(--line-w) var(--line);
+  font-size: 23px;
+  text-align: center;
+}
+.home-tile:first-child {
+  margin-left: 0;
+}
+.home-tile .ht-label {
+  display: block;
+  max-width: 100%;
+  margin-top: 10px;
+  overflow: hidden;
+}
+.home-group--inputs .ht-label {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-group--short .home-tiles {
+  width: 794px;
+}
+.home-group--short .home-tile {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+}
+.home-tile.is-focused {
+  background: var(--accent);
+  color: var(--on-accent);
+  transform: scale(1.05);
+}
+
+/* The weather card. */
+.home .weather {
+  position: absolute;
+  top: var(--hw);
+  left: var(--safe-x);
+  right: var(--safe-x);
+  height: var(--wx-h);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding: 0 36px;
+  border-radius: calc(var(--radius-l) * 1.25);
+  background: var(--tile);
+  box-shadow: inset 0 0 0 var(--line-w) var(--line);
+}
+.home .weather.is-focused {
+  box-shadow: var(--focus-ring);
+}
+.home .weather-now {
+  flex: none;
+  width: 330px;
+  padding-right: 30px;
+  border-right: var(--line-w) solid var(--line-strong);
+}
+.home .weather-label {
+  font-size: 22px;
+  color: var(--text-2);
+}
+.home .weather-temp {
+  font-size: 64px;
+  font-weight: 300;
+  line-height: 1.1;
+}
+.home .weather-desc {
+  font-size: var(--t-min);
+  color: var(--text-2);
+}
+.home .weather-desc.weather-stale {
+  color: var(--star);
+}
+.home .weather-hours {
+  flex: 1;
+  display: flex;
+  justify-content: space-around;
+}
+.home .weather-hour {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: var(--t-small);
+  color: var(--text-2);
+}
+.home .weather-hour > * + * {
+  margin-top: 10px;
+}
+.home .weather-hour b {
+  font-weight: 600;
+  color: var(--text-1);
+}

@@ -15,26 +15,63 @@
   min-width: 0;
 }
 
-#stage[data-ui-size='large'] .lowerrow {
-  margin-top: 36px;
+/* Home's rows on the smaller canvases: the same order and the same slide, closer together so every row stays inside the
+   title-safe area (see screens/home.css for the Normal positions). Inputs and Shortcuts share the width, and their labels
+   wrap. */
+#stage[data-ui-size='large'] .home {
+  --ht: 400px;
+  --ha: 600px;
+  --hl: 834px;
+  --hw: 1048px;
+  --hs: 450px;
 }
-#stage[data-ui-size='large'] .home .nav + .rowtitle {
-  margin-top: 28px;
+#stage[data-ui-size='larger'] .home {
+  --ht: 320px;
+  --ha: 482px;
+  --hl: 676px;
+  --hw: 856px;
+  --hs: 340px;
+  --tile-h: 112px;
+  --in-h: 112px;
+  --wx-h: 150px;
 }
-
-#stage[data-ui-size='larger'] .lowerrow {
-  margin-top: 32px;
+#stage[data-ui-size='large'] .home-group,
+#stage[data-ui-size='larger'] .home-group {
+  flex: 1 1 0;
+  min-width: 0;
 }
-#stage[data-ui-size='larger'] .home .nav + .rowtitle {
-  margin-top: 16px;
+#stage[data-ui-size='large'] .home-group + .home-group,
+#stage[data-ui-size='larger'] .home-group + .home-group {
+  margin-left: 32px;
 }
-#stage[data-ui-size='larger'] .home .nav {
-  margin-top: 8px;
+#stage[data-ui-size='large'] .home-tile,
+#stage[data-ui-size='larger'] .home-tile {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+  margin-left: 14px;
 }
-#stage[data-ui-size='larger'] .approw {
-  height: 200px;
+#stage[data-ui-size='large'] .home-tile:first-child,
+#stage[data-ui-size='larger'] .home-tile:first-child {
+  margin-left: 0;
 }
-
+#stage[data-ui-size='large'] .home-group--short .home-tiles,
+#stage[data-ui-size='larger'] .home-group--short .home-tiles {
+  width: auto;
+}
+#stage[data-ui-size='larger'] .home-tile {
+  font-size: 20px;
+}
+#stage[data-ui-size='larger'] .home .weather {
+  padding: 0 24px;
+}
+#stage[data-ui-size='larger'] .home .weather-now {
+  width: 250px;
+  padding-right: 20px;
+}
+#stage[data-ui-size='larger'] .home .weather-temp {
+  font-size: 52px;
+}
 /* The settings pane is narrower on the smaller canvas: a segmented control of four options keeps inside it. */
 #stage[data-ui-size='larger'] .set-pane .seg-opt {
   padding: 0 14px;

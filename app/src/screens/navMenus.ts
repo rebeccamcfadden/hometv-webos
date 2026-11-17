@@ -170,7 +170,7 @@ function watchScreen(input: TvInput): Screen {
   return screen;
 }
 
-async function showInput(input: TvInput) {
+export async function showInput(input: TvInput) {
   const label = inputLabel(input);
   shell.toast(`Switching to ${label}…`);
   const r = await bridge.platform.inputs.show(input);

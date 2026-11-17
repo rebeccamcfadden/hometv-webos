@@ -17,7 +17,8 @@ test("a v0 build's @v1 import brings in no screen and no data", () => {
 test('v1 screens are reached only through @v1, the nav and Home behind V1', () => {
   assert.doesNotMatch(read('app/src/main.ts'), /screens\/(library|search|person|title)/);
   assert.match(read('app/src/ui/widgets.ts'), /const tabs: \[TabId, string\]\[\] = V1/);
-  assert.match(read('app/src/screens/home.ts'), /if \(V1\) right\.insertBefore\(search/);
+  // Search is in the nav (behind V1 above); Home's own extra, the key page, is a tile only in a v1 build.
+  assert.match(read('app/src/screens/home.ts'), /V1 \? homeTile\('API keys'/);
 });
 
 test('packaging refuses a page with the sample catalogue, and no sample title is in app/src', () => {

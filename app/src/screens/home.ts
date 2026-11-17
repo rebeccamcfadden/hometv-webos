@@ -3,17 +3,20 @@
 
 import { HOME_APPS, homeRow, type HomeApp } from '../apps';
 import { bridge, type AppInfo } from '../bridge';
-import { h } from '../shell/dom';
+import { h, replace } from '../shell/dom';
 import { focusable } from '../shell/focus';
 import { shell, type Key, type Screen } from '../shell/app';
-import { icon } from '../ui/icons';
+import { icon, type IconName } from '../ui/icons';
 import { navBar } from '../ui/widgets';
 import { showAllApps } from './allApps';
 import { showChecks } from './checks';
 import { showKeys } from './keys';
 import { tileMenu } from './homeTileMenu';
 import { showSettings } from './settings';
-import { homeTop } from '../ui/homeTop';
+import { homeHero, weatherCard } from '../ui/homeTop';
+import { inputLabel, openTvPage, showInput } from './navMenus';
+import type { TvInput } from '../platform';
+import './home.css';
 import { V1 } from '../features';
 
 const MODE_TEXT = {
@@ -82,8 +85,45 @@ const rowApps = (): HomeApp[] =>
     (e) => HOME_APPS.filter((a) => a.key === e.id)[0] || { key: e.id, id: e.id, name: e.name, mark: e.name, weight: 500, bg: '#1c1c1e', fg: '#ffffff' },
   );
 
+/** A tile of Home's lower rows: the icon over its label. */
+const homeTile = (label: string, ic: IconName, key: string, group: string, onOk: () => void) =>
+  focusable(h('div.home-tile', h('span', { html: icon(ic, 28) }), h('span.ht-label', label)), { group, key, onOk });
+
 export function homeScreen(): Screen & { setApps(apps: AppInfo[] | null): void } {
-  const el = h('div.screen.home');
+  const el = h('div.screen.screen--full.home');
+  // Everything but the nav moves together when Down reaches Inputs, Shortcuts and the weather (is-scrolled, home.css).
+  const content = h('div.home-content');
+  let inputsBox: HTMLElement | null = null;
+  /**
+   * The Inputs tiles: Live TV, then the HDMI and other ports the TV lists (a device's name when it knows it), four at
+   * most. When the TV won't list them (a PC, or eim refusing), one tile that opens the TV's own inputs page.
+   */
+  const paintInputs = (list: TvInput[] | null, asked: boolean) => {
+    if (!inputsBox) return;
+    const had = !!inputsBox.querySelector('.is-focused');
+    const tv = (list || []).filter((i) => i.kind === 'tv');
+    const ports = (list || []).filter((i) => i.kind !== 'tv');
+    const shownList = tv.concat(ports).slice(0, 4);
+    const tiles = shownList.length
+      ? shownList.map((i) =>
+          homeTile(inputLabel(i), i.kind === 'hdmi' ? 'hdmi' : i.kind === 'av' ? 'av' : 'liveTv', `in-${i.id}`, 'inputs', () => {
+            void showInput(i);
+          }),
+        )
+      : [homeTile(asked ? 'TV inputs' : 'Inputs', 'input', 'in-tv', 'inputs', () => openTvPage('inputs', 'The TV’s inputs'))];
+    replace(inputsBox, tiles);
+    if (had) shell.refocus();
+  };
+  const askInputs = () => {
+    void bridge.platform.inputs.list().then((list) => {
+      if (inputsBox && inputsBox.parentNode) paintInputs(list, true);
+    });
+  };
+  /** Down from the apps lands on the lower rows, which then slide up (design_preview's is-scrolled). */
+  const scrollTo = (f: HTMLElement | null) => {
+    const lower = !!f && !!f.closest && (!!f.closest('.home-lower') || !!f.closest('.weather'));
+    el.classList.toggle('is-scrolled', lower);
+  };
   let lastApps: AppInfo[] | null = null;
   let drawnRow = '';
   let row: HTMLElement | null = null;
@@ -96,11 +136,12 @@ export function homeScreen(): Screen & { setApps(apps: AppInfo[] | null): void }
     const lifted = menu.moving();
     for (const app of shown) row.appendChild(tile(app, lastApps ? lastApps.filter((a) => a.key === app.key)[0] || null : null, app.key === lifted));
     if (!shown.length) row.appendChild(h('div.approw-empty', 'No apps on Home. Hold OK on an app in All apps to add it.'));
-    if (row.nextSibling && (row.nextSibling as HTMLElement).className === 'movehint') el.removeChild(row.nextSibling);
-    if (lifted) el.insertBefore(h('div.movehint', '← → moves it · OK puts it down · Back puts it back'), row.nextSibling);
+    const old = content.querySelector('.movehint');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+    if (lifted) content.appendChild(h('div.movehint', '← → moves it · OK puts it down · Back puts it back'));
     if (focusId !== undefined) {
       const t = row.querySelector(`[data-key="${CSS.escape('app-' + focusId)}"]`) as HTMLElement | null;
-      shell.focus(t || (el.querySelector('[data-key="all-apps"]') as HTMLElement | null));
+      shell.focus(t || (el.querySelector('[data-key="sc-apps"]') as HTMLElement | null));
     }
   };
   const menu = tileMenu({ redraw: (id) => fillRow(id === undefined ? '' : id) });
@@ -109,29 +150,39 @@ export function homeScreen(): Screen & { setApps(apps: AppInfo[] | null): void }
     el,
     // The first app, not the search button or the nav above it.
     defaultFocus: () => el.querySelector('.approw [data-focus]') as HTMLElement | null,
+    onFocus: (f: HTMLElement) => scrollTo(f),
     setApps(apps: AppInfo[] | null) {
       lastApps = apps;
       while (el.firstChild) el.removeChild(el.firstChild);
-      const bar = homeTop();
-      // Search, as design_preview's top bar has it: ↑ from the nav reaches it.
-      const search = focusable(h('button.searchbtn', { 'aria-label': 'Search', html: icon('search', 30) }), {
-        key: 'search',
-        onOk: () => shell.goTab('search'),
-      });
-      const right = bar.querySelector('.topright') as HTMLElement;
-      if (V1) right.insertBefore(search, right.firstChild);
-      el.appendChild(bar);
-      el.appendChild(navBar('home'));
-      el.appendChild(h('h2.rowtitle', 'Apps'));
+      while (content.firstChild) content.removeChild(content.firstChild);
+      // Search, as design_preview's nav has it: v1 only, so v0 has the Home tab and the device icons.
+      const nav = navBar('home');
+      el.appendChild(nav);
+      el.appendChild(content);
+      content.appendChild(homeHero());
       row = h('div.approw');
-      el.appendChild(row);
+      content.appendChild(row);
       fillRow();
-      const all = focusable(h('button.button', 'All apps'), { key: 'all-apps', onOk: showAllApps });
-      const settings = focusable(h('button.button', 'Settings'), { key: 'settings', onOk: () => showSettings() });
-      const checks = focusable(h('button.button', 'Checks for the TV call'), { key: 'checks', onOk: showChecks });
-      // The key page is v1: keys are only needed by v1's screens.
-      const keys = V1 ? focusable(h('button.button', 'API keys'), { key: 'keys', onOk: showKeys }) : null;
-      el.appendChild(h('div.lowerrow', all, settings, checks, keys, h('span.hint', 'Blue key or Info: Checks · the remote’s Home key leaves HomeTV')));
+      // Inputs and Shortcuts, as design_preview's Home has them, and the weather card under them.
+      inputsBox = h('div.home-tiles');
+      paintInputs(null, false);
+      const shortcuts = [
+        homeTile('All apps', 'apps', 'sc-apps', 'shortcuts', showAllApps),
+        homeTile('Launcher settings', 'home', 'sc-launcher', 'shortcuts', () => showSettings()),
+        homeTile('TV Settings', 'settings', 'sc-settings', 'shortcuts', () => openTvPage('main', 'The TV’s settings')),
+        // The first call's checks (Blue or Info open them too); the key page is v1's.
+        homeTile('Call checks', 'info', 'checks', 'shortcuts', showChecks),
+        V1 ? homeTile('API keys', 'filter', 'keys', 'shortcuts', showKeys) : null,
+      ];
+      content.appendChild(
+        h(
+          'div.home-lower',
+          h('div.home-group.home-group--inputs', h('div.home-heading', 'Inputs'), inputsBox),
+          h('div.home-group.home-group--short', h('div.home-heading', 'Shortcuts'), h('div.home-tiles', shortcuts)),
+        ),
+      );
+      content.appendChild(weatherCard(focusable(h('div.weather'), { group: 'weather', key: 'weather', onOk: () => showSettings('weather') })));
+      askInputs();
       shell.refocus();
     },
     // Hold OK on a tile: Move, Remove from Home, App info (homeTileMenu.ts); while moving, it has the keys.
@@ -139,6 +190,7 @@ export function homeScreen(): Screen & { setApps(apps: AppInfo[] | null): void }
     onKey: (key: Key, f: HTMLElement | null) => menu.onKey(key, f),
     // Back from All apps: the row as it now is.
     onShow() {
+      askInputs();
       if (JSON.stringify(rowApps().map((a) => a.key)) !== drawnRow) screen.setApps(lastApps);
     },
   };

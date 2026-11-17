@@ -1,75 +1,70 @@
-/* Home's top bar (ui/homeTop.ts), from design_preview's .home-hero (screens.css at 2bf3c2d): the greeting and date on
-   the left, the clock with the weather under it on the right, sized for the top of Samsung's Home. Chromium 56: margins,
-   not flex gap. */
+/* Home's hero (ui/homeTop.ts), from design_preview's .home-hero (screens.css at 2bf3c2d): the greeting and date at the
+   left, the clock with the forecast under it at the right, bottom-aligned so a problem line under the date grows upward.
+   Where it sits is screens/home.css's. Chromium 53: margins, not flex gap. */
 
-.topbar.home-top {
-  height: auto;
-  align-items: flex-start;
+.home-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
   text-shadow: var(--text-shadow);
+  transition: opacity var(--slow) ease;
 }
 .ht-greeting {
   font-family: var(--font-display);
   font-size: 50px;
   font-weight: var(--display-weight);
-  line-height: 1.1;
 }
 .ht-date {
-  margin-top: 8px;
+  margin-top: 10px;
   font-size: 25px;
   color: var(--text-2);
 }
-.home-top .problem {
+.home-hero .problem {
   position: static;
   margin-top: 10px;
   max-width: 1100px;
+  font-size: 22px;
 }
-.home-top .topright {
-  align-items: flex-start;
-}
-.home-top .pill {
-  margin-top: 14px;
-}
-.ht-clock {
-  margin-left: 32px;
+.home-clock {
   text-align: right;
+}
+.home-clock .pill {
+  display: inline-block;
+  margin-bottom: 12px;
 }
 .ht-time {
   font-family: var(--font-display);
-  font-size: 64px;
+  font-size: 92px;
   font-weight: var(--display-weight);
   line-height: 1;
 }
 .ht-ampm {
-  margin-left: 12px;
+  margin-left: 18px;
   font-family: var(--font-display);
-  font-size: 26px;
+  font-size: 32px;
   color: var(--text-2);
 }
 .ht-wx {
-  min-height: 34px;
-  margin-top: 12px;
+  margin-top: 22px;
+  min-height: 26px;
 }
-.ht-weather {
+.home-forecast {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   font-size: 22px;
   color: var(--text-2);
-  white-space: nowrap;
 }
-.ht-wicon {
-  margin-right: 10px;
+.home-forecast > span {
+  display: inline-flex;
+  margin-left: 12px;
 }
-.ht-temp {
-  margin-right: 12px;
-  font-size: 26px;
-  color: var(--text-1);
+.home-forecast > span:first-child {
+  margin-left: 0;
 }
-.ht-place::before,
-.ht-stale::before {
-  content: '·';
-  margin: 0 10px;
-}
-.ht-stale {
-  color: var(--star);
+.home-forecast .sep {
+  width: 1px;
+  height: 26px;
+  margin: 0 14px 0 26px;
+  background: var(--line-strong);
 }
