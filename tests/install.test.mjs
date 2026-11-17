@@ -446,11 +446,26 @@ test('stop: install.sh refuses (Developer Mode app found on the TV); Telnet is l
   }
 });
 
-test('stop: HomeTV can\'t be put back on the rooted TV', { skip: !SH }, async () => {
-  const s = await happySetup({ telnetEnv: { STUB_INSTALL_FAIL: '1' } });
+test('stop: HomeTV can\'t be put back on the rooted TV (LG\'s installer tried 4 times)', { skip: !SH }, async () => {
+  const s = await happySetup({ telnetEnv: { STUB_INSTALL_FAIL: '9' } });
   try {
     assert.deepEqual(await runInstall(s.ctx), { stopped: 'root-install' });
-    assert.match(s.text(), /couldn't be installed again/);
+    assert.match(s.text(), /couldn't be installed again on the rooted TV \(LG's installer, 4 tries\)/);
+    assert.equal((fs.readFileSync(path.join(s.t, 'tv', 'stub.log'), 'utf8').match(/appInstallService\/dev\/install/g) || []).length, 4);
+    assert.ok(!fs.existsSync(path.join(s.t, 'tv', 'hometv', 'updates', 'current.ipk')), 'no kept copy of an .ipk that didn\'t install');
+    assert.ok(!fs.existsSync(path.join(s.t, 'tv', 'tmp', 'hometv.ipk')));
+  } finally {
+    await s.done();
+  }
+});
+
+test('an install LG\'s installer drops is tried again (lasharor\'s install.sh): the third try counts', { skip: !SH }, async () => {
+  const s = await happySetup({ telnetEnv: { STUB_INSTALL_FAIL: '2' } });
+  try {
+    await runInstall(s.ctx);
+    assert.equal(loadState(s.laptop).steps['root-install'].status, 'done');
+    assert.match(s.text(), /didn't finish \(try 1 of 4\); trying again[\s\S]*try 2 of 4[\s\S]*HomeTV installed again/);
+    assert.match(fs.readFileSync(path.join(s.t, 'tv', 'stub.log'), 'utf8'), /getAppInfo .*com\.hometv\.app/, 'registration checked');
   } finally {
     await s.done();
   }

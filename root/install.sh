@@ -1,14 +1,20 @@
 #!/bin/sh
 # Installs HomeTV's root edition on a rooted TV (run as root, from the folder holding these scripts). Refuses unless:
-# the TV is rooted with Homebrew Channel's start-up hooks, the Developer Mode app is gone, HomeTV is installed, and LG's
-# Home is the flutter or web kind. Saves LG Home's own appinfo first (once, never over a mounted Home), copies the
+# it's webOS 5 or newer (luna-send, systemd, a Node that runs decide.js), the TV is rooted with Homebrew Channel's
+# start-up hooks, the HomeTV folder is writable, the Developer Mode app is gone, HomeTV is installed, and LG's Home is
+# the flutter or web kind. Saves LG Home's own appinfo first (once, never over a mounted Home), copies the
 # scripts, and adds the two start-up hooks. Takes effect at the next restart. Undo: uninstall.sh.
 . "$(dirname "$0")/lib.sh"
 DEVMODE_APP=${HOMETV_DEVMODE_APP:-/media/cryptofs/apps/usr/palm/applications/com.palmdts.devmode}
 SRC=$(cd "$(dirname "$0")" && pwd)
 fail() { echo "install: $*" >&2; say "install: refused: $*"; exit 1; }
 [ "${HOMETV_SKIP_ROOT_CHECK:-}" = 1 ] || [ "$(id -u)" = 0 ] || fail "not root"
+command -v luna-send >/dev/null 2>&1 || fail "this doesn't look like webOS (no luna-send)"
+# webOS 4 and older: no systemd and a Node too old for decide.js (lasharor's install.sh, MIT, read at 2debe62)
+command -v systemctl >/dev/null 2>&1 || fail "no systemd (webOS older than 5)"
+node -e '(()=>1)()' >/dev/null 2>&1 || fail "this TV's Node.js is missing or too old"
 [ -d "$INITD" ] || fail "no Homebrew Channel start-up hooks ($INITD)"
+mkdir -p "$D" 2>/dev/null && [ -w "$D" ] || fail "can't write $D"
 [ -e "$DEVMODE_APP" ] && fail "the Developer Mode app is installed: remove it and restart first"
 [ -f "$APP/index.html" ] || fail "HomeTV isn't installed ($APP)"
 mkdir -p "$D/backup"

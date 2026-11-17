@@ -280,11 +280,14 @@ test('debloat only one group', { skip: !SH }, () => {
   }
 });
 
-test('install refuses without Homebrew hooks, with the Developer Mode app, without HomeTV, or a native Home', { skip: !SH }, () => {
+test('install refuses without Homebrew hooks, with the Developer Mode app, without HomeTV, before webOS 5, or a native Home', { skip: !SH }, () => {
   const cases = [
     ['no hooks', (s) => fs.rmSync(path.join(s.t, 'initd'), { recursive: true }), /no Homebrew Channel start-up hooks/],
     ['devmode', (s) => fs.mkdirSync(path.join(s.t, 'devmode-app')), /Developer Mode app is installed/],
-    ['no app', (s) => fs.rmSync(path.join(s.t, 'app', 'index.html')), /HomeTV isn't installed/]
+    ['no app', (s) => fs.rmSync(path.join(s.t, 'app', 'index.html')), /HomeTV isn't installed/],
+    // webOS 4 and older (lasharor's install.sh checks)
+    ['no systemd', (s) => fs.rmSync(path.join(s.t, 'bin', 'systemctl')), /no systemd/],
+    ['not webOS', (s) => fs.rmSync(path.join(s.t, 'bin', 'luna-send')), /no luna-send/]
   ];
   for (const [name, prep, re] of cases) {
     const s = setup();

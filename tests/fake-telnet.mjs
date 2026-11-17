@@ -1,6 +1,6 @@
 // A pretend Homebrew Channel Telnet (the rooted TV's port 23 root shell) for the tests: Git's sh behind a TCP port,
 // with what a terminal adds (Telnet option questions, each line sent back until `stty -echo`, CR LF line ends, stray
-// option bytes in the output). Commands run on this PC in a folder that stands for the TV; the stub luna-send keeps
+// option bytes in the output). STUB_INSTALL_FAIL=n: LG's installer fails the first n installs. Commands run on this PC in a folder that stands for the TV; the stub luna-send keeps
 // Homebrew Channel's switches as files there, as its service does in /var/luna/preferences.
 import net from 'node:net';
 import fs from 'node:fs';
@@ -16,6 +16,7 @@ export const msys = (p) => fwd(p).replace(/^([A-Za-z]):/, (m, d) => '/' + d.toLo
 export const STUBS = {
   id: 'echo 0',
   stty: 'exit 0',
+  systemctl: 'exit 0',
   'luna-send': `echo "luna $*" >> "$STUB_LOG"
 case "$*" in
   *hbchannel.service/setConfiguration*)
@@ -30,7 +31,8 @@ case "$*" in
     printf '{\\n    "returnValue": true,\\n    "root": %s,\\n    "telnetDisabled": %s,\\n    "sshdEnabled": %s,\\n    "blockUpdates": %s,\\n    "failsafe": false\\n}\\n' \\
       "\${STUB_HBC_ROOT:-true}" "$(f webosbrew_telnet_disabled)" "$(f webosbrew_sshd_enabled)" "$(f webosbrew_block_updates)";;
   *appInstallService/dev/install*)
-    if [ -n "$STUB_INSTALL_FAIL" ]; then echo '{"details": {"state": "install failed"}}'
+    n=$(cat "$STUB_LOG.installs" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$STUB_LOG.installs"
+    if [ -n "$STUB_INSTALL_FAIL" ] && [ "$n" -le "$STUB_INSTALL_FAIL" ]; then echo '{"details": {"state": "install failed"}}'
     else mkdir -p "$STUB_APP" && echo '<title>HomeTV</title>' > "$STUB_APP/index.html" && echo '{"details": {"state": "installed"}}'; fi;;
   *getForegroundAppInfo*) echo '{"appId": "com.webos.app.home"}';;
   *) echo '{"returnValue": true}';;

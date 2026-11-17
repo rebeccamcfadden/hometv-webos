@@ -26,6 +26,7 @@ const HOME = 'com.webos.app.home';
 const DEVMODE = 'com.palmdts.devmode';
 const HBC = 'org.webosbrew.hbchannel';
 const HBC_SERVICE = 'luna://org.webosbrew.hbchannel.service/';
+const INSTALL_TRIES = 4;
 
 /** Where things are on the TV (root/lib.sh's defaults; the tests point them at a folder on the PC). */
 export const TV_PATHS = {
@@ -478,16 +479,35 @@ export const STEPS = [
           const out = P.tmp + '/hometv-install.out';
           const ipkVersion = (/^com\.hometv\.app_(\d+\.\d+\.\d+)_/.exec(path.basename(ipk)) || [])[1] || '';
           await pushFile(sh, tmp, fs.readFileSync(ipk));
-          // As Homebrew Channel's own tools/install.sh and SlopBro's autoroot.sh: LG's installer, as root
+          // As Homebrew Channel's own tools/install.sh and SlopBro's autoroot.sh: LG's installer, as root. As lasharor's
+          // install.sh (MIT, read at 2debe62): an install can be dropped without a word (after a sam restart there), so it
+          // counts only once LG's installer reports the state "installed" and the app is registered, and is tried up to 4 times.
           const payload = JSON.stringify({ id: 'com.ares.defaultName', ipkUrl: tmp, subscribe: true });
-          await sh.run('rm -f ' + q(out) + '; luna-send -w 60000 -i ' + q('luna://com.webos.appInstallService/dev/install') + ' ' + q(payload) +
-            ' > ' + q(out) + ' 2>&1 & p=$!; i=0; while [ $i -lt 90 ] && ! grep -q -e installed -e failed ' + q(out) +
-            '; do sleep 1; i=$((i+1)); done; kill $p 2>/dev/null; ' +
-            // kept for Settings › Updates: the copy an in-TV update falls back to (service/update-apply.js)
-            'grep -q installed ' + q(out) + ' && mkdir -p ' + q(P.dir + '/updates') + ' && cp ' + q(tmp) + ' ' + q(P.dir + '/updates/current.ipk') +
-            (ipkVersion ? ' && echo ' + q(ipkVersion) + ' > ' + q(P.dir + '/updates/current.version') : '') + '; rm -f ' + q(tmp), { ms: 120000 });
-          const ok = await sh.run('grep -q installed ' + q(out) + ' && [ -f ' + q(P.app + '/index.html') + ' ]');
-          if (ok.code !== 0) return stop('HomeTV couldn\'t be installed again on the rooted TV.', 'Install it from Homebrew Channel, or tell the HomeTV team.');
+          const done = '"state": *"installed"';
+          const appInfo = q(JSON.stringify({ id: APP }));
+          let tries = 0;
+          let installed = false;
+          while (!installed && tries < INSTALL_TRIES) {
+            tries++;
+            const r = await sh.run('rm -f ' + q(out) + '; luna-send -w 60000 -i ' + q('luna://com.webos.appInstallService/dev/install') + ' ' + q(payload) +
+              ' > ' + q(out) + ' 2>&1 & p=$!; i=0; while [ $i -lt 90 ] && ! grep -Eq ' + q(done) + ' ' + q(out) + ' && ! grep -Eq ' +
+              q('failed|"returnValue": *false') + ' ' + q(out) + '; do sleep 1; i=$((i+1)); done; kill $p 2>/dev/null; ' +
+              'if grep -Eq ' + q(done) + ' ' + q(out) + '; then j=0; while [ $j -lt 8 ]; do [ -f ' + q(P.app + '/index.html') + ' ] && ' +
+              'luna-send -n 1 -w 5000 -f ' + q('luna://com.webos.applicationManager/getAppInfo') + ' ' + appInfo +
+              ' 2>/dev/null | grep -Eq ' + q('"returnValue": *true') + ' && echo hometv-registered && break; sleep 3; j=$((j+1)); done; fi', { ms: 180000 });
+            installed = /hometv-registered/.test(r.out);
+            if (!installed && tries < INSTALL_TRIES) ctx.say('  LG\'s installer didn\'t finish (try ' + tries + ' of ' + INSTALL_TRIES + '); trying again');
+          }
+          // kept for Settings › Updates: the copy an in-TV update falls back to (service/update-apply.js)
+          if (installed) {
+            await sh.run('mkdir -p ' + q(P.dir + '/updates') + ' && cp ' + q(tmp) + ' ' + q(P.dir + '/updates/current.ipk') +
+              (ipkVersion ? ' && echo ' + q(ipkVersion) + ' > ' + q(P.dir + '/updates/current.version') : ''));
+          }
+          await sh.run('rm -f ' + q(tmp));
+          if (!installed) {
+            return stop('HomeTV couldn\'t be installed again on the rooted TV (LG\'s installer, ' + INSTALL_TRIES + ' tries).',
+              'Install it from Homebrew Channel, or tell the HomeTV team.');
+          }
           ctx.say('  ✓ HomeTV installed again (' + path.basename(ipk) + ')');
         } else {
           ctx.say('  ✓ HomeTV is installed');
