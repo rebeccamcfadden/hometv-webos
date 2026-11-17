@@ -197,6 +197,8 @@ export function createFakeTv({ shellConfig, bundled = {}, routes = () => null, i
     bundled,
     routes,
     starts: [],
+    // The wall clock (Date.now()) the TV's pages see: it moves on with each start's ticks, and a test can move it.
+    clock: Date.UTC(2026, 10, 17, 12),
   };
   tv.start = (opts = {}) => {
     const s = startApp(tv, opts);
@@ -384,6 +386,8 @@ function startApp(tv, { before } = {}) {
   if (indexedDB) sandbox.indexedDB = indexedDB;
   const ctx = vm.createContext(sandbox);
   vm.runInContext('var window = this; var self = this;', ctx);
+  const startedAt = tv.clock;
+  vm.runInContext('Date', ctx).now = () => startedAt + now;
   if (before) before(ctx);
 
   /** Lets every pending callback run (store, network, script loads). */
@@ -408,6 +412,7 @@ function startApp(tv, { before } = {}) {
       await app.idle();
     }
     now = end;
+    tv.clock = Math.max(tv.clock, startedAt + now);
   };
   /** The app is closed: its callbacks and timers stop. */
   app.stop = () => {

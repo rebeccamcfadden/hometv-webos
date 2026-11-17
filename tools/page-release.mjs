@@ -49,12 +49,14 @@ export function checkScriptsUseNoFiles({ entry, files }) {
   }
 }
 
-export function makeManifest({ version, minShell, entry, files }) {
+/** `appVersion`, when given: the newest app (.ipk), so Settings › Updates can say a new app is out. */
+export function makeManifest({ version, minShell, entry, files, appVersion }) {
   return {
     format: FORMAT,
     app: APP,
     version,
     minShell,
+    ...(appVersion ? { appVersion } : {}),
     entry,
     files: files.map((f) => ({
       path: f.path,
@@ -65,9 +67,9 @@ export function makeManifest({ version, minShell, entry, files }) {
 }
 
 /** Signs the manifest's exact bytes with Ed25519. Returns what goes on the server. */
-export function makeRelease({ version, minShell, entry, files, privateKey }) {
+export function makeRelease({ version, minShell, entry, files, privateKey, appVersion }) {
   checkScriptsUseNoFiles({ entry, files });
-  const manifest = makeManifest({ version, minShell, entry, files });
+  const manifest = makeManifest({ version, minShell, entry, files, appVersion });
   const manifestBytes = Buffer.from(JSON.stringify(manifest, null, 1) + '\n', 'utf8');
   const signature = crypto.sign(null, manifestBytes, privateKey).toString('base64');
   return { manifest, manifestBytes, signature, files };
@@ -107,7 +109,7 @@ function arg(name) {
 
 export function releaseFromDist({ dist, out, privateKey, minShell }) {
   const page = readDist(dist);
-  const release = makeRelease({ ...page, minShell: minShell || page.shellVersion, privateKey });
+  const release = makeRelease({ ...page, minShell: minShell || page.shellVersion, appVersion: page.shellVersion, privateKey });
   writeRelease(out, release);
   return { page, release };
 }

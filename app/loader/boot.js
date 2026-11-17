@@ -20,7 +20,11 @@
   // Reading a page back never holds Home longer than this: the app's own page shows instead, this time.
   var READ_TIMEOUT_MS = SHELL.readTimeoutMs || 5000;
   var UPDATE_DELAY_MS = SHELL.updateDelayMs == null ? 10000 : SHELL.updateDelayMs;
-  var CHECK_EVERY_MS = (SHELL.checkHours || 12) * 3600000;
+  // Settings › Updates' "Check for updates" (on unless the person turns it off) looks at most once a day while Home
+  // shows; the time of the last look is kept, so restarts don't add looks. Nothing is downloaded until Install update.
+  var CHECK_EVERY_MS = (SHELL.checkHours == null ? 24 : SHELL.checkHours) * 3600000;
+  var RECHECK_MS = Math.max(CHECK_EVERY_MS, 3600000);
+  var PREFS_KEY = "hometv.updates";
   var SKIP_KEEP = 20;
   var STRIKES = 2;
   var BUNDLED = SHELL.page || { version: "0.0.0", entry: { css: [], js: [], body: "" } };
@@ -97,7 +101,7 @@
     if (Object.prototype.toString.call(s.skip) !== "[object Array]") {
       s.skip = [];
     }
-    var names = ["next", "good", "prev", "trying", "partial", "inlineBlocked"];
+    var names = ["next", "good", "prev", "trying", "partial", "inlineBlocked", "available", "appNewer"];
     for (var i = 0; i < names.length; i++) {
       if (typeof s[names[i]] !== "string") {
         s[names[i]] = null;
@@ -113,6 +117,27 @@
       }
     } catch (e) {
       // A full or missing store: the bundled page still works.
+    }
+  }
+
+  /** Settings › Updates: { check: look by itself (default true), at: the last look, epoch ms (0: never) }. */
+  function loadPrefs() {
+    var p = null;
+    try {
+      p = JSON.parse((storage && storage.getItem(PREFS_KEY)) || "null");
+    } catch (e) {
+      p = null;
+    }
+    return { check: !(isObject(p) && p.check === false), at: isObject(p) && typeof p.at === "number" ? p.at : 0 };
+  }
+
+  function savePrefs(p) {
+    try {
+      if (storage) {
+        storage.setItem(PREFS_KEY, JSON.stringify(p));
+      }
+    } catch (e) {
+      // Blocked storage: no updates either (canUpdate needs it).
     }
   }
 
@@ -749,11 +774,12 @@
     },
   };
 
-  function checkNow(done) {
+  /** Runs one step of update.js ("look" or "install") unless one is running; notes its result for status(). */
+  function withUpdater(step, done) {
     if (updating || !canUpdate()) {
-      return done && done(null, "off");
+      return done && done(null, updating ? "busy" : "off");
     }
-    updating = true;
+    updating = step;
     function finish(err, result) {
       updating = false;
       info.lastCheck = { at: new Date().toISOString(), result: err ? "failed: " + (err.message || err) : result };
@@ -761,15 +787,30 @@
         done(err, result);
       }
     }
-    if (win.HomeTVUpdate && win.HomeTVUpdate.run) {
-      return win.HomeTVUpdate.run(updaterApi, finish);
+    if (step === "look") {
+      var p = loadPrefs();
+      p.at = Date.now();
+      savePrefs(p);
+    }
+    if (win.HomeTVUpdate && win.HomeTVUpdate[step]) {
+      return win.HomeTVUpdate[step](updaterApi, finish);
     }
     loadScript("update.js", function (err) {
       if (err || !win.HomeTVUpdate) {
         return finish(err || new Error("update.js didn't load"));
       }
-      win.HomeTVUpdate.run(updaterApi, finish);
+      win.HomeTVUpdate[step](updaterApi, finish);
     });
+  }
+
+  /** Looks for a newer page now (Settings' Check now, or the daily look); downloads nothing. */
+  function checkNow(done) {
+    withUpdater("look", done);
+  }
+
+  /** Install update: downloads and checks the page on offer; restart() then shows it. */
+  function installNow(done) {
+    withUpdater("install", done);
   }
 
   function scheduleUpdates() {
@@ -777,8 +818,13 @@
       return;
     }
     win.setTimeout(function again() {
+      var p = loadPrefs();
+      var due = p.check && (!p.at || Date.now() - p.at >= CHECK_EVERY_MS || Date.now() < p.at);
+      if (!due) {
+        return win.setTimeout(again, RECHECK_MS);
+      }
       checkNow(function () {
-        win.setTimeout(again, CHECK_EVERY_MS);
+        win.setTimeout(again, RECHECK_MS);
       });
     }, UPDATE_DELAY_MS);
   }
@@ -786,8 +832,23 @@
   win.HomeTVBoot = {
     started: started,
     checkNow: checkNow,
+    installNow: installNow,
+    /** Check for updates on or off (Settings › Updates); a manual Check now works either way. */
+    setCheck: function (on) {
+      var p = loadPrefs();
+      p.check = !!on;
+      savePrefs(p);
+    },
+    /**
+     * Starts HomeTV again, so a downloaded page shows now. A page that doesn't reach Home in START_TIMEOUT_MS, twice,
+     * gives way to the previous one and is never offered again (failedStart).
+     */
+    restart: function () {
+      win.location.reload();
+    },
     status: function () {
       var s = loadState();
+      var p = loadPrefs();
       return {
         page: info.page,
         source: info.source,
@@ -800,6 +861,11 @@
         skipped: s.skip.slice(0),
         note: info.note,
         lastCheck: info.lastCheck,
+        checkOn: p.check,
+        checkedAt: p.at || null,
+        available: s.available,
+        appNewer: s.appNewer,
+        busy: updating || null,
       };
     },
     compareVersions: compareVersions,

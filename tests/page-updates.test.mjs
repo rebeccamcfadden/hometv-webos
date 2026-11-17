@@ -26,8 +26,9 @@ const ENTRY = { css: ['assets/style.css'], js: ['assets/vendor.js', 'assets/app.
 const keys = makeKeyPair();
 const otherKeys = makeKeyPair();
 
-function shellConfig({ updateUrl = MANIFEST, pubKeys = [keys.publicKey], shell = '1.0.0' } = {}) {
+function shellConfig({ updateUrl = MANIFEST, pubKeys = [keys.publicKey], shell = '1.0.0', checkHours = 0 } = {}) {
   return {
+    checkHours,
     shellVersion: shell,
     page: { version: '1.0.0', entry: { css: ['assets/style.css'], js: ['assets/app.js'], body: '<div id="stage"></div>' } },
     updateUrl,
@@ -92,12 +93,24 @@ function makeTv(opts = {}) {
   return { tv, srv };
 }
 
-/** One start of the app: page shown, Home reached (or not), then `after` ms on the clock. */
-async function start(tv, after = 0, opts) {
+/**
+ * One start of the app: page shown, Home reached (or not), then `after` ms on the clock. When that look found a newer
+ * page, the person presses Install update (Settings › Updates), unless `opts.install` is false.
+ */
+async function start(tv, after = 0, opts = {}) {
   const app = tv.start(opts);
   await app.ready;
   if (after) await app.tick(after);
+  if (after && opts.install !== false && app.status().available) await install(app);
   return app;
+}
+
+/** Install update, pressed: the download runs to its end. */
+async function install(app) {
+  let result;
+  app.win.HomeTVBoot.installNow((err, r) => (result = err ? 'failed' : r));
+  await app.tick(0);
+  return result;
 }
 
 /** A value from the page's own world, as plain data (its arrays have another Array prototype). */
@@ -300,12 +313,69 @@ test('a wrong hash, a bad or missing signature is refused and leaves nothing beh
   srv.tamper = {};
   srv.offer = release('1.1.0', { minShell: '2.0.0' });
   const five = await start(tv, 11000);
-  assert.match(five.status().lastCheck.result, /refused: needs app 2\.0\.0 or newer/);
+  assert.equal(five.status().lastCheck.result, 'needs app 2.0.0');
+  assert.equal(five.status().appNewer, '2.0.0', 'Settings says a new app is out');
+  assert.equal(five.status().available, null);
   five.stop();
 
   const six = await start(tv);
   assert.equal(six.win.shown, 'bundled');
   assert.deepEqual(files(tv), []);
+});
+
+test('a look downloads nothing: Install update does, and restart() shows the page now', async () => {
+  const { tv, srv } = makeTv();
+  srv.offer = release('1.1.0');
+  const app = await start(tv, 11000, { install: false });
+  assert.equal(app.status().lastCheck.result, 'available 1.1.0');
+  assert.equal(app.status().available, '1.1.0');
+  assert.equal(app.requests.filter((r) => r.url.includes('/1.1.0/')).length, 0, 'no page file before Install');
+  assert.deepEqual(files(tv), []);
+  assert.equal(await install(app), 'downloaded 1.1.0');
+  assert.equal(app.status().available, null);
+  assert.equal(app.state().next, '1.1.0');
+  app.win.HomeTVBoot.restart();
+  assert.equal(app.reloaded, 1);
+  app.stop();
+  const two = await start(tv);
+  assert.equal(two.win.shown, '1.1.0');
+});
+
+test('check for updates: at most once a day while Home shows, never across restarts; off means no look by itself', async () => {
+  const { tv, srv } = makeTv({ checkHours: 24 });
+  srv.offer = release('1.1.0');
+  const looks = (app) => app.requests.filter((r) => /manifest\.json\?/.test(r.url)).length;
+  const one = await start(tv, 11000, { install: false });
+  assert.equal(looks(one), 1);
+  assert.equal(one.status().checkOn, true, 'on by default');
+  await one.tick(23 * 3600000);
+  assert.equal(looks(one), 1, 'not again within the day');
+  await one.tick(3600000);
+  assert.equal(looks(one), 2, 'again after a day, Home still showing');
+  one.stop();
+  const two = await start(tv, 2 * 3600000, { install: false });
+  assert.equal(looks(two), 0, 'a restart adds no look');
+  two.win.HomeTVBoot.setCheck(false);
+  tv.clock += 48 * 3600000;
+  two.stop();
+  const three = await start(tv, 2 * 3600000, { install: false });
+  assert.equal(looks(three), 0, 'off: no look by itself');
+  assert.equal(three.status().checkOn, false);
+  let r;
+  three.win.HomeTVBoot.checkNow((e, x) => (r = x));
+  await three.tick(0);
+  assert.equal(r, 'available 1.1.0', 'Check now still works');
+});
+
+test('a manifest naming a newer app: the page installs, Settings says the app needs the laptop or the service', async () => {
+  const { tv, srv } = makeTv();
+  const m = release('1.1.0').manifest;
+  m.appVersion = '1.2.0';
+  const [bytes, sig] = signed(m);
+  srv.offer = { ...release('1.1.0'), manifestBytes: bytes, signature: sig };
+  const app = await start(tv, 11000, { install: false });
+  assert.equal(app.status().available, '1.1.0');
+  assert.equal(app.status().appNewer, '1.2.0');
 });
 
 test('a page that never reaches Home: reload after 20 s, a second try, then back to the previous good page', async () => {
@@ -579,6 +649,7 @@ test('a manifest query string is kept and the signature sits beside it', async (
   const app = tv.start();
   await app.ready;
   await app.tick(11000);
+  await install(app);
   assert.equal(app.status().lastCheck.result, 'downloaded 1.1.0');
   assert.match(seen[0], /manifest\.json\?channel=beta&t=\d+$/);
   assert.match(seen[1], /manifest\.json\.sig\?channel=beta&t=\d+$/);

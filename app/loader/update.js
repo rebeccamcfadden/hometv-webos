@@ -7,6 +7,9 @@
 // the TV has, needing no newer app than this one; then each file, from <manifest folder>/<version>/<path>, with the
 // size and SHA-512 the manifest lists. TweetNaCl (vendor/tweetnacl, nacl-fast.min.js) does the checks. Ported from
 // hometv-tizen's app/loader/update.js (5ac0b52); the checks are the same, only the app name and the storage differ.
+// Two steps, as Android's launcher has them (Settings › Updates): look() only reads the signed manifest and notes what
+// is on offer; install() downloads the page, and only when the person pressed Install update. A manifest may name the
+// newest app (appVersion): a page can't install an app, so Settings says the laptop (or, rooted, HomeTV's service) does.
 (function (win) {
   "use strict";
 
@@ -108,6 +111,9 @@
     if (cmp(m.minShell, "0.0.0") === null) {
       return "bad minShell " + m.minShell;
     }
+    if (m.appVersion !== undefined && cmp(m.appVersion, "0.0.0") === null) {
+      return "bad appVersion " + m.appVersion;
+    }
     if (cmp(m.minShell, ctx.shellVersion) > 0) {
       return "needs app " + m.minShell + " or newer (this is " + ctx.shellVersion + ")";
     }
@@ -161,7 +167,10 @@
     return null;
   }
 
-  /** Checks the manifest's bytes and signature; returns { manifest, key } or { refused: reason }. */
+  /**
+   * Checks the manifest's bytes and signature; returns { manifest, key } or { refused: reason }. A signed manifest that
+   * is refused for its contents comes back as well ({ refused, signed }), so look() can say what it offers.
+   */
   function check(nacl, bytes, sigText, ctx) {
     bytes = toBytes(bytes);
     if (bytes.length > MAX_MANIFEST) {
@@ -178,7 +187,7 @@
       return { refused: "manifest is not JSON" };
     }
     var why = validate(m, ctx);
-    return why ? { refused: why } : { manifest: m, key: key };
+    return why ? { refused: why, signed: m } : { manifest: m, key: key };
   }
 
   function get(url, binary, cb) {
@@ -244,46 +253,98 @@
     });
   }
 
-  /** One update check. done(err, result): result is "up to date", "downloaded <v>" or "refused: <reason>". */
-  function run(api, done) {
+  /** The signed manifest now on offer: cb(err, c, nacl), c as check() returns it. */
+  function fetchManifest(api, cb) {
     var shell = api.shell;
-    var fs = api.fs;
-    var cmp = api.compareVersions;
     var stamp = new Date().getTime();
     var url = splitUrl(shell.updateUrl);
     var sigUrl = url.path + ".sig" + url.query;
-    var folder = url.path.replace(/[^\/]*$/, "");
-    var signedWith = null;
-
     ensureNacl(api, function (err, nacl) {
       if (err) {
-        return done(err);
+        return cb(err);
       }
       get(withNoCache(shell.updateUrl, stamp), true, function (err, bytes) {
         if (err) {
-          return done(err);
+          return cb(err);
         }
         get(withNoCache(sigUrl, stamp), false, function (err, sigText) {
           if (err) {
-            return done(err);
+            return cb(err);
           }
           var s = api.loadState();
-          var have = [shell.pageVersion, s.good, s.next, api.current()];
-          var c = check(nacl, bytes, sigText, {
+          cb(null, check(nacl, bytes, sigText, {
             keys: shell.keys,
             shellVersion: shell.version,
-            have: have,
+            have: [shell.pageVersion, s.good, s.next, api.current()],
             skip: s.skip,
-            compareVersions: cmp,
-          });
-          if (c.refused) {
-            // Same or older is the everyday answer, not a problem.
-            return done(null, /not newer/.test(c.refused) ? "up to date" : "refused: " + c.refused);
-          }
-          signedWith = c.key;
-          download(c.manifest, nacl);
+            compareVersions: api.compareVersions,
+          }), nacl);
         });
       });
+    });
+  }
+
+  /** The newest app a manifest names (its appVersion, or the app its page needs), when newer than this one. */
+  function newerApp(api, m) {
+    var best = null;
+    var names = m ? [m.appVersion, m.minShell] : [];
+    for (var i = 0; i < names.length; i++) {
+      var v = names[i];
+      if (api.compareVersions(v, api.shell.version) === 1 && (!best || api.compareVersions(v, best) === 1)) {
+        best = v;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Looks only: reads the signed manifest and notes in the state what is on offer (available, appNewer). Downloads no
+   * page file. done(err, result): "available <v>", "up to date", "needs app <v>" or "refused: <reason>".
+   */
+  function look(api, done) {
+    fetchManifest(api, function (err, c) {
+      if (err) {
+        return done(err);
+      }
+      var s = api.loadState();
+      s.available = c.manifest ? c.manifest.version : null;
+      s.appNewer = newerApp(api, c.manifest || c.signed);
+      api.saveState(s);
+      if (c.manifest) {
+        return done(null, "available " + c.manifest.version);
+      }
+      if (/not newer/.test(c.refused)) {
+        return done(null, "up to date");
+      }
+      if (/^needs app/.test(c.refused)) {
+        return done(null, "needs app " + c.signed.minShell);
+      }
+      done(null, "refused: " + c.refused);
+    });
+  }
+
+  /**
+   * Installs: checks the manifest again, then downloads and checks each file into the page store. It never changes the
+   * page shown now; boot.js shows it at the next start (HomeTVBoot.restart() starts again now). done(err, result):
+   * "downloaded <v>", "up to date" or "refused: <reason>".
+   */
+  function install(api, done) {
+    var shell = api.shell;
+    var fs = api.fs;
+    var url = splitUrl(shell.updateUrl);
+    var folder = url.path.replace(/[^\/]*$/, "");
+    var signedWith = null;
+
+    fetchManifest(api, function (err, c, nacl) {
+      if (err) {
+        return done(err);
+      }
+      if (c.refused) {
+        // Same or older is the everyday answer, not a problem.
+        return done(null, /not newer/.test(c.refused) ? "up to date" : "refused: " + c.refused);
+      }
+      signedWith = c.key;
+      download(c.manifest, nacl);
     });
 
     function download(m, nacl) {
@@ -367,10 +428,11 @@
       };
       s.next = m.version;
       s.partial = null;
+      s.available = null;
       api.saveState(s);
       done(null, "downloaded " + m.version);
     }
   }
 
-  win.HomeTVUpdate = { run: run, check: check, validate: validate };
+  win.HomeTVUpdate = { look: look, install: install, run: install, check: check, validate: validate };
 })(window);
