@@ -59,9 +59,9 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
   const slopbro = [];
   const logins = [];
   const sticks = [];
-  const flags = { defaultPassword: false, lost: [] };
+  const flags = { defaultPassword: false, lost: [], homeUp: 'mounted\nalive\n', rollBacks: 0 };
   const ctx = {
-    host: '127.0.0.1', dir: laptop, ipk, kit,
+    host: '127.0.0.1', dir: laptop, ipk, kit, verifyWaitMs: 0,
     ssapPorts: [{ url: 'ws://127.0.0.1:' + ws + '/', insecure: false }],
     reachAddress: '127.0.0.1', reachWaitMs: 5000, launchWaitMs: 2000,
     telnetPort, sshPort, tvPaths: rooted.tvPaths, telnetTimeoutMs: 60000,
@@ -89,6 +89,14 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
         if (cmd.includes('hbchannel.service/getConfiguration')) {
           const f = (n) => !flags.lost.includes(n) && fs.existsSync(path.join(t, 'tv', 'prefs', 'webosbrew_' + n));
           return { code: 0, stdout: JSON.stringify({ returnValue: true, root: true, telnetDisabled: f('telnet_disabled'), sshdEnabled: f('sshd_enabled'), blockUpdates: f('block_updates') }), stderr: '' };
+        }
+        // the takeover check: mounted over LG's Home, the page's heartbeat fresh
+        if (cmd.includes('statSync')) return { code: 0, stdout: flags.homeUp, stderr: '' };
+        // the roll back: undo-home.sh for good takes HomeTV's two hooks out; the boot notes come back
+        if (cmd.includes('undo-home.sh')) {
+          flags.rollBacks++;
+          for (const h of ['10-hometv-home', '15-hometv-debloat']) fs.rmSync(path.join(t, 'tv', 'initd', h), { force: true });
+          return { code: 0, stdout: '---\n12.3 home: mounting HomeTV over LG\'s Home at 192.168.1.50, restarting sam\n', stderr: '' };
         }
         return { code: 127, stdout: '', stderr: 'not in the pretend ssh' };
       }
@@ -481,7 +489,7 @@ test('stop: Homebrew Channel ignores the Telnet and SSH switches', { skip: !SH }
   }
 });
 
-test('restart check: Telnet still open, or not HomeTV on screen, stops', { skip: !SH, timeout: 180000 }, async () => {
+test('restart check: Telnet still open stops; not HomeTV on screen rolls the takeover back', { skip: !SH, timeout: 180000 }, async () => {
   const s = await happySetup();
   s.ctx.ask = ((ask) => async (q) => (q.includes('back on') ? '' : ask(q)))(s.ctx.ask); // the port stays open
   try {
@@ -491,9 +499,30 @@ test('restart check: Telnet still open, or not HomeTV on screen, stops', { skip:
     await s.tn.stop();
     s.ctx.ask = ((ask) => async (q) => (q.includes('HomeTV on screen') ? 'n' : ask(q)))(s.ctx.ask);
     assert.deepEqual(await runInstall(s.ctx), { stopped: 'restart-check' });
-    assert.match(s.text(), /HomeTV didn't take over Home/);
-    assert.match(s.text(), /root@<tv ip>/);
+    assert.match(s.text(), /HomeTV didn't come up as Home \(you saw LG's own Home\), so it was rolled back: its start-up hooks are removed/);
+    assert.equal(s.flags.rollBacks, 1);
+    assert.ok(!fs.existsSync(path.join(s.t, 'tv', 'initd', '10-hometv-home')));
+    assert.match(s.text(), /start-up notes[\s\S]*mounting HomeTV over LG's Home at <ip>/, 'the boot notes, masked');
+    assert.match(s.text(), /--home-again/);
+    assert.match(loadState(s.laptop).steps['restart-check'].why, /rolled back/, 'said in the report');
     noSecrets(s);
+  } finally {
+    await s.done();
+  }
+});
+
+test('restart check: HomeTV not mounted, or its page not answering, rolls back (lasharor\'s bootstrap.sh verify)', { skip: !SH, timeout: 180000 }, async () => {
+  const s = await happySetup();
+  s.flags.homeUp = 'mounted\nstale\n';
+  try {
+    assert.deepEqual(await runInstall(s.ctx), { stopped: 'restart-check' });
+    assert.match(s.text(), /didn't come up as Home \(HomeTV's page isn't answering\), so it was rolled back/);
+    assert.equal(s.logins.filter((l) => l.cmd.includes('statSync')).length, 3, 'looked three times');
+    s.flags.homeUp = '';
+    s.out.length = 0;
+    assert.deepEqual(await runInstall(s.ctx, { from: 'restart-check' }), { stopped: 'restart-check' });
+    assert.match(s.text(), /HomeTV isn't mounted over LG's Home/);
+    assert.equal(s.flags.rollBacks, 2);
   } finally {
     await s.done();
   }

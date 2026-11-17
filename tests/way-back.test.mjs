@@ -215,8 +215,16 @@ async function rootedTv({ apps = ['netflix', APP, HBC], keyOk = true, replies = 
   };
 }
 
+// The restart with the hooks in: HomeTV mounted over LG's Home and its page's heartbeat fresh, as 10-hometv-home leaves it
+const takeover = (t) => () => {
+  fs.appendFileSync(path.join(t, 'tv', 'mounts'), 'overlay /usr/palm/applications/com.webos.app.home none bind 0 0\n');
+  fs.writeFileSync(path.join(t, 'tv', 'alive'), '');
+};
+
 test('hometv-lg root --home-again: after "Use LG\'s Home", the hooks come back and DISABLE goes; checked after the restart', { skip: !SH, timeout: 120000 }, async () => {
-  const s = await rootedTv({ replies: { 'Make HomeTV': 'y', 'HomeTV on screen': 'y' } });
+  const box = {};
+  const s = await rootedTv({ replies: { 'Make HomeTV': 'y', 'HomeTV on screen': 'y' }, hooks: { 'back on': () => takeover(box.t)() } });
+  box.t = s.t;
   try {
     assert.equal(s.tvSh('sh ' + s.ctx.tvPaths.dir + '/undo-home.sh at-restart').status, 0);
     assert.deepEqual(s.hooks(), []);
@@ -230,6 +238,21 @@ test('hometv-lg root --home-again: after "Use LG\'s Home", the hooks come back a
     // run again: nothing to do
     const again = await runWayBack(s.ctx, 'home-again');
     assert.equal(again.note, 'already Home');
+  } finally {
+    s.done();
+  }
+});
+
+test('hometv-lg root --home-again: a takeover that doesn\'t come up after the restart is rolled back', { skip: !SH, timeout: 120000 }, async () => {
+  const s = await rootedTv({ replies: { 'Make HomeTV': 'y', 'HomeTV on screen': 'y' } });
+  s.ctx.verifyWaitMs = 0;
+  try {
+    s.tvSh('sh ' + s.ctx.tvPaths.dir + '/undo-home.sh at-restart');
+    const r = await runWayBack(s.ctx, 'home-again');
+    assert.match(r.why, /didn't come up as Home \(HomeTV isn't mounted over LG's Home\), so it was rolled back/);
+    assert.deepEqual(s.hooks(), [], 'the hooks are out again');
+    assert.ok(fs.existsSync(s.p('hometv', 'DISABLE')));
+    assert.ok(fs.existsSync(s.p('hometv', 'install.sh')), 'the root edition stays, for --home-again later');
   } finally {
     s.done();
   }

@@ -51,11 +51,12 @@ export function fakeRootedTv(t, extraEnv = {}) {
     ...process.env,
     HOMETV_DIR: fwd(p('hometv')), HOMETV_APP: fwd(p('app')), HOMETV_INITD: fwd(p('initd')),
     HOMETV_DEVMODE_APP: fwd(p('devmode-app')), HOMETV_HOME_INFO: fwd(p('stock-home', 'appinfo.json')),
-    HOMETV_MOUNTS: fwd(p('mounts')), HOMETV_LOG: fwd(p('boot.log')), HOMETV_PATH: pathVar,
+    HOMETV_MOUNTS: fwd(p('mounts')), HOMETV_LOG: fwd(p('boot.log')), HOMETV_ALIVE: fwd(p('alive')), HOMETV_PATH: pathVar,
     STUB_LOG: fwd(p('stub.log')), STUB_PREFS: fwd(p('prefs')), STUB_APP: fwd(p('app')),
     ...extraEnv
   };
-  const tvPaths = { dir: fwd(p('hometv')), app: fwd(p('app')), initd: fwd(p('initd')), ssh: fwd(p('ssh')), tmp: fwd(p('tmp')) };
+  const tvPaths = { dir: fwd(p('hometv')), app: fwd(p('app')), initd: fwd(p('initd')), ssh: fwd(p('ssh')), tmp: fwd(p('tmp')),
+    mounts: fwd(p('mounts')), alive: fwd(p('alive')), log: fwd(p('boot.log')) };
   return { env, tvPaths, setup: 'export PATH="' + pathVar + '"' };
 }
 

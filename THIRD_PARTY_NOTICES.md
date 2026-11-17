@@ -11,7 +11,9 @@ LG-TV-HA-Home-Launcher and OpenLauncher are only described and linked).
 (B8): `root/after-sam.sh` and `decide.js aftersam` (the webOS 25 list, issue 122, and the state logged after each
 restart). From its `install.sh` (also at `2debe62`): `root/install.sh`'s webOS 5 checks (luna-send, systemd, a Node
 that runs) and `hometv-lg install`'s root-install step trying LG's installer up to 4 times, counting an install only once
-it reports "installed" and the app is registered (`tools/lib/install-steps.mjs`).
+it reports "installed" and the app is registered (`tools/lib/install-steps.mjs`). From its `scripts/bootstrap.sh` (also
+at `2debe62`): the check after the install's restart that the new Home came up, and the roll back when it didn't
+(`homeCameUp` and `rollBack` in `tools/lib/install-steps.mjs`, used by `hometv-lg install`/`root` and `--home-again`).
 
 `service/update.js` and `service/update-apply.js` (the root edition's Settings › Updates) are adapted from its
 `helper/updates.js`, `helper/selfupdate.js` and `scripts/bootstrap.sh` (read at `2debe62`): the release check, the

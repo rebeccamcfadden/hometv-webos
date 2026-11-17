@@ -8,7 +8,7 @@
 // check. Nothing it prints holds the TV's address. The full unroot is level 3, a factory reset.
 import { sshShell, isRoot, sq } from './root-shell.mjs';
 import { keyPaths } from './sshkey.mjs';
-import { TV_PATHS, WAY_BACK, RESTART, withTv, foreground, appIds, scrub } from './install-steps.mjs';
+import { TV_PATHS, WAY_BACK, RESTART, withTv, foreground, appIds, scrub, homeCameUp, rollBack } from './install-steps.mjs';
 
 const HOME = 'com.webos.app.home';
 const HBC = 'org.webosbrew.hbchannel';
@@ -86,11 +86,11 @@ export async function homeAgain(ctx) {
   }
   ctx.say('  ✓ the start-up hooks are back; HomeTV becomes Home at the next restart');
   const fg = await restartToHome(ctx);
-  if (fg !== HOME) return stop('Home isn\'t on screen after the restart.', 'Press Home on the remote; if nothing shows, see docs/root-plan.md level 0 and tell the HomeTV team.');
-  if (!yes(await ctx.ask('  Is it HomeTV on screen (not LG\'s own Home)? [y/N] '))) {
-    return stop('HomeTV didn\'t take over Home. LG\'s Home works as before.',
-      'Its start-up notes: ssh -i ' + KEY_FILE + ' root@<tv ip> cat /tmp/hometv-boot.log . Send them to the HomeTV team.');
-  }
+  // as the install's restart check: a takeover that didn't come up is rolled back (hooks out, LG's Home back)
+  if (fg !== HOME) return rollBack(ctx, 'no Home on screen after the restart', shell);
+  if (!yes(await ctx.ask('  Is it HomeTV on screen (not LG\'s own Home)? [y/N] '))) return rollBack(ctx, 'you saw LG\'s own Home', shell);
+  const why = await homeCameUp(shell, p, ctx.verifyWaitMs);
+  if (why) return rollBack(ctx, why, shell);
   ctx.say('  ✓ HomeTV is Home again');
   return { done: true, note: 'HomeTV is Home again' };
 }

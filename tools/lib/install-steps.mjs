@@ -34,7 +34,11 @@ export const TV_PATHS = {
   app: '/media/developer/apps/usr/palm/applications/' + APP,
   initd: '/var/lib/webosbrew/init.d',
   ssh: '/home/root/.ssh',
-  tmp: '/tmp'
+  tmp: '/tmp',
+  home: '/usr/palm/applications/' + HOME,
+  mounts: '/proc/mounts',
+  alive: '/tmp/hometv-alive',
+  log: '/tmp/hometv-boot.log'
 };
 
 export const RESTART = 'unplug the TV from the wall, wait 30 seconds, plug it back in and turn it on (the remote\'s power ' +
@@ -555,8 +559,9 @@ export const STEPS = [
     id: 'restart-check',
     title: 'Restart: HomeTV as Home',
     what: 'After a restart, HomeTV should open as the TV\'s Home. The laptop checks Home is on screen, Telnet is closed, ' +
-      'SSH logs in with the laptop\'s key only (no default password) and Homebrew Channel\'s three switches are on; you say ' +
-      'whether it\'s HomeTV (the takeover keeps LG\'s Home app name, so the laptop can\'t tell).',
+      'SSH logs in with the laptop\'s key only (no default password), Homebrew Channel\'s three switches are on, and HomeTV ' +
+      'is mounted over LG\'s Home with its page answering; you say whether it\'s HomeTV (the takeover keeps LG\'s Home app ' +
+      'name). If HomeTV didn\'t come up, it is rolled back: its start-up hooks removed and LG\'s Home back, said in the report.',
     undo: 'LG\'s Home back for good: ssh -i ' + KEY_FILE + ' root@<tv ip> sh ' + TV_PATHS.dir + '/undo-home.sh . ' +
       'All the levels, up to a factory reset: docs/root-plan.md, "The way back".',
     async run(ctx) {
@@ -567,11 +572,8 @@ export const STEPS = [
         await ctx.ask('  Press Home on the remote, then Enter here: ');
         fg = await withTv(ctx, foreground);
       }
-      if (fg !== HOME && fg !== APP) return stop('Home isn\'t on screen.', 'Press Home on the remote; if LG\'s Home or nothing shows, tell the HomeTV team.');
-      if (!yes(await ctx.ask('  Is it HomeTV on screen (not LG\'s own Home)? [y/N] '))) {
-        return stop('HomeTV didn\'t take over Home. LG\'s Home works as before.',
-          'Its start-up notes are in /tmp/hometv-boot.log on the TV: ssh -i ' + KEY_FILE + ' root@<tv ip> cat /tmp/hometv-boot.log . Send them to the HomeTV team.');
-      }
+      if (fg !== HOME && fg !== APP) return rollBack(ctx, 'no Home on screen after the restart');
+      if (!yes(await ctx.ask('  Is it HomeTV on screen (not LG\'s own Home)? [y/N] '))) return rollBack(ctx, 'you saw LG\'s own Home');
       if (await portOpen(ctx.host, ctx.telnetPort || 23)) {
         return stop('Telnet is still on: anyone on this Wi-Fi can get a root shell.', 'In Homebrew Channel > Settings, switch Telnet off, then restart the TV.');
       }
@@ -606,10 +608,67 @@ export const STEPS = [
           'In Homebrew Channel > Settings, switch Telnet off, SSH Server on and Block system updates on, restart the TV, then ' +
           'run this again with --from restart-check.');
       }
+      const up = await homeCameUp(shell, P, ctx.verifyWaitMs);
+      if (up) return rollBack(ctx, up, shell);
+      ctx.say('  ✓ HomeTV is mounted over LG\'s Home and its page answers');
       return { note: 'HomeTV is Home (root edition); Telnet off, SSH by key only, Block system updates on' };
     }
   }
 ];
+
+/**
+ * After the takeover's restart: '' when HomeTV is mounted over LG's Home and its page answers (the heartbeat its service
+ * touches every 10 s while it shows, root/watchdog.sh's), else why not. Three looks, `waitMs` apart.
+ */
+export async function homeCameUp(shell, P, waitMs = 10000) {
+  const age = 'var s;try{s=require("fs").statSync(process.argv[1])}catch(e){}console.log(s&&Date.now()-s.mtime.getTime()<30000?"alive":"stale")';
+  const cmd = 'grep -q ' + sq(' ' + P.home + ' ') + ' ' + sq(P.mounts) + ' && echo mounted; node -e ' + sq(age) + ' ' + sq(P.alive) + ' 2>/dev/null; true';
+  let why = '';
+  for (let i = 0; i < 3; i++) {
+    if (i) await sleep(waitMs);
+    const out = String((await shell.run(cmd)).stdout || '');
+    why = !/mounted/.test(out) ? 'HomeTV isn\'t mounted over LG\'s Home' : !/alive/.test(out) ? 'HomeTV\'s page isn\'t answering' : '';
+    if (!why) return '';
+  }
+  return why;
+}
+
+/**
+ * The takeover didn't come up after its restart: as lasharor's bootstrap.sh (MIT, read at 2debe62) does at set-up, HomeTV
+ * is taken out again: undo-home.sh for good (its two start-up hooks removed, DISABLE written, LG's Home back now), over
+ * SSH with the laptop's key. The boot notes come back to the log, masked. Always a stop, saying what was done.
+ */
+export async function rollBack(ctx, why, shell = null) {
+  const P = { ...TV_PATHS, ...ctx.tvPaths };
+  const back = 'HomeTV as Home again, once the HomeTV team has looked: hometv-lg root <tv ip> --home-again.';
+  if (!shell) {
+    const sshPort = ctx.sshPort || 22;
+    const { key, knownHosts } = keyPaths(ctx.dir);
+    const s = (ctx.rootShell || sshShell)({ host: ctx.host, port: sshPort, key, knownHosts });
+    if ((await portOpen(ctx.host, sshPort)) && (await isRoot(s))) shell = s;
+  }
+  if (!shell) {
+    return stop('HomeTV didn\'t come up as Home (' + why + '), and the laptop couldn\'t log in over SSH to roll it back.',
+      'Its start-up hooks are still on the TV; when HomeTV\'s page doesn\'t answer, the watchdog gives LG\'s Home back about a minute ' +
+      'after each start. Switch SSH Server on in Homebrew Channel > Settings, restart the TV (' + RESTART + '), then run this ' +
+      'again with --from restart-check: it rolls back.');
+  }
+  ctx.say('  HomeTV didn\'t come up as Home (' + why + '): rolling back (undo-home.sh: its start-up hooks removed, LG\'s Home back)');
+  const r = await shell.run('sh ' + sq(P.dir + '/undo-home.sh') + ' </dev/null >/dev/null 2>&1; ' +
+    '{ [ -e ' + sq(P.initd + '/10-hometv-home') + ' ] || [ -L ' + sq(P.initd + '/10-hometv-home') + ' ]; } && echo hooks-left; ' +
+    'grep -q ' + sq(' ' + P.home + ' ') + ' ' + sq(P.mounts) + ' && echo still-mounted; echo ---; tail -n 30 ' + sq(P.log) + ' 2>/dev/null; true');
+  const out = String(r.stdout || '');
+  const [head, notes = ''] = out.split('---');
+  if (notes.trim()) ctx.say('  The TV\'s start-up notes (' + P.log + ', masked):\n' + scrub(notes.trim(), ctx.host).split('\n').map((l) => '    ' + l).join('\n'));
+  if (/hooks-left/.test(head)) {
+    return stop('HomeTV didn\'t come up as Home (' + why + '), and rolling it back didn\'t remove its start-up hooks.',
+      'Run: ssh -i ' + KEY_FILE + ' root@<tv ip> sh ' + P.dir + '/undo-home.sh , then restart the TV. Send the start-up notes above to the HomeTV team.');
+  }
+  const now = /still-mounted/.test(head) ? ' LG\'s Home comes back at the next restart (the mount was busy).' : ' LG\'s Home is back now.';
+  return stop('HomeTV didn\'t come up as Home (' + why + '), so it was rolled back: its start-up hooks are removed and "Use LG\'s Home" ' +
+    'is set, so LG\'s Home stays after restarts.' + now,
+  'Send the start-up notes above (also in install-log.txt in the HomeTV folder) to the HomeTV team. ' + back);
+}
 
 async function hbcConfig(sh) {
   const r = await sh.run('luna-send -n 1 -w 10000 -f ' + q(HBC_SERVICE + 'getConfiguration') + ' ' + q('{}'));
