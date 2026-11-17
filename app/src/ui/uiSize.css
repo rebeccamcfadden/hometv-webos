@@ -34,3 +34,11 @@
 #stage[data-ui-size='larger'] .approw {
   height: 200px;
 }
+
+/* The settings pane is narrower on the smaller canvas: a segmented control of four options keeps inside it. */
+#stage[data-ui-size='larger'] .set-pane .seg-opt {
+  padding: 0 14px;
+}
+#stage[data-ui-size='larger'] .set-pane .seg-opt + .seg-opt {
+  margin-left: 2px;
+}

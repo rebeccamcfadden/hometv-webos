@@ -35,7 +35,7 @@ interface Section {
 }
 
 const SECTIONS: Section[] = [
-  { id: 'size', label: 'Text and UI size', icon: 'gauge', value: () => UI_SIZE_LABELS[prefs.get().uiSize] },
+  { id: 'size', label: 'Text and UI size', icon: 'textSize', value: () => UI_SIZE_LABELS[prefs.get().uiSize] },
   { id: 'performance', label: 'Performance', icon: 'gauge', value: () => `Motion ${MOTION_LABELS[prefs.get().motion].toLowerCase()}` },
   // F36: the clock screensaver, off by default.
   { id: 'screensaver', label: 'Screensaver', icon: 'clock', value: () => SCREENSAVER_AFTER_LABELS[prefs.get().screensaverAfter] },
