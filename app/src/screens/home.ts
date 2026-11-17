@@ -23,10 +23,10 @@ const MODE_TEXT = {
   preview: 'Preview: no TV, apps don’t open',
 };
 
-export function topBar(title: string): HTMLElement {
+export function topBar(title: string, problem = ''): HTMLElement {
   const bar = h('div.topbar', h('div.brand', title));
   const right = h('div.topright', h('span.pill.' + bridge.mode(), MODE_TEXT[bridge.mode()]));
-  if (bridge.problem()) bar.appendChild(h('div.problem', 'TV: ' + bridge.problem()));
+  if (problem) bar.appendChild(h('div.problem', problem));
   const clock = h('span.clock');
   const tick = () => {
     const d = new Date();

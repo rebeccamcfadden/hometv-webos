@@ -73,9 +73,8 @@ export function homeTop(): HTMLElement {
   const ampm = h('span.ht-ampm');
   const wx = h('div.ht-wx');
   const right = h('div.topright', h('span.pill.' + bridge.mode(), MODE_TEXT[bridge.mode()]), h('div.ht-clock', h('div', time, ampm), wx));
-  // The TV's problem line sits under the date, in the flow, so the taller Home top bar never covers it.
-  const problem = bridge.problem() ? h('div.problem', 'TV: ' + bridge.problem()) : null;
-  const el = h('div.topbar.home-top', h('div.ht-hello', hello, date, problem), right);
+  // No debug lines on Home (decided for v0); the Checks screen says it in plain words, the TV's own words after.
+  const el = h('div.topbar.home-top', h('div.ht-hello', hello, date), right);
 
   const painter: Painter = {
     el,
