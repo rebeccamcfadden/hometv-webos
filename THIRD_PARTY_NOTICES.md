@@ -18,7 +18,8 @@ at `2debe62`): the check after the install's restart that the new Home came up, 
 (`homeCameUp` and `rollBack` in `tools/lib/install-steps.mjs`, used by `hometv-lg install`/`root` and `--home-again`). The idea of its
 `compat.json` (also at `2debe62`; our own entries): `root/compat.json`, `decide.js compat` and `family`, checked by
 `install.sh` and the start-up hook. From its `helper/sharelog.js` (also at `2debe62`; not its LAN page): the masking rules
-in `tools/lib/mask.mjs`.
+in `tools/lib/mask.mjs`. Its `tools/test/after-sam.test.js`, `native-uninstall.test.js` and `luna-shell.test.js` (also at
+`2debe62`): the cases, rewritten for our files, in `tests/root.test.mjs`.
 
 `service/update.js` and `service/update-apply.js` (the root edition's Settings › Updates) are adapted from its
 `helper/updates.js`, `helper/selfupdate.js` and `scripts/bootstrap.sh` (read at `2debe62`): the release check, the

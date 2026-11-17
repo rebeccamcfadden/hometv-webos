@@ -8,6 +8,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { sq } from '../tools/lib/root-shell.mjs';
+import { q } from '../tools/lib/telnet.mjs';
 
 const require = createRequire(import.meta.url);
 const decide = require('../root/decide.js');
@@ -24,8 +26,10 @@ const STUBS = {
   mount: '[ "$1" = --bind ] && { echo "overlay $3 none bind 0 0" >> "$HOMETV_MOUNTS"; echo "40 20 0:9 /$(basename "$(dirname "$2")")/$(basename "$2") $3 rw - none none" >> "$HOMETV_MOUNTINFO"; }; echo "mount $*" >> "$STUB_LOG"',
   // STUB_BUSY: the mount can't go (a process still has it open)
   umount: 'echo "umount $*" >> "$STUB_LOG"; [ -n "$STUB_BUSY" ] && exit 1\nfor f in "$HOMETV_MOUNTS" "$HOMETV_MOUNTINFO"; do grep -v " $1 " "$f" > "$f.t"; cat "$f.t" > "$f"; done',
-  systemctl: 'echo "systemctl $*" >> "$STUB_LOG"\ncase "$1" in cat) case " $STUB_SERVICES " in *" ${2%.service} "*) exit 0;; esac; exit 1;; esac\nexit 0',
-  'luna-send': 'echo "luna $*" >> "$STUB_LOG"\ncase "$*" in *getForegroundAppInfo*) echo "{\\"appId\\": \\"$STUB_FG\\"}";; *getSystemInfo*) printf \'{"sdkVersion": "10.3.1", "firmwareVersion": "%s", "modelName": "%s"}\\n\' "${STUB_FW-33.31.75}" "${STUB_MODEL-55UT80006LA}";; *) echo \'{"returnValue": true}\';; esac',
+  // STUB_STATE: what is-active says of every service (active by default)
+  systemctl: 'echo "systemctl $*" >> "$STUB_LOG"\ncase "$1" in cat) case " $STUB_SERVICES " in *" ${2%.service} "*) exit 0;; esac; exit 1;;\nis-active) echo "${STUB_STATE:-active}"; [ "${STUB_STATE:-active}" = active ]; exit;; esac\nexit 0',
+  reboot: 'echo "reboot $*" >> "$STUB_LOG"',
+  'luna-send': 'echo "luna $*" >> "$STUB_LOG"\ncase "$*" in *getForegroundAppInfo*) echo "{\\"appId\\": \\"$STUB_FG\\"}";; *getSystemInfo*) printf \'{"sdkVersion": "%s", "firmwareVersion": "%s", "modelName": "%s"}\\n\' "${STUB_SDK-10.3.1}" "${STUB_FW-33.31.75}" "${STUB_MODEL-55UT80006LA}";; *) echo \'{"returnValue": true}\';; esac',
   pkill: 'echo "pkill $*" >> "$STUB_LOG"',
   pgrep: 'echo "pgrep $*" >> "$STUB_LOG"; case "$*" in *watchdog*) exit 0;; esac; exit 1',
   sleep: 'exit 0'
@@ -423,6 +427,7 @@ test('HomeTV\'s mount still busy: undo-home says so, uninstall keeps the folder;
     s.run('uninstall.sh');
     assert.ok(!fs.existsSync(s.D));
     assert.match(s.read('stub.log'), /pkill -f \[h\]ometv\/watchdog\.sh/, 'only HomeTV\'s own watchdog');
+    assert.doesNotMatch(s.read('stub.log'), /reboot/, 'uninstall never restarts the TV itself');
   } finally {
     s.done();
   }
@@ -478,6 +483,73 @@ test('install refuses firmware not in compat.json unless agreed; the hook steps 
     s.run('10-hometv-home');
     assert.ok(s.mounted());
     assert.match(s.read('boot.log'), /couldn't read the software version; going on/);
+  } finally {
+    s.done();
+  }
+});
+
+// --- Ported from lasharor's tools/test/after-sam.test.js, native-uninstall.test.js and luna-shell.test.js (MIT, read at
+// 2debe62), rewritten for HomeTV's files
+
+test('after-sam: restarts only services the TV has and runs, in order, logging each state (after-sam.test.js)', { skip: !SH }, () => {
+  for (const [state, want] of [['active', 'arccontroller umediaserver'], ['inactive', ''], ['missing', '']]) {
+    const s = setup({ services: state === 'missing' ? '' : 'arccontroller umediaserver' });
+    try {
+      s.env.STUB_SDK = '11.2.0';
+      if (state === 'inactive') s.env.STUB_STATE = 'inactive';
+      s.run('after-sam.sh');
+      const restarted = (s.read('stub.log').match(/systemctl restart (\S+)/g) || []).map((l) => l.split(' ')[2]).join(' ');
+      assert.equal(restarted, want, state);
+      assert.match(s.read('boot.log'), state === 'missing' ? /arccontroller not on this TV/ : state === 'inactive' ? /not running, left alone/ : /restarted arccontroller \(active\)/);
+    } finally {
+      s.done();
+    }
+  }
+});
+
+test('after-sam on webOS 25 (issue 122): the video output first, then the media server; after-sam-services overrides', { skip: !SH }, () => {
+  const s = setup();
+  try {
+    s.env.STUB_SDK = '10.3.2';
+    const run = () => {
+      fs.writeFileSync(path.join(s.t, 'stub.log'), '');
+      s.run('after-sam.sh');
+      return (s.read('stub.log').match(/systemctl restart (\S+)/g) || []).map((l) => l.split(' ')[2]);
+    };
+    assert.deepEqual(run(), ['videooutputd', 'umediaserver']);
+    assert.match(s.read('boot.log'), /SDK 10\.3\.2, Home 'com\.webos\.app\.home flutter', services: videooutputd umediaserver/);
+    fs.writeFileSync(path.join(s.D, 'after-sam-services'), '');
+    assert.deepEqual(run(), [], 'an empty file switches them off on that TV');
+    assert.match(s.read('boot.log'), /services: none \(from after-sam-services\)/);
+    fs.writeFileSync(path.join(s.D, 'after-sam-services'), 'umediaserver\n');
+    assert.deepEqual(run(), ['umediaserver'], 'a list in it replaces the profile');
+    fs.writeFileSync(path.join(s.D, 'after-sam-services'), 'umediaserver; reboot $(id)\n');
+    assert.deepEqual(run(), ['umediaserver'], 'punctuation is dropped, and words that aren\'t services on this TV are skipped');
+    assert.doesNotMatch(s.read('stub.log'), /^reboot/m);
+  } finally {
+    s.done();
+  }
+});
+
+test('shell quoting: sq and q keep any text one literal argument (luna-shell.test.js)', { skip: !SH }, () => {
+  const payload = '{"text":"single\' double\\" $(not-a-command); `x` <data> & | \\n"}';
+  for (const quote of [sq, q]) {
+    const out = execFileSync(SH, ['-c', 'printf "%s" ' + quote(payload) + ' ' + quote('')], { encoding: 'utf8' });
+    assert.equal(out, payload);
+  }
+});
+
+test('lib.sh luna_send: the URI and JSON stay separate literal arguments, and luna-send gets no stdin', { skip: !SH }, () => {
+  const s = setup();
+  try {
+    const bin = path.join(s.t, 'bin');
+    fs.writeFileSync(path.join(bin, 'luna-send'), '#!/bin/sh\nfor a in "$@"; do printf "[%s]\\n" "$a"; done > "$STUB_ARGS"\ncat > "$STUB_STDIN"\n');
+    const env = { ...s.env, STUB_ARGS: fwd(path.join(s.t, 'args')), STUB_STDIN: fwd(path.join(s.t, 'stdin')) };
+    const payload = '{"text":"single\' double\\" $(not-a-command); <data>"}';
+    execFileSync(SH, ['-c', '. "$1"; luna_send -n 1 "$2" "$3"', 'sh', fwd(path.join(s.D, 'lib.sh')), 'luna://example/query', payload],
+      { env, input: 'leaked into luna-send', encoding: 'utf8', timeout: 10000 });
+    assert.equal(s.read('args'), '[-n]\n[1]\n[luna://example/query]\n[' + payload + ']\n');
+    assert.equal(s.read('stdin'), '', 'stdin closed');
   } finally {
     s.done();
   }
