@@ -8,3 +8,5 @@ S=$D/home-overlay
 mkdir -p "$S"
 cp -R "$APP/." "$S/"
 node "$D/decide.js" stage "$D/backup/home-appinfo.orig.json" "$S/appinfo.json"
+# what undo-home.sh looks for before it unmounts anything over LG's Home (lib.sh ours)
+echo "HomeTV's folder mounted over LG's Home (root/stage-home.sh)" > "$S/.hometv-overlay"

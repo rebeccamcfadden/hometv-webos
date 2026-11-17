@@ -20,8 +20,10 @@ const fwd = (p) => p.replace(/\\/g, '/');
 const msys = (p) => fwd(p).replace(/^([A-Za-z]):/, (m, d) => '/' + d.toLowerCase());
 
 const STUBS = {
-  mount: '[ "$1" = --bind ] && echo "overlay $3 none bind 0 0" >> "$HOMETV_MOUNTS"; echo "mount $*" >> "$STUB_LOG"',
-  umount: 'grep -v " $1 " "$HOMETV_MOUNTS" > "$HOMETV_MOUNTS.t"; cat "$HOMETV_MOUNTS.t" > "$HOMETV_MOUNTS"; echo "umount $*" >> "$STUB_LOG"',
+  // a bind mount shows in /proc/mounts, and in mountinfo with its source folder's path (the 4th field)
+  mount: '[ "$1" = --bind ] && { echo "overlay $3 none bind 0 0" >> "$HOMETV_MOUNTS"; echo "40 20 0:9 /$(basename "$(dirname "$2")")/$(basename "$2") $3 rw - none none" >> "$HOMETV_MOUNTINFO"; }; echo "mount $*" >> "$STUB_LOG"',
+  // STUB_BUSY: the mount can't go (a process still has it open)
+  umount: 'echo "umount $*" >> "$STUB_LOG"; [ -n "$STUB_BUSY" ] && exit 1\nfor f in "$HOMETV_MOUNTS" "$HOMETV_MOUNTINFO"; do grep -v " $1 " "$f" > "$f.t"; cat "$f.t" > "$f"; done',
   systemctl: 'echo "systemctl $*" >> "$STUB_LOG"\ncase "$1" in cat) case " $STUB_SERVICES " in *" ${2%.service} "*) exit 0;; esac; exit 1;; esac\nexit 0',
   'luna-send': 'echo "luna $*" >> "$STUB_LOG"\ncase "$*" in *getForegroundAppInfo*) echo "{\\"appId\\": \\"$STUB_FG\\"}";; *getSystemInfo*) echo \'{"sdkVersion": "10.3.1"}\';; *) echo \'{"returnValue": true}\';; esac',
   pkill: 'echo "pkill $*" >> "$STUB_LOG"',
@@ -44,6 +46,7 @@ function setup({ homeType = 'flutter', fg = 'com.webos.app.home', services = 'vi
   for (const [name, body] of Object.entries(STUBS)) fs.writeFileSync(path.join(bin, name), '#!/bin/sh\n' + body + '\n');
   const mounts = path.join(t, 'mounts');
   fs.writeFileSync(mounts, 'rootfs / rootfs ro 0 0\n');
+  fs.writeFileSync(path.join(t, 'mountinfo'), '20 1 0:1 / / ro - rootfs rootfs\n');
   const sbin = path.join(t, 'sbin');
   fs.mkdirSync(sbin);
   for (const b of ['acr2', 'adoverlay-service', 'sportsalarm', 'admanager']) fs.writeFileSync(path.join(sbin, b), '');
@@ -58,7 +61,8 @@ function setup({ homeType = 'flutter', fg = 'com.webos.app.home', services = 'vi
     HOMETV_DEVMODE_APP: fwd(path.join(t, 'devmode-app')), HOMETV_SKIP_ROOT_CHECK: '1', HOMETV_DEBLOAT_DELAY: '0',
     HOMETV_HOME_INFO: fwd(path.join(stockHome, 'appinfo.json')),
     HOMETV_PATH: [msys(bin), msys(path.dirname(process.execPath)), GITBIN].join(':'),
-    HOMETV_DIR: fwd(D), HOMETV_APP: fwd(app), HOMETV_MOUNTS: fwd(mounts), HOMETV_LOG: fwd(path.join(t, 'boot.log')),
+    HOMETV_DIR: fwd(D), HOMETV_APP: fwd(app), HOMETV_MOUNTS: fwd(mounts), HOMETV_MOUNTINFO: fwd(path.join(t, 'mountinfo')),
+    HOMETV_LOG: fwd(path.join(t, 'boot.log')),
     HOMETV_ALIVE: fwd(path.join(t, 'alive')), HOMETV_LASTAPP: fwd(path.join(t, 'lastapp.json')),
     STUB_LOG: fwd(path.join(t, 'stub.log')), STUB_FG: fg, STUB_SERVICES: services,
     HOMETV_WATCH_MAX: '8', HOMETV_BOOT_ID: fwd(path.join(t, 'boot_id'))
@@ -369,6 +373,55 @@ test('"root ended": the hook notes each start it runs; install.sh clears the not
     assert.ok(!fs.existsSync(started), 'nothing noted without an id');
     assert.match(s.read('boot.log'), /couldn't note this start/);
     assert.equal((await state()).ranThisStart, null);
+  } finally {
+    s.done();
+  }
+});
+
+// lasharor's "Native Home restoration safety" and native-uninstall.test.js, for the mount way: only HomeTV's own mount is
+// undone, and a Home that can't be given back now keeps what is needed to recover
+test('undo-home leaves a mount over LG\'s Home that isn\'t HomeTV\'s alone: no umount, no sam restart, says so', { skip: !SH }, () => {
+  const s = setup();
+  try {
+    fs.appendFileSync(path.join(s.t, 'mounts'), 'other ' + HOME_APP + ' none bind 0 0\n');
+    fs.appendFileSync(path.join(s.t, 'mountinfo'), '41 20 0:9 /someone-else/home ' + HOME_APP + ' rw - none none\n');
+    assert.throws(() => s.run('undo-home.sh', 'temp'), (e) => /isn't HomeTV's; left alone/.test(String(e.stderr)));
+    assert.ok(s.mounted());
+    assert.doesNotMatch(s.read('stub.log'), /umount|restart sam|pkill/);
+    // uninstall.sh: the hooks still go, but the folder (and LG Home's saved appinfo) stays
+    s.run('install.sh');
+    assert.throws(() => s.run('uninstall.sh'), (e) => /folder .* is kept: restart the TV, then run this again/.test(String(e.stderr)));
+    assert.deepEqual(fs.readdirSync(path.join(s.t, 'initd')), []);
+    assert.ok(fs.existsSync(path.join(s.D, 'backup', 'home-appinfo.orig.json')));
+    assert.ok(fs.existsSync(path.join(s.D, 'DISABLE')));
+  } finally {
+    s.done();
+  }
+});
+
+test('HomeTV\'s mount still busy: undo-home says so, uninstall keeps the folder; after the restart it finishes', { skip: !SH }, async () => {
+  const s = setup();
+  try {
+    s.run('install.sh');
+    s.run('10-hometv-home');
+    await s.waitFor(/launch/);
+    assert.ok(fs.existsSync(path.join(s.D, 'home-overlay', '.hometv-overlay')), 'the marker');
+    assert.match(s.read('mountinfo'), /\/hometv\/home-overlay \/usr\/palm\/applications\/com\.webos\.app\.home /);
+    const env = s.env;
+    s.env.STUB_BUSY = '1';
+    assert.throws(() => s.run('uninstall.sh'), (e) => /isn't back yet/.test(String(e.stderr)));
+    assert.ok(s.mounted());
+    assert.equal((s.read('stub.log').match(/umount \/usr\/palm/g) || []).length, 3, 'three tries, no forced or lazy unmount');
+    assert.doesNotMatch(s.read('stub.log'), /umount -[fl]/);
+    assert.ok(fs.existsSync(path.join(s.D, 'home-overlay', 'index.html')), 'the mounted folder is kept');
+    assert.deepEqual(fs.readdirSync(path.join(s.t, 'initd')), []);
+    assert.match(s.read('boot.log'), /still there \(busy\); it goes at the next restart/);
+    // the restart: nothing mounted, no hooks; uninstall then finishes
+    delete env.STUB_BUSY;
+    fs.writeFileSync(path.join(s.t, 'mounts'), 'rootfs / rootfs ro 0 0\n');
+    s.run('uninstall.sh');
+    assert.ok(!fs.existsSync(s.D));
+    assert.match(s.read('stub.log'), /pkill -f \[h\]ometv\/watchdog\.sh/, 'only HomeTV\'s own watchdog');
   } finally {
     s.done();
   }

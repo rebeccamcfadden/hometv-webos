@@ -46,12 +46,13 @@ export function fakeRootedTv(t, extraEnv = {}) {
   for (const [name, body] of Object.entries(STUBS)) fs.writeFileSync(p('bin', name), '#!/bin/sh\n' + body + '\n');
   fs.writeFileSync(p('stock-home', 'appinfo.json'), JSON.stringify({ id: 'com.webos.app.home', type: 'flutter', main: 'lib/app', title: 'Home' }));
   fs.writeFileSync(p('mounts'), 'rootfs / rootfs ro 0 0\n');
+  fs.writeFileSync(p('mountinfo'), '20 1 0:1 / / ro - rootfs rootfs\n');
   const pathVar = [msys(p('bin')), msys(path.dirname(process.execPath)), '/usr/bin', '/bin'].join(':');
   const env = {
     ...process.env,
     HOMETV_DIR: fwd(p('hometv')), HOMETV_APP: fwd(p('app')), HOMETV_INITD: fwd(p('initd')),
     HOMETV_DEVMODE_APP: fwd(p('devmode-app')), HOMETV_HOME_INFO: fwd(p('stock-home', 'appinfo.json')),
-    HOMETV_MOUNTS: fwd(p('mounts')), HOMETV_LOG: fwd(p('boot.log')), HOMETV_ALIVE: fwd(p('alive')), HOMETV_PATH: pathVar,
+    HOMETV_MOUNTS: fwd(p('mounts')), HOMETV_MOUNTINFO: fwd(p('mountinfo')), HOMETV_LOG: fwd(p('boot.log')), HOMETV_ALIVE: fwd(p('alive')), HOMETV_PATH: pathVar,
     STUB_LOG: fwd(p('stub.log')), STUB_PREFS: fwd(p('prefs')), STUB_APP: fwd(p('app')),
     ...extraEnv
   };

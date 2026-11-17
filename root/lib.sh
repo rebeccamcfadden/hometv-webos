@@ -5,6 +5,7 @@ export PATH=${HOMETV_PATH:-/usr/bin:/usr/sbin:/bin:/sbin:$PATH}
 D=${HOMETV_DIR:-/media/developer/hometv}
 H=${HOMETV_HOME_APP:-/usr/palm/applications/com.webos.app.home}
 MOUNTS=${HOMETV_MOUNTS:-/proc/mounts}
+MOUNTINFO=${HOMETV_MOUNTINFO:-/proc/self/mountinfo}
 LOG=${HOMETV_LOG:-/tmp/hometv-boot.log}
 ALIVE=${HOMETV_ALIVE:-/tmp/hometv-alive}
 # This start's id (new at each start) and the file the start-up hook copies it to: from the two, HomeTV's service tells
@@ -21,4 +22,11 @@ up() { cut -d' ' -f1 /proc/uptime 2>/dev/null || echo 0; }
 say() { echo "$(up) $*" >> "$LOG"; }
 luna_send() { command luna-send "$@" </dev/null; }
 replaced() { grep -q " $H " "$MOUNTS"; }
+# The mount over LG's Home is HomeTV's: its marker shows through it (stage-home.sh), or the kernel says the mount's source
+# is HomeTV's home-overlay folder. Nothing else over LG's Home is ever unmounted (lasharor's "Native Home restoration
+# safety", MIT, read at 2debe62).
+ours() {
+  [ -f "$H/.hometv-overlay" ] && return 0
+  awk -v h="$H" '$5 == h && $4 ~ /\/hometv\/home-overlay$/ { f = 1 } END { exit !f }' "$MOUNTINFO" 2>/dev/null
+}
 foreground() { luna_send -n 1 -w 5000 -f luna://com.webos.applicationManager/getForegroundAppInfo '{}' 2>/dev/null | sed -n 's/.*"appId": *"\([^"]*\)".*/\1/p' | head -n 1; }

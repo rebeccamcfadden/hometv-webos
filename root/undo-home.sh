@@ -7,8 +7,10 @@
 # For good = HomeTV's two start-up hooks removed from Homebrew Channel's folder, and DISABLE written (the hooks and the
 # watchdog honour it, should a hook ever be linked again). Nothing of HomeTV runs at the next start; its folder, the app
 # and root stay. Undone by install.sh (hometv-lg root <tv address> --home-again), which links the hooks again and
-# removes DISABLE. Lifts the debloat first: LG's Home doesn't start without the ad services it stops. Never touches a
-# mount that isn't over LG's Home. From lasharor's undo-home.sh (MIT), the mount way only.
+# removes DISABLE. Lifts the debloat first: LG's Home doesn't start without the ad services it stops. Unmounts only
+# HomeTV's own mount over LG's Home (lib.sh ours); a mount there that isn't HomeTV's, or one still busy, is left in place
+# and it says so (exit 1), so LG's Home is never claimed back when it isn't. Kills no process but LG Home's renderer.
+# From lasharor's undo-home.sh and its "Native Home restoration safety" (MIT, read at 2debe62), the mount way only.
 . "$(dirname "$0")/lib.sh"
 case "$1" in
   temp|at-restart|"") ;;
@@ -30,9 +32,18 @@ if ! replaced; then
   say "undo-home: LG's Home isn't replaced; nothing to undo"
   exit 0
 fi
-for m in $(awk -v h="$H" '$2 == h {print $2}' "$MOUNTS"); do umount "$m" 2>/dev/null; done
+if ! ours; then
+  say "undo-home: the mount over LG's Home isn't HomeTV's; left alone"
+  echo "undo-home: the mount over LG's Home isn't HomeTV's; left alone (a restart clears it)" >&2
+  exit 1
+fi
+for t in 1 2 3; do
+  replaced && ours || break
+  umount "$H" 2>/dev/null || sleep 1
+done
 if replaced; then
-  say "undo-home: the mount over LG's Home is busy; it goes at the next restart"
+  say "undo-home: the mount over LG's Home is still there (busy); it goes at the next restart"
+  echo "undo-home: the mount over LG's Home is busy; LG's Home comes back at the next restart" >&2
   exit 1
 fi
 systemctl restart sam

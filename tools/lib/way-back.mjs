@@ -119,7 +119,9 @@ export async function unrootHome(ctx) {
   const left = await test(shell, '[ -e ' + sq(p.dir) + ' ] || [ -e ' + sq(p.initd + '/15-hometv-debloat') + ' ]');
   if (after.hooked || after.edition || left) {
     return stop('HomeTV\'s start-up hooks or folder are still on the TV.',
-      'Run this again; if it stays: ssh -i ' + KEY_FILE + ' root@<tv ip> sh ' + p.dir + '/uninstall.sh , and tell the HomeTV team.');
+      'If uninstall.sh said LG\'s Home isn\'t back yet (HomeTV\'s mount busy), the folder is kept on purpose: restart the TV (' +
+      RESTART + '), then run this again. Otherwise run this again; if it stays: ssh -i ' + KEY_FILE + ' root@<tv ip> sh ' + p.dir +
+      '/uninstall.sh , and tell the HomeTV team.');
   }
   ctx.say('  ✓ HomeTV\'s start-up hooks and folder are gone');
   const fg = await restartToHome(ctx);
