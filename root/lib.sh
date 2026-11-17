@@ -29,4 +29,6 @@ ours() {
   [ -f "$H/.hometv-overlay" ] && return 0
   awk -v h="$H" '$5 == h && $4 ~ /\/hometv\/home-overlay$/ { f = 1 } END { exit !f }' "$MOUNTINFO" 2>/dev/null
 }
+# The TV's model name or firmware (Settings' Software Version), from LG's system properties: info modelName|firmwareVersion
+info() { luna_send -n 1 -w 5000 -f luna://com.webos.service.tv.systemproperty/getSystemInfo '{"keys":["modelName","firmwareVersion"]}' 2>/dev/null | sed -n "s/.*\"$1\": *\"\([^\"]*\)\".*/\1/p" | head -n 1; }
 foreground() { luna_send -n 1 -w 5000 -f luna://com.webos.applicationManager/getForegroundAppInfo '{}' 2>/dev/null | sed -n 's/.*"appId": *"\([^"]*\)".*/\1/p' | head -n 1; }

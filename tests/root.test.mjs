@@ -25,7 +25,7 @@ const STUBS = {
   // STUB_BUSY: the mount can't go (a process still has it open)
   umount: 'echo "umount $*" >> "$STUB_LOG"; [ -n "$STUB_BUSY" ] && exit 1\nfor f in "$HOMETV_MOUNTS" "$HOMETV_MOUNTINFO"; do grep -v " $1 " "$f" > "$f.t"; cat "$f.t" > "$f"; done',
   systemctl: 'echo "systemctl $*" >> "$STUB_LOG"\ncase "$1" in cat) case " $STUB_SERVICES " in *" ${2%.service} "*) exit 0;; esac; exit 1;; esac\nexit 0',
-  'luna-send': 'echo "luna $*" >> "$STUB_LOG"\ncase "$*" in *getForegroundAppInfo*) echo "{\\"appId\\": \\"$STUB_FG\\"}";; *getSystemInfo*) echo \'{"sdkVersion": "10.3.1"}\';; *) echo \'{"returnValue": true}\';; esac',
+  'luna-send': 'echo "luna $*" >> "$STUB_LOG"\ncase "$*" in *getForegroundAppInfo*) echo "{\\"appId\\": \\"$STUB_FG\\"}";; *getSystemInfo*) printf \'{"sdkVersion": "10.3.1", "firmwareVersion": "%s", "modelName": "%s"}\\n\' "${STUB_FW-33.31.75}" "${STUB_MODEL-55UT80006LA}";; *) echo \'{"returnValue": true}\';; esac',
   pkill: 'echo "pkill $*" >> "$STUB_LOG"',
   pgrep: 'echo "pgrep $*" >> "$STUB_LOG"; case "$*" in *watchdog*) exit 0;; esac; exit 1',
   sleep: 'exit 0'
@@ -190,6 +190,7 @@ test('HomeTV uninstalled in Homebrew Channel: the hooks left behind do nothing; 
   const s = setup();
   try {
     s.run('install.sh');
+    fs.writeFileSync(path.join(s.t, 'stub.log'), '');
     fs.rmSync(path.join(s.t, 'app'), { recursive: true });
     s.run('10-hometv-home');
     s.run('15-hometv-debloat');
@@ -422,6 +423,61 @@ test('HomeTV\'s mount still busy: undo-home says so, uninstall keeps the folder;
     s.run('uninstall.sh');
     assert.ok(!fs.existsSync(s.D));
     assert.match(s.read('stub.log'), /pkill -f \[h\]ometv\/watchdog\.sh/, 'only HomeTV\'s own watchdog');
+  } finally {
+    s.done();
+  }
+});
+
+test('decide.js: model families and the firmware list (compat.json, lasharor\'s idea)', () => {
+  const list = path.join(ROOT, 'compat.json');
+  assert.equal(decide.family('43UT8000AUA'), 'UT80');
+  assert.equal(decide.family('OLED65C46LA'), 'OLEDC4');
+  assert.equal(decide.family('65QNED86T6A'), 'QNED86');
+  assert.equal(decide.family('webOS TV'), '');
+  assert.equal(decide.compat(list, '55UT80006LA', '33.31.75').status, 'planned');
+  assert.equal(decide.compat(list, '43UT7590PUA', '33.31.75').status, 'reported');
+  assert.equal(decide.compat(list, '43UT8000AUA', '33.31.61').status, 'planned');
+  assert.equal(decide.compat(list, '43UT7590PUA', '33.31.61'), null, 'a family the entry doesn\'t name');
+  assert.equal(decide.compat(list, '43UT8000AUA', '33.31.80'), null, 'a newer firmware');
+  assert.equal(decide.compat(list, '43UT8000AUA', ''), null, 'unread');
+  const t = fs.mkdtempSync(path.join(os.tmpdir(), 'hometv-compat-'));
+  try {
+    fs.writeFileSync(path.join(t, 'c.json'), JSON.stringify({ entries: [{ firmware: '33.31.*', status: 'reported' }] }));
+    assert.equal(decide.compat(path.join(t, 'c.json'), 'anything', '33.31.99').status, 'reported', 'a prefix, any family');
+    assert.equal(decide.compat(path.join(t, 'nope.json'), 'x', '33.31.75'), null);
+  } finally {
+    fs.rmSync(t, { recursive: true, force: true });
+  }
+});
+
+test('install refuses firmware not in compat.json unless agreed; the hook steps back after the software changes', { skip: !SH }, async () => {
+  const s = setup();
+  try {
+    s.env.STUB_FW = '33.31.80';
+    assert.throws(() => s.run('install.sh'), (e) => /install: unlisted: software 33\.31\.80 on a UT80 isn't in compat\.json/.test(String(e.stderr)));
+    assert.deepEqual(fs.readdirSync(path.join(s.t, 'initd')), [], 'nothing hooked in');
+    s.run('install.sh', '--unlisted-ok');
+    assert.equal(fs.readFileSync(path.join(s.D, 'compat-ok'), 'utf8').trim(), '33.31.80');
+    assert.match(s.read('boot.log'), /isn't in compat\.json; going on, as the owner agreed/);
+    s.run('10-hometv-home');
+    await s.waitFor(/launch/);
+    assert.ok(s.mounted(), 'the agreed firmware is taken over');
+    s.run('undo-home.sh', 'temp');
+    // an LG update to a firmware nobody agreed to: LG's Home stays, and the hook says why
+    s.env.STUB_FW = '33.31.90';
+    s.run('10-hometv-home');
+    assert.ok(!s.mounted());
+    assert.equal(fs.readFileSync(path.join(s.D, 'compat-stopped'), 'utf8').trim(), '33.31.90');
+    assert.match(s.read('boot.log'), /software 33\.31\.90 isn't in compat\.json and wasn't agreed to at install; LG's Home stays/);
+    // a listed firmware again: install.sh forgets the agreement and the stop
+    s.env.STUB_FW = '33.31.75';
+    s.run('install.sh');
+    assert.ok(!fs.existsSync(path.join(s.D, 'compat-ok')) && !fs.existsSync(path.join(s.D, 'compat-stopped')));
+    // unread: the hook goes on (install.sh checked it)
+    s.env.STUB_FW = '';
+    s.run('10-hometv-home');
+    assert.ok(s.mounted());
+    assert.match(s.read('boot.log'), /couldn't read the software version; going on/);
   } finally {
     s.done();
   }

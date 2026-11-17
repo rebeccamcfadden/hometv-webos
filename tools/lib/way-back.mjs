@@ -8,7 +8,7 @@
 // check. Nothing it prints holds the TV's address. The full unroot is level 3, a factory reset.
 import { sshShell, isRoot, sq } from './root-shell.mjs';
 import { keyPaths } from './sshkey.mjs';
-import { TV_PATHS, WAY_BACK, RESTART, withTv, foreground, appIds, scrub, homeCameUp, rollBack } from './install-steps.mjs';
+import { TV_PATHS, WAY_BACK, RESTART, withTv, foreground, appIds, scrub, homeCameUp, rollBack, runInstallSh } from './install-steps.mjs';
 
 const HOME = 'com.webos.app.home';
 const HBC = 'org.webosbrew.hbchannel';
@@ -39,6 +39,8 @@ export async function rootState(shell, p) {
     edition: await test(shell, '[ -f ' + sq(p.dir + '/install.sh') + ' ]'),
     hooked: await test(shell, '[ -e ' + sq(p.initd + '/10-hometv-home') + ' ] || [ -L ' + sq(p.initd + '/10-hometv-home') + ' ]'),
     chosen: await test(shell, '[ -e ' + sq(p.dir + '/DISABLE') + ' ]'),
+    // the start-up hook left LG's Home after the software changed to one not in compat.json
+    compatStopped: await test(shell, '[ -e ' + sq(p.dir + '/compat-stopped') + ' ]'),
     app: await test(shell, '[ -f ' + sq(p.app + '/index.html') + ' ]')
   };
 }
@@ -70,18 +72,19 @@ export async function homeAgain(ctx) {
     return stop('HomeTV isn\'t installed on the TV (uninstalled in Homebrew Channel?).',
       'Install HomeTV from Homebrew Channel, or run hometv-lg root <tv address> --from root-install with its .ipk here, then this again.');
   }
-  if (s.hooked && !s.chosen) {
+  if (s.hooked && !s.chosen && !s.compatStopped) {
     ctx.say('  ✓ HomeTV is already Home from each start: nothing to do. (Not on screen? Restart the TV: ' + RESTART + '.)');
     return { done: true, note: 'already Home' };
   }
+  if (s.compatStopped) ctx.say('  HomeTV stepped back at the last start: the TV\'s software changed to one not in root/compat.json.');
   ctx.say('  This runs install.sh on the TV again: HomeTV\'s two start-up hooks linked again, the "Use LG\'s Home" mark ' +
     'removed. HomeTV becomes Home at the next restart.\n' +
     '  Undo: Settings > Use LG\'s Home in HomeTV, or ssh -i ' + KEY_FILE + ' root@<tv ip> sh ' + p.dir + '/undo-home.sh');
   if (!yes(await ctx.ask('  Make HomeTV the TV\'s Home again? [y/N] '))) return { stop: 'Not asked to; nothing changed.', next: 'Run this again when you want HomeTV as Home.' };
-  const r = await shell.run('sh ' + sq(p.dir + '/install.sh') + ' 2>&1');
+  const r = await runInstallSh(ctx, (c) => shell.run(c), p.dir);
   const after = await rootState(shell, p);
   if (r.code !== 0 || !after.hooked || after.chosen) {
-    const why = (String(r.stdout).match(/install: .*/g) || ['no reason given']).pop();
+    const why = (r.out.match(/install: .*/g) || ['no reason given']).pop();
     return stop('install.sh didn\'t put HomeTV back: ' + scrub(why, ctx.host), 'LG\'s Home stays. Fix what it says, then run this again.');
   }
   ctx.say('  ✓ the start-up hooks are back; HomeTV becomes Home at the next restart');

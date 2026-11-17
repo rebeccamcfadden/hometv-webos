@@ -15,7 +15,9 @@ are kept when the unmount is busy. From its `install.sh` (also at `2debe62`): `r
 that runs) and `hometv-lg install`'s root-install step trying LG's installer up to 4 times, counting an install only once
 it reports "installed" and the app is registered (`tools/lib/install-steps.mjs`). From its `scripts/bootstrap.sh` (also
 at `2debe62`): the check after the install's restart that the new Home came up, and the roll back when it didn't
-(`homeCameUp` and `rollBack` in `tools/lib/install-steps.mjs`, used by `hometv-lg install`/`root` and `--home-again`).
+(`homeCameUp` and `rollBack` in `tools/lib/install-steps.mjs`, used by `hometv-lg install`/`root` and `--home-again`). The idea of its
+`compat.json` (also at `2debe62`; our own entries): `root/compat.json`, `decide.js compat` and `family`, checked by
+`install.sh` and the start-up hook.
 
 `service/update.js` and `service/update-apply.js` (the root edition's Settings › Updates) are adapted from its
 `helper/updates.js`, `helper/selfupdate.js` and `scripts/bootstrap.sh` (read at `2debe62`): the release check, the

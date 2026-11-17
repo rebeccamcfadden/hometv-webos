@@ -517,7 +517,7 @@ export const STEPS = [
           ctx.say('  ✓ HomeTV is installed');
         }
 
-        const inst = await sh.run('sh ' + q(P.dir + '/install.sh') + ' 2>&1', { ms: 60000 });
+        const inst = await runInstallSh(ctx, async (c) => sh.run(c, { ms: 60000 }), P.dir);
         if (inst.code !== 0) {
           const why = (inst.out.match(/install: .*/g) || ['no reason given']).pop();
           return stop('install.sh refused: ' + scrub(why, ctx.host), 'Nothing was hooked in. Fix what it says, then run this again.');
@@ -668,6 +668,28 @@ export async function rollBack(ctx, why, shell = null) {
   return stop('HomeTV didn\'t come up as Home (' + why + '), so it was rolled back: its start-up hooks are removed and "Use LG\'s Home" ' +
     'is set, so LG\'s Home stays after restarts.' + now,
   'Send the start-up notes above (also in install-log.txt in the HomeTV folder) to the HomeTV team. ' + back);
+}
+
+/**
+ * Runs root/install.sh on the TV. A TV whose firmware and model family aren't in root/compat.json is refused there; the
+ * person is told what that means and asked, and only a yes runs it again with --unlisted-ok (the idea of lasharor's
+ * compat.json, MIT, read at 2debe62). `run(cmd)` gives {code, out} or {code, stdout}. Returns {code, out}.
+ */
+export async function runInstallSh(ctx, run, dir) {
+  const go = async (arg) => {
+    const r = await run('sh ' + sq(dir + '/install.sh') + arg + ' 2>&1');
+    return { code: r.code, out: String(r.out !== undefined ? r.out : r.stdout || '') };
+  };
+  let r = await go('');
+  const line = (r.out.match(/install: unlisted: .*/) || [])[0];
+  if (r.code === 0 || !line) return r;
+  ctx.say('  ' + scrub(line.replace(/^install: unlisted: /, ''), ctx.host) + '.\n' +
+    '  root/compat.json lists the LG software versions and model families HomeTV\'s takeover was tried on, or reported\n' +
+    '  working by others. Not listed doesn\'t mean it fails, only that nobody has checked. If HomeTV doesn\'t come up\n' +
+    '  after the restart, the restart check rolls it back (its start-up hooks out, LG\'s Home back).');
+  if (!yes(await ctx.ask('  Take Home over on this unlisted TV anyway? [y/N] '))) return r;
+  r = await go(' --unlisted-ok');
+  return r;
 }
 
 async function hbcConfig(sh) {

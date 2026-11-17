@@ -35,6 +35,7 @@ case "$*" in
     if [ -n "$STUB_INSTALL_FAIL" ] && [ "$n" -le "$STUB_INSTALL_FAIL" ]; then echo '{"details": {"state": "install failed"}}'
     else mkdir -p "$STUB_APP" && echo '<title>HomeTV</title>' > "$STUB_APP/index.html" && echo '{"details": {"state": "installed"}}'; fi;;
   *getForegroundAppInfo*) echo '{"appId": "com.webos.app.home"}';;
+  *getSystemInfo*) printf '{"firmwareVersion": "%s", "modelName": "%s"}\\n' "\${STUB_FW-33.31.75}" "\${STUB_MODEL-55UT80006LA}";;
   *) echo '{"returnValue": true}';;
 esac`
 };

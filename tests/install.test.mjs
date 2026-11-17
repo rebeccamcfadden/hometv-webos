@@ -454,6 +454,24 @@ test('stop: install.sh refuses (Developer Mode app found on the TV); Telnet is l
   }
 });
 
+test('a TV not in compat.json: explained and asked; a "no" hooks nothing in, a "yes" goes on with --unlisted-ok', { skip: !SH, timeout: 180000 }, async () => {
+  const s = await happySetup({ telnetEnv: { STUB_FW: '33.31.80' } });
+  try {
+    assert.deepEqual(await runInstall(s.ctx), { stopped: 'root-install' });
+    assert.match(s.text(), /software 33\.31\.80 on a UT80 isn't in compat\.json[\s\S]*Not listed doesn't mean it fails/);
+    assert.ok(s.asked.some((q) => q.includes('unlisted TV anyway')));
+    assert.match(s.text(), /install\.sh refused: install: unlisted/);
+    assert.ok(!fs.existsSync(path.join(s.t, 'tv', 'initd', '10-hometv-home')));
+    s.ctx.ask = ((ask) => async (q) => (q.includes('unlisted TV anyway') ? 'y' : ask(q)))(s.ctx.ask);
+    await runInstall(s.ctx);
+    assert.equal(loadState(s.laptop).steps['root-install'].status, 'done');
+    assert.ok(fs.existsSync(path.join(s.t, 'tv', 'initd', '10-hometv-home')));
+    assert.equal(fs.readFileSync(path.join(s.t, 'tv', 'hometv', 'compat-ok'), 'utf8').trim(), '33.31.80');
+  } finally {
+    await s.done();
+  }
+});
+
 test('stop: HomeTV can\'t be put back on the rooted TV (LG\'s installer tried 4 times)', { skip: !SH }, async () => {
   const s = await happySetup({ telnetEnv: { STUB_INSTALL_FAIL: '9' } });
   try {

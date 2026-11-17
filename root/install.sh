@@ -2,7 +2,8 @@
 # Installs HomeTV's root edition on a rooted TV (run as root, from the folder holding these scripts). Refuses unless:
 # it's webOS 5 or newer (luna-send, systemd, a Node that runs decide.js), the TV is rooted with Homebrew Channel's
 # start-up hooks, the HomeTV folder is writable, the Developer Mode app is gone, HomeTV is installed, and LG's Home is
-# the flutter or web kind. Saves LG Home's own appinfo first (once, never over a mounted Home), copies the
+# the flutter or web kind, and the firmware and model family are in compat.json (or the owner agreed: --unlisted-ok).
+# Saves LG Home's own appinfo first (once, never over a mounted Home), copies the
 # scripts, and adds the two start-up hooks. Takes effect at the next restart. Undo: uninstall.sh.
 . "$(dirname "$0")/lib.sh"
 DEVMODE_APP=${HOMETV_DEVMODE_APP:-/media/cryptofs/apps/usr/palm/applications/com.palmdts.devmode}
@@ -24,8 +25,24 @@ if [ ! -f "$D/backup/home-appinfo.orig.json" ]; then
 fi
 home=$(node "$SRC/decide.js" kind "$D/backup/home-appinfo.orig.json")
 [ "$(node "$SRC/decide.js" takeover "$home")" = mount ] || fail "LG's Home here is '$home'; only the flutter or web Home is supported"
+# The firmware list (compat.json): a TV not in it is refused unless its owner agreed (hometv-lg asks, then --unlisted-ok);
+# the agreed firmware is kept in compat-ok for the start-up hook
+model=$(info modelName)
+fw=$(info firmwareVersion)
+fam=$(node "$SRC/decide.js" family "$model")
+listed=$(node "$SRC/decide.js" compat "$SRC/compat.json" "$model" "$fw")
+case "$listed" in
+  listed*) rm -f "$D/compat-ok"; say "install: software $fw ($fam): $listed" ;;
+  *)
+    [ "$1" = --unlisted-ok ] || fail "unlisted: software ${fw:-unknown} on a ${fam:-model of unknown family} isn't in compat.json (nobody has checked HomeTV's takeover there)"
+    [ -n "$fw" ] || fail "the TV didn't say its software version; it can't be agreed to"
+    echo "$fw" > "$D/compat-ok"
+    say "install: software $fw ($fam) isn't in compat.json; going on, as the owner agreed"
+    ;;
+esac
+rm -f "$D/compat-stopped"
 if [ "$SRC" != "$(cd "$D" && pwd)" ]; then
-  for f in lib.sh decide.js stage-home.sh after-sam.sh undo-home.sh watchdog.sh debloat-stop.sh debloat-undo.sh \
+  for f in lib.sh decide.js compat.json stage-home.sh after-sam.sh undo-home.sh watchdog.sh debloat-stop.sh debloat-undo.sh \
            10-hometv-home 15-hometv-debloat uninstall.sh; do
     cp "$SRC/$f" "$D/$f" || fail "copy $f"
   done

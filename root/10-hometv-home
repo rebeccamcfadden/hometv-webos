@@ -14,6 +14,16 @@ if [ "$(node "$D/decide.js" takeover "$home")" != mount ]; then
   say "home: LG's Home here is '$home'; HomeTV only takes over the flutter or web Home; LG's Home stays"
   exit 0
 fi
+# The firmware list (compat.json): after the software changed to one not listed (nor agreed at install), LG's Home stays
+# and compat-stopped says why; hometv-lg root <tv ip> --home-again asks and runs install.sh again
+fw=$(info firmwareVersion)
+if [ -z "$fw" ]; then
+  say "home: couldn't read the software version; going on (install.sh checked it)"
+elif [ "$(node "$D/decide.js" compat "$D/compat.json" "$(info modelName)" "$fw")" = unlisted ] && [ "$fw" != "$(cat "$D/compat-ok" 2>/dev/null)" ]; then
+  echo "$fw" > "$D/compat-stopped"
+  say "home: software $fw isn't in compat.json and wasn't agreed to at install; LG's Home stays (hometv-lg root <tv ip> --home-again asks)"
+  exit 0
+fi
 sh "$D/stage-home.sh" || exit 0
 # HomeTV's service writes the heartbeat the watchdog reads, so it must see the real /tmp: elevated at every start (it
 # changes nothing when already done; an update of HomeTV re-registers the service jailed)
