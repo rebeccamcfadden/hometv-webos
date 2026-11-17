@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { open } from '../tools/lib/ssap.mjs';
-import { readOnlyChecks, launch } from '../tools/lib/checks.mjs';
+import { readOnlyChecks, launch, readiness } from '../tools/lib/checks.mjs';
 import { readSettings } from '../tools/lib/backup.mjs';
 import { fakeTv, HANDLERS } from './fake-ssap.mjs';
 
@@ -182,4 +182,13 @@ test('launch reports success and failure; an unknown method is an error, not a h
     assert.equal(r.returnValue, false);
     tv.close();
   });
+});
+
+test('readiness: 33.31.75 is known (voiceweb, with its source); a refused version read is unknown, never checked', () => {
+  const sw = (software) => readiness({ checks: { software } });
+  assert.match(sw({ ok: true, major_ver: '33', minor_ver: '31.75' }).root, /voiceweb.*issues 28 and 29/);
+  const refused = sw({ ok: false, error: '401 insufficient permissions' });
+  assert.equal(refused.software, 'unknown');
+  assert.match(refused.root, /^unknown: the TV didn't say its software version; read it on the TV/);
+  assert.match(sw({ ok: true, major_ver: '33', minor_ver: '31.80' }).root, /not in the known list/);
 });

@@ -74,7 +74,7 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
       for (const [re, a] of Object.entries(replies)) if (q.includes(re)) return a;
       return '';
     },
-    runSlopbro: async (k, host) => { slopbro.push(host); state.apps.push(HBC); return 0; },
+    runSlopbro: async (k, host, args = []) => { slopbro.push([...args, host].join(' ')); state.apps.push(HBC); return 0; },
     // a pretend Windows ssh (tools/lib/root-shell.mjs's shape): root when the key is the one the TV was given; answers
     // the restart check's key-only check and Homebrew Channel's switches from the folder standing for the TV
     rootShell: (o) => ({
@@ -230,15 +230,72 @@ test('the whole way: backup, Developer Mode, checks, root, Homebrew Channel, roo
   }
 });
 
-test('stop: the software isn\'t 33.31.61, so no root', async () => {
+test('stop: the software isn\'t a known one, so no root', async () => {
   const s = await happySetup({ minor: '31.70', telnet: false });
   try {
     assert.deepEqual(await runInstall(s.ctx), { stopped: 'root-checks' });
-    assert.match(s.text(), /software is 33\.31\.70, not 33\.31\.61/);
+    assert.match(s.text(), /software is 33\.31\.70, not 33\.31\.61 or 33\.31\.75/);
     assert.deepEqual(s.slopbro, []);
     noSecrets(s);
   } finally {
     await s.done();
+  }
+});
+
+test('33.31.75: SlopBro runs with --webos-version 11 (voiceweb, SlopBro issues 28 and 29)', async () => {
+  const s = await happySetup({ minor: '31.75', telnet: false });
+  try {
+    assert.deepEqual(await runInstall(s.ctx), { stopped: 'root-install' }, s.text());
+    assert.deepEqual(s.slopbro, ['--webos-version 11 127.0.0.1']);
+    assert.match(s.text(), /✓ software 33\.31\.75 \(the TV says\)/);
+    assert.match(s.text(), /com\.webos\.app\.voiceweb/);
+    assert.ok(s.asked.some((q) => /open Homebrew Channel once/.test(q)), 'Homebrew Channel opened once after root');
+    assert.equal(loadState(s.laptop).software, undefined, 'the TV\'s own word isn\'t kept');
+    noSecrets(s);
+  } finally {
+    await s.done();
+  }
+});
+
+test('a refused version read (401, webOS 10.3.2) is asked, never taken as checked', async () => {
+  // nothing typed: stop before anything else
+  const none = await happySetup({ minor: 'refused', telnet: false });
+  try {
+    assert.deepEqual(await runInstall(none.ctx), { stopped: 'root-checks' });
+    assert.match(none.text(), /software version is unknown/);
+    assert.ok(none.asked.some((q) => /Type the Software Version/.test(q)));
+    assert.deepEqual(none.slopbro, []);
+  } finally {
+    await none.done();
+  }
+  // a version typed that isn't known: stop
+  const other = await happySetup({ minor: 'refused', telnet: false, over: { replies: { ...happy({}).replies, 'Type the Software Version': '33.31.80' } } });
+  try {
+    assert.deepEqual(await runInstall(other.ctx), { stopped: 'root-checks' });
+    assert.match(other.text(), /software is 33\.31\.80, not/);
+    assert.deepEqual(other.slopbro, []);
+  } finally {
+    await other.done();
+  }
+  // 33.31.75 typed: goes on, marked as the person's reading, confirmed again before root, and the root step uses it
+  const typed = await happySetup({ minor: 'refused', telnet: false, over: { replies: { ...happy({}).replies, 'Type the Software Version': ' 33.31.75 ', 'still show 33.31.75': 'y' } } });
+  try {
+    assert.deepEqual(await runInstall(typed.ctx), { stopped: 'root-install' }, typed.text());
+    assert.match(typed.text(), /✓ software 33\.31\.75 \(read off the TV by you; the TV didn't say\)/);
+    assert.deepEqual(typed.slopbro, ['--webos-version 11 127.0.0.1']);
+    assert.equal(loadState(typed.laptop).software, '33.31.75');
+    noSecrets(typed);
+  } finally {
+    await typed.done();
+  }
+  // not confirmed again at the root step: SlopBro doesn't run
+  const unsure = await happySetup({ minor: 'refused', telnet: false, over: { replies: { ...happy({}).replies, 'Type the Software Version': '33.31.75' } } });
+  try {
+    assert.deepEqual(await runInstall(unsure.ctx), { stopped: 'root' });
+    assert.match(unsure.text(), /software version isn't confirmed/);
+    assert.deepEqual(unsure.slopbro, []);
+  } finally {
+    await unsure.done();
   }
 });
 

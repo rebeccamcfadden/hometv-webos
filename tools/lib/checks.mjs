@@ -80,18 +80,30 @@ export async function toast(tv, message) {
 }
 
 // What v0 will need, from what the laptop check read (v-1). Root status is dated: re-check
-// CanI.RootMy.TV before root (docs/jailbreak.md).
+// CanI.RootMy.TV before root (docs/jailbreak.md). `slopbro` is the options the root step gives SlopBro (pinned v0.1.0)
+// for that version: on 33.31.75 only com.webos.app.voiceweb worked, which SlopBro tries alone with --webos-version 11
+// (its TARGET_APPS lists voiceweb for 11 only; the option only picks the app). docs/root-plan.md, "33.31.75".
 export const ROOTABLE = {
-  '33.31.61': 'SlopBro: the newest version known to work (CanI.RootMy.TV, read 2026-11-04)'
+  '33.31.61': { note: 'SlopBro: the newest version known to work (CanI.RootMy.TV, read 2026-11-04)', slopbro: [] },
+  '33.31.75': {
+    note: 'SlopBro through com.webos.app.voiceweb (--webos-version 11): reported working in Oct 2026 on 55UT80006LA, ' +
+      '55QNED80SRA and others, where the default app failed (github.com/throwaway96/slopbro issues 28 and 29, read ' +
+      '2026-11-17). LG fixed the bug in firmware released after about 10 Oct 2026: keep updates off',
+    slopbro: ['--webos-version', '11']
+  }
 };
+
+// webOS 10.3.2 answers the software read with "401 insufficient permissions" (seen on the 2026-11-17 call)
+export const SW_UNREAD = 'unknown: the TV didn\'t say its software version; read it on the TV (Settings > All Settings > ' +
+  'Support > TV Information, Software Version) and compare it with the known list before any root';
 
 export function readiness(report) {
   const c = report.checks;
-  const sw = c.software && c.software.ok ? c.software.major_ver + '.' + c.software.minor_ver : '';
+  const sw = c.software && c.software.ok && c.software.major_ver ? c.software.major_ver + '.' + c.software.minor_ver : '';
   const ids = c.apps && c.apps.ok ? c.apps.all.map((a) => a.id) : [];
   return {
     software: sw || 'unknown',
-    root: ROOTABLE[sw] || (sw ? 'not in the known list: check CanI.RootMy.TV before any root' : 'unknown'),
+    root: ROOTABLE[sw] ? ROOTABLE[sw].note : (sw ? 'not in the known list: check CanI.RootMy.TV before any root' : SW_UNREAD),
     developerModeApp: ids.includes('com.palmdts.devmode'),
     homebrewChannel: ids.includes('org.webosbrew.hbchannel'),
     appList: !!(c.apps && c.apps.ok),

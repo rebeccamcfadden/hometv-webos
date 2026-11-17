@@ -17,8 +17,10 @@ import { PINNED, sha256 } from './fetch.mjs';
 import { telnetShell, pushFile, portOpen, q } from './telnet.mjs';
 import { laptopKey, keyPaths } from './sshkey.mjs';
 import { checkStick } from './recovery.mjs';
+import { ROOTABLE } from './checks.mjs';
 
-export const ROOT_SW = '33.31.61';
+const ROOT_SWS = Object.keys(ROOTABLE).join(' or ');
+const SW_WHERE = 'Settings > All Settings > Support > TV Information, Software Version';
 const APP = 'com.hometv.app';
 const HOME = 'com.webos.app.home';
 const DEVMODE = 'com.palmdts.devmode';
@@ -205,10 +207,13 @@ export function rootKit(dir) {
   return { python: path.join(tools, 'python', 'python.exe'), slopbro: path.join(tools, PINNED.slopbro.file) };
 }
 
-/** Runs SlopBro, unmodified, with the TV's address; its own messages go straight to the window. */
-export function runSlopbro(kit, host) {
+/**
+ * Runs SlopBro, unmodified, with the TV's address and the options for its software (checks.mjs, ROOTABLE); its own
+ * messages go straight to the window.
+ */
+export function runSlopbro(kit, host, args = []) {
   return new Promise((resolve) => {
-    const p = spawn(kit.python, [kit.slopbro, host], { cwd: path.dirname(kit.slopbro), stdio: 'inherit' });
+    const p = spawn(kit.python, [kit.slopbro, ...args, host], { cwd: path.dirname(kit.slopbro), stdio: 'inherit' });
     p.on('error', () => resolve(127));
     p.on('exit', (code) => resolve(code === null ? 1 : code));
   });
@@ -298,20 +303,36 @@ export const STEPS = [
       const tvDone = await withTv(ctx, async (tv) => {
         const apps = await appIds(tv);
         if (apps.has(HBC)) return { note: 'skipped: the TV is already rooted (Homebrew Channel is installed)' };
-        const sw = await softwareVersion(tv);
+        let sw = await softwareVersion(tv);
+        let by = 'the TV says';
+        if (ctx.state) delete ctx.state.software;
+        if (!sw) {
+          // webOS 10.3.2 refuses this read (401): asked, and kept as the person's reading, never as the TV's
+          ctx.say('  The TV didn\'t say its software version (webOS 10.3.2 refuses that read). Read it on the TV: ' + SW_WHERE + '.');
+          const typed = (await ctx.ask('  Type the Software Version exactly as the TV shows it (for example 33.31.75), or just Enter to stop here: ')).trim();
+          if (!/^\d+\.\d+\.\d+$/.test(typed)) {
+            return stop('The TV\'s software version is unknown (the TV didn\'t say, and none was typed).',
+              'Read it on the TV (' + SW_WHERE + ') and run this again. Don\'t root without it.');
+          }
+          sw = typed;
+          by = 'read off the TV by you; the TV didn\'t say';
+        }
         tvInfo = { software: sw, model: await modelName(tv) };
-        if (sw !== ROOT_SW) {
-          return stop('The TV\'s software is ' + (sw || 'unknown') + ', not ' + ROOT_SW + ' (the version SlopBro is known to work on).',
+        if (!ROOTABLE[sw]) {
+          return stop('The TV\'s software is ' + sw + ', not ' + ROOT_SWS + ' (the versions SlopBro is known to work on).',
             'Don\'t root. Tell the HomeTV team: root has to be checked again on CanI.RootMy.TV for this version.');
         }
-        ctx.say('  ✓ software ' + sw);
+        if (ctx.state && by !== 'the TV says') ctx.state.software = sw;
+        ctx.say('  ✓ software ' + sw + ' (' + by + ')');
+        if (ROOTABLE[sw].slopbro.length) ctx.say('    SlopBro will run with ' + ROOTABLE[sw].slopbro.join(' ') + ': ' + ROOTABLE[sw].note + '.');
         // either back on the TV: "Clear the way" has to be done again
         if ((apps.has(DEVMODE) || apps.has(APP)) && ctx.state) delete ctx.state.steps['clear-the-way'];
         if (apps.has(DEVMODE)) {
           return stop('The Developer Mode app is still installed.',
             'Delete it (Home > edit the app list > Developer Mode > delete), restart the TV (' + RESTART + '), then run this ' +
-            'again. It must go before root, never after: on this exact software a TV lost Homebrew Channel when it was ' +
-            'deleted after root (SlopBro issue 22).');
+            'again. It must go before root, never after: on 33.31.61 a TV lost Homebrew Channel when it was deleted after ' +
+            'root (SlopBro issue 22); deleting it takes the "Developer Mode on" flag with it, and LG then wipes ' +
+            '/media/developer, Homebrew Channel included, at the next start (webosbrew issue 256, on 33.31.75).');
         }
         ctx.say('  ✓ the Developer Mode app is deleted');
         // docs/root-plan.md, step 5: root goes on a TV back to stock; HomeTV comes back after root (root-install)
@@ -365,14 +386,27 @@ export const STEPS = [
       const kit = ctx.kit || rootKit(ctx.dir);
       const bad = await kitProblem(kit);
       if (bad) return stop('The root kit isn\'t ready: ' + bad + '.', 'Run: hometv-lg get root-kit   then run this again.');
+      // the version root-checks passed: the TV's word, or what the person read off it there (confirmed again here)
+      const told = await withTv(ctx, softwareVersion);
+      const sw = told || (ctx.state && ctx.state.software) || '';
+      if (!ROOTABLE[sw]) {
+        return stop('The TV\'s software version isn\'t one root-checks passed (' + (sw || 'unknown') + ').',
+          'Run this again with --from root-checks.');
+      }
+      if (!told && !yes(await ctx.ask('  The TV doesn\'t say its version; you read ' + sw + ' in the checks. Does ' + SW_WHERE +
+        ' still show ' + sw + '? [y/N] '))) {
+        return stop('The TV\'s software version isn\'t confirmed.', 'Read it on the TV, then run this again with --from root-checks.');
+      }
+      const args = ROOTABLE[sw].slopbro;
       ctx.say([
+        ...(args.length ? ['  On ' + sw + ' SlopBro runs with ' + args.join(' ') + ' (it then uses LG\'s com.webos.app.voiceweb, the app reported to work there).'] : []),
         '  What happens: the TV asks to "Allow" once more (SlopBro pairs on its own), then shows SlopBro\'s messages.',
         '  When it says "Rooting complete" and offers "Reboot now", choose Reboot now.',
         '  If it says the Developer Mode app is installed, choose OK, don\'t restart, and stop: tell the HomeTV team.'
       ].join('\n'));
       const phrase = (await ctx.ask('  To start, type  root the TV  and press Enter (just Enter stops here): ')).trim().replace(/\s+/g, ' ').toLowerCase();
       if (phrase !== 'root the tv') return { pause: 'Not started: nothing changed on the TV. Run this again when you\'re ready.' };
-      const code = await (ctx.runSlopbro || runSlopbro)(kit, ctx.host);
+      const code = await (ctx.runSlopbro || runSlopbro)(kit, ctx.host, args);
       if (code !== 0) {
         return stop('SlopBro stopped with an error (exit code ' + code + '). Nothing more was done.',
           'Its messages are above (they show the TV\'s address: don\'t post them publicly). Restart the TV; LG\'s Home should ' +
@@ -385,16 +419,19 @@ export const STEPS = [
   {
     id: 'hbc-check',
     title: 'After root: Homebrew Channel',
-    what: 'Checks Homebrew Channel is on the TV after root\'s restart.',
+    what: 'Checks Homebrew Channel is on the TV after root\'s restart, and has you open it once: its first opening sets ' +
+      'it to start with the TV from then on (Homebrew Channel\'s services/service.ts, /autostart), which HomeTV\'s start-up ' +
+      'hooks ride on.',
     undo: 'Nothing to undo.',
     async run(ctx) {
       if (!(await withTv(ctx, appIds)).has(HBC)) {
-        return stop('Homebrew Channel isn\'t on the TV after root. This is what was reported on this exact software ' +
+        return stop('Homebrew Channel isn\'t on the TV after root. This is what was reported on 33.31.61 ' +
           '(SlopBro issue 22): stop here.',
           'Don\'t run SlopBro again and don\'t install the Developer Mode app. The TV works as before with LG\'s Home. Tell the ' +
           'HomeTV team. If the TV misbehaves, the way back is LG\'s Reset to Initial Settings (docs/root-plan.md, level 3).');
       }
-      return { note: 'Homebrew Channel is installed' };
+      await ctx.ask('  On the TV, open Homebrew Channel once (from the app list), wait until its list shows, then press Enter here: ');
+      return { note: 'Homebrew Channel is installed and was opened once' };
     }
   },
   {

@@ -477,6 +477,19 @@ test('devmode: an install the TV refuses stops that version, skips the rest, and
   } finally { await s.done(); }
 });
 
+test('devmode: a rooted TV (Homebrew Channel listed) stops before the Developer Mode key (webosbrew issue 256)', async () => {
+  const s = await setup({ only: 'v0' });
+  fs.writeFileSync(s.stateFile, JSON.stringify({ apps: ['netflix', 'org.webosbrew.hbchannel'], foreground: 'com.webos.app.home' }));
+  try {
+    const r = await s.run();
+    assert.equal(r.stopped, true);
+    assert.match(r.report.stopped, /rooted.*Don't install, switch on or delete LG's Developer Mode app/);
+    assert.equal(s.asked.filter((q) => /passphrase/.test(q)).length, 0, 'no key asked');
+    assert.equal(s.lines().length, 0, 'ssh never started');
+    noLeaks(s, r);
+  } finally { await s.done(); }
+});
+
 test('devmode: key server off stops with the plain message; no report holds the address', async () => {
   const s = await setup({ noKeyServer: true, only: 'v0' });
   try {

@@ -117,6 +117,15 @@ export async function runDevmode(ctx) {
     const ipks = {};
     for (const v of wanted) ipks[v] = await getIpk(v, ctx);
 
+    // On a rooted TV LG's Developer Mode app must not come back: deleting it again later takes the "Developer Mode on"
+    // flag with it, and LG then wipes /media/developer, Homebrew Channel included (webosbrew issue 256, 33.31.75)
+    let rooted = false;
+    try { rooted = (await withTv(ctx, appIds)).has('org.webosbrew.hbchannel'); } catch { /* the key step says what's wrong */ }
+    if (rooted) {
+      throw Object.assign(new Error('This TV is rooted (Homebrew Channel is installed): HomeTV goes on it through Homebrew ' +
+        'Channel, not Developer Mode. Don\'t install, switch on or delete LG\'s Developer Mode app on it; ask the HomeTV team.'), { plain: true });
+    }
+
     say('\n  Getting the Developer Mode key from the TV …');
     const key = await getKey(ctx.host, ctx.dir, ctx.ask, say, { port: ctx.keyPort, waitMs: ctx.keyWaitMs, stepMs: ctx.keyStepMs });
     if (key.error) throw Object.assign(new Error(key.error), { plain: true });
