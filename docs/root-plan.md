@@ -7,7 +7,9 @@ install. **The plan: one launcher of our own, installed unrooted first as a chec
 and an unroot path are ready.** **LG's automatic updates are turned off on the first test call**, to keep root
 possible (LG's security fixes wait meanwhile; undo: switch them back on).
 
-The test TV: 43UT8000AUA, webOS 25, release 10.3.1-3001 (software 33.31.61).
+The test TV: 43UT8000AUA, webOS 25. Planned on release 10.3.1-3001 (software 33.31.61); **since 2026-11-17 it runs
+release 10.3.2-33 (software 33.31.75)**, LG having updated it before automatic updates were switched off. What that
+changes: [33.31.75](#333175-the-test-tvs-software-since-2026-11-17).
 
 ## The short version
 
@@ -44,7 +46,7 @@ window) runs them in order and stops on any failed check.
 | 3 | **Backup** (below; [backup.md](backup.md)) | Nothing | - | None | Built and tested against pretend TVs; the TV proves it |
 | 4 | **The way back, ready before root** (below): the undo for each level, LG's firmware file for the test TV's model on a USB stick, the steps printed ([recovery.md](recovery.md)) | Nothing | - | None | On paper; the USB stick is checked on the PC (`hometv-lg get recovery`, and in `hometv-lg root`'s checklist: FAT32, `LG_DTV`, one firmware file, its model family and version when its name says them) |
 | 5 | **Clear the way:** delete HomeTV and the Developer Mode app, restart, confirm Home and the apps work | Back to stock | - | Very low | The TV |
-| 6 | **Root** with SlopBro (pinned to the reviewed commit `21023d5`) from the laptop; restart; confirm Homebrew Channel opens | See [What root changes](#what-root-changes) | Level 3 (factory reset) | Low but not zero; see the warning for the test TV's firmware | Footprint on paper; success only on the TV |
+| 6 | **Root** with SlopBro (pinned to the reviewed commit `21023d5`) from the laptop, with `--webos-version 11` on 33.31.75 ([below](#333175-the-test-tvs-software-since-2026-11-17)); restart; open Homebrew Channel once (that sets it to start with the TV) | See [What root changes](#what-root-changes) | Level 3 (factory reset) | Low but not zero; see the warning for the test TV's firmware | Footprint on paper; success only on the TV |
 | 7 | **Lock it down:** SSH with a key only (no default password), Telnet off, "Block system updates" **on** as a second layer behind LG's own Allow Automatic Updates (switched off on the first call; undone in LG's menu), never `chattr` | Three flag files | Switch back in Homebrew Channel | None | On paper |
 | 8 | **HomeTV through Homebrew Channel, on Home and at power-on** (the in-memory takeover, lasharor's method, credited) | HomeTV's files and one start-up script; the takeover in memory | Level 1 or 2 | Low; a watchdog puts LG's Home back if HomeTV stops answering | lasharor's reports on two sibling UT TVs on webOS 25; the TV proves it |
 
@@ -68,6 +70,57 @@ From the source of SlopBro (`wwwroot/autoroot.sh`, commit `21023d5`) and Homebre
 | **HomeTV on Home** | A mount over LG's Home app | **Memory** | - | **Gone at the next start: LG's Home is back** |
 | LG's signed firmware, kernel, boot loader | - | **Never touched** | - | - |
 
+## 33.31.75: the test TV's software since 2026-11-17
+
+Read 2026-11-17 (B4b) from SlopBro's README, its issues #28 and #29 and its code at the pin, and from Homebrew
+Channel's `services/service.ts`, `services/startup.sh`, issue #256 and PR #257. Nothing here is checked on a TV.
+
+- **Root on 33.31.75 is reported, by another route.** SlopBro's default app failed there; LG's
+  `com.webos.app.voiceweb` worked end to end (Homebrew Channel installed, root after the restart) on 55UT80006LA,
+  55QNED80SRA, 65QNED85SRA, 50NANO80TSA and an OLED55B3, in October 2026 (#28, #29). SlopBro tries voiceweb alone
+  when told `--webos-version 11` (its `TARGET_APPS` lists voiceweb for 11 only; the option picks the app, nothing
+  else). The pinned v0.1.0 (`21023d5`) already holds both (voiceweb `b8bc271`, the option `da374e5`), so **the pin
+  stays** and the root step adds `--webos-version 11` on 33.31.75 only (`tools/lib/checks.mjs`, `ROOTABLE`). What
+  changed on SlopBro's main since the pin, read: tests, the README's status, the minimum Python, a FUNDING file, and
+  `67b3cc4` (a file counts as served only after its whole body is sent, not at a HEAD request). The successful
+  33.31.75 runs used main, after `67b3cc4`; v0.1.0 doesn't have it (a question below).
+- **LG closed the bug in firmware released after about 10 October 2026** (SlopBro's README). The test TV must stay
+  off updates until root: Allow Automatic Updates off (done on the call), and root-checks still reads or asks it.
+- **The start-up hooks still run, through Homebrew Channel, not `init.d` on its own.** HomeTV's two hooks live in
+  `/var/lib/webosbrew/init.d`, which only Homebrew Channel's `startup.sh` runs (`run-parts`). On current webOS that
+  script is started at each start by Homebrew Channel's `/autostart`, from a lasting activity on `core-boot-done`
+  that Homebrew Channel registers **when it is first opened** (`service.ts`, `registerActivity`), not by LG's
+  `start-devmode.sh`. #28's "init.d never runs" was written before its author knew of that activity; later comments
+  on the same firmware report `startup.sh` in place and SSH back after a restart. So nothing changes in `root/` for
+  10.3.2. The installer now has the person open Homebrew Channel once after root (`hbc-check`), and the restart check
+  already proves `startup.sh` ran at that restart (SSH with the key answers: only `startup.sh` starts it).
+- **What wipes `/media/developer` (#28, Homebrew Channel #256):** LG's `/etc/init/devmode.conf` checks the signature
+  of `start-devmode.sh`; an unsigned one makes it delete the "Developer Mode on" flag
+  (`/var/luna/preferences/devmode_enabled`), and **a start without that flag deletes `/media/developer`**: Homebrew
+  Channel, HomeTV and every homebrew app. The same happens when LG's Developer Mode app is deleted after root (it
+  takes the flag with it; #22 on 33.31.61, #256 on webOS 5). What in ours could trigger it, checked:
+  - Writing or copying anything to `start-devmode.sh`: nothing in this repo does (#28's cause was a copy of
+    Homebrew Channel's `startup.sh` there, which its maintainers say never to do; PR #257 removed the comment that
+    suggested it).
+  - Touching the flag: nothing here writes, moves or removes anything in `/var/luna/preferences` but Homebrew
+    Channel's own switches (through its `setConfiguration`) and LG's last-app note (`undo-home.sh`); never `chattr`
+    (Homebrew Channel's maintainer: making the flag immutable breaks things).
+  - The Developer Mode app around root: step 5 deletes it and restarts **before** root (root-checks stops while it's
+    listed). After root it must never come back: `hometv-lg devmode` now refuses a TV with Homebrew Channel.
+  - SlopBro itself renames an unsigned `start-devmode.sh` and makes the flag a folder (`autoroot.sh`, at the pin).
+- **The software version can't be read on 10.3.2.** The remote-control connection answers "401 insufficient
+  permissions" for it (seen on the call). The laptop check then says root is unknown and to read the version on the
+  TV; root-checks asks the person to type it from Settings › Support › TV Information, accepts only a known version,
+  and the report says it was read by the person, not the TV.
+- **Open questions for the project lead** (nothing worked around):
+  1. Homebrew Channel's maintainer wrote (#256) that its start-up "relies on functionality in the Home app". HomeTV's
+     mount over LG's Home comes only after that start-up has run, at each start, so it shouldn't matter; but it is
+     unchecked on webOS 10.3.2. Accept it as a first-real-TV check?
+  2. Stay on SlopBro v0.1.0 (the pin, no HEAD fix), or pin a commit of main (`f76b717` or `67b3cc4`), which the
+     reports used? A main commit has no release file: the root kit would build SlopBro's single file itself
+     (`tools/package_single_file.py`), a change to `hometv-lg get root-kit`.
+  3. `--webos-version 11` on a webOS 10 TV is the reporters' trick, not SlopBro's documented use (its README: give
+     the version "if the selected app fails"). Fine to run it that way?
 ## Backup (step 3)
 
 LG TVs have no settings export, so the backup is three parts, kept on the laptop and with the TV's owner:
@@ -148,10 +201,15 @@ SlopBro's bug, and may stop the start-up scripts. Then:
 
 - SlopBro: [repo](https://github.com/throwaway96/slopbro) (`wwwroot/autoroot.sh`, `wwwroot/main.js`, commit `21023d5`,
   2026-09-28); issues [#14](https://github.com/throwaway96/slopbro/issues/14) (clean unroot: factory reset),
-  [#22](https://github.com/throwaway96/slopbro/issues/22) (33.31.61, Homebrew Channel missing; open, no replies).
+  [#22](https://github.com/throwaway96/slopbro/issues/22) (33.31.61, Homebrew Channel missing; open, no replies),
+  [#28](https://github.com/throwaway96/slopbro/issues/28) and [#29](https://github.com/throwaway96/slopbro/issues/29)
+  (33.31.75 through voiceweb; the `/media/developer` wipe), README's status (LG's fix, about 10 October 2026).
 - Homebrew Channel: [repo](https://github.com/webosbrew/webos-homebrew-channel) (`services/startup.sh`, `jumpstart.sh`,
   `elevate-service.ts`, `frontend/views/SettingsPanel.js`); issues [#11](https://github.com/webosbrew/webos-homebrew-channel/issues/11)
-  (paths to clean), [#234](https://github.com/webosbrew/webos-homebrew-channel/issues/234) (after updates; factory reset).
+  (paths to clean), [#234](https://github.com/webosbrew/webos-homebrew-channel/issues/234) (after updates; factory reset),
+  [#256](https://github.com/webosbrew/webos-homebrew-channel/issues/256) and PR
+  [#257](https://github.com/webosbrew/webos-homebrew-channel/pull/257) (`start-devmode.sh` and the wipe), `services/service.ts`
+  (`autostart`, `registerActivity`).
 - [rootmy.tv/warning](https://rootmy.tv/warning) (signed partitions, `chattr`); RootMyTV docs/TROUBLESHOOTING.md;
   webosbrew/pages (overlays, glossary, cheatsheet). RootMyTV itself doesn't apply to the test TV (patched since 2022,
   never on webOS 22+; [jailbreak.md](jailbreak.md)); SlopBro ends in the same Homebrew Channel set-up, so the undo is
