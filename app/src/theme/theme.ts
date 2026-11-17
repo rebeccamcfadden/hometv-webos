@@ -41,21 +41,32 @@ function setImage(src: string | null) {
   root.style.setProperty('--bg-image', src ? `url("${src}")` : 'none');
 }
 
+/** No picture: the sky shows, and the last picture's blob is let go (a TV with little memory keeps no decoded image it isn't showing). */
+function clearImage() {
+  setImage(null);
+  if (objectUrl) URL.revokeObjectURL(objectUrl);
+  objectUrl = '';
+}
+
 /** The picture, once it is on the TV; the theme's sky shows while it loads, when it can't be fetched, and offline until it has been. */
 function applyBackdrop(b: Backdrop) {
   root.setAttribute('data-backdrop', b.kind);
   if (b.kind === 'none') {
     wanted = '';
-    return setImage(null);
+    return clearImage();
   }
   if (wanted === b.src) return;
   wanted = b.src;
-  setImage(null);
+  clearImage();
   void backdropBlob(b.src).then((blob) => {
-    if (!blob || wanted !== b.src) return;
+    if (wanted !== b.src) return;
+    // Not fetched (offline, a timeout): ask again at the next look (the network coming back, the hour, a setting).
+    if (!blob) {
+      wanted = '';
+      return;
+    }
     const next = URL.createObjectURL(blob);
     setImage(next);
-    if (objectUrl) URL.revokeObjectURL(objectUrl);
     objectUrl = next;
   });
 }
