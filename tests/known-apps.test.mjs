@@ -24,11 +24,12 @@ globalThis.PalmServiceBridge = FakeBridge;
 
 const { KNOWN_APPS, pickKnown } = await loadTs('webos/apps.ts');
 
-test('pickKnown: the installed ones, one per title, in the known order', () => {
-  const known = [{ id: 'a.new', title: 'A' }, { id: 'a.old', title: 'A' }, { id: 'b', title: 'B' }, { id: 'c', title: 'C' }];
-  const r = pickKnown(known, [{ returnValue: true, exist: false }, { returnValue: true, exist: true }, { returnValue: true, exist: true }, { returnValue: false }]);
+test('pickKnown: only "not installed" drops an app; an unanswered one stays; one per title, a sure id first', () => {
+  const known = [{ id: 'a.new', title: 'A' }, { id: 'a.old', title: 'A' }, { id: 'b', title: 'B' }, { id: 'c', title: 'C' }, { id: 'd', title: 'D' }];
+  const r = pickKnown(known, [{ returnValue: false }, { returnValue: true, exist: true }, { returnValue: true, exist: true }, { returnValue: false }, { returnValue: true, exist: false }]);
   assert.equal(r.checked, true);
-  assert.deepEqual(r.apps.map((a) => a.id), ['a.old', 'b']);
+  assert.deepEqual(r.apps.map((a) => a.id), ['a.old', 'b', 'c']);
+  assert.deepEqual(r.absent, ['d']);
 });
 
 test('pickKnown: no answer from the TV at all offers every known app once, unchecked', () => {
@@ -47,10 +48,11 @@ test('the known list has every Home tile\'s LG ids and no HomeTV or Developer Mo
 
 test('listLaunchPoints denied: the bridge asks getAppLoadStatus per known app and uses the installed ones', async () => {
   const { bridge } = await loadTs('bridge.ts');
-  const here = new Set(['netflix', 'youtube.leanback.v4', 'com.peacock.tv', 'com.wbd.stream']);
+  const here = new Set(['youtube.leanback.v4', 'com.peacock.tv', 'com.wbd.stream']);
   answers = {
     'luna://com.webos.applicationManager/listLaunchPoints': DENIED,
-    'luna://com.webos.applicationManager/getAppLoadStatus': (p) => ({ returnValue: true, exist: here.has(p.appId) }),
+    // Netflix's check gets no answer (refused): it isn't dropped, as the TV may have it
+    'luna://com.webos.applicationManager/getAppLoadStatus': (p) => (p.appId === 'netflix' ? { returnValue: false, errorText: 'timeout' } : { returnValue: true, exist: here.has(p.appId) }),
     'luna://com.webos.applicationManager/launch': { returnValue: true },
   };
   assert.equal(await bridge.connect(), 'app');
@@ -59,7 +61,8 @@ test('listLaunchPoints denied: the bridge asks getAppLoadStatus per known app an
   assert.equal(by.netflix, true);
   assert.equal(by.youtube, true);
   assert.equal(by.max, true);
-  assert.equal(by.disney, false);
+  assert.equal(by.disney, false, 'the TV said Disney+ isn\'t installed');
+  assert.equal(by.viaplay === undefined || by.viaplay === null, true, 'a tile with no known LG id isn\'t called missing');
   assert.equal(bridge.appSource(), 'checked');
   assert.match(bridge.problem(), /Denied method call "listLaunchPoints"/, 'the Checks screen still says why');
   const all = await bridge.installedApps();
@@ -70,6 +73,7 @@ test('listLaunchPoints denied: the bridge asks getAppLoadStatus per known app an
   assert.ok(calls.every((c) => !/ssap|pairing|register|createToast|createAlert/i.test(c.uri)), 'nothing that shows on the TV');
   assert.deepEqual(await bridge.launch('app:com.peacock.tv'), { ok: true, id: 'com.peacock.tv' });
   assert.deepEqual(await bridge.launch('disney'), { ok: false, id: null, error: 'not on this TV' });
+  assert.deepEqual(await bridge.launch('app:se.example.play'), { ok: true, id: 'se.example.play' }, 'a pinned app outside the known list still opens');
   await bridge.apps();
   assert.equal(calls.filter((c) => /getAppLoadStatus/.test(c.uri)).length, KNOWN_APPS.length, 'not asked again');
 });
@@ -84,7 +88,7 @@ test('getAppLoadStatus denied too: every known app is offered, no tile says "not
   };
   await bridge.connect();
   const apps = await bridge.apps();
-  assert.ok(apps.every((a) => a.installed === null));
+  assert.ok(apps.every((a) => a.installed !== false));
   assert.equal(bridge.appSource(), 'known');
   const all = await bridge.installedApps();
   assert.equal(all.length, new Set(KNOWN_APPS.map((a) => a.title)).size);

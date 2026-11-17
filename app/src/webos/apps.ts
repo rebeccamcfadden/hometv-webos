@@ -87,18 +87,28 @@ export interface LoadStatus {
 }
 
 /**
- * The known apps on this TV from getAppLoadStatus's replies (same order as `known`), one per title. `checked` is false
- * when the TV answered none of them: then every known app is offered, unchecked (opening one that isn't there says so).
+ * The known apps on this TV from getAppLoadStatus's replies (same order as `known`), one per title. Only an answer
+ * "not installed" (exist false) drops an app; one with no usable answer (refused, timed out) stays, as the TV may have
+ * it. `absent` holds the ids the TV said aren't installed. `checked` is false when the TV answered none of them: then
+ * every known app is offered, unchecked (opening one that isn't there says so).
  */
-export function pickKnown(known: LaunchPoint[], replies: LoadStatus[]): { apps: LaunchPoint[]; checked: boolean } {
-  const checked = replies.some((r) => !!r && r.returnValue !== false && typeof r.exist === 'boolean');
+export function pickKnown(known: LaunchPoint[], replies: LoadStatus[]): { apps: LaunchPoint[]; checked: boolean; absent: string[] } {
+  const answered = (r: LoadStatus | undefined) => !!r && r.returnValue !== false && typeof r.exist === 'boolean';
+  const checked = replies.some(answered);
   const out: LaunchPoint[] = [];
+  const absent: string[] = [];
   known.forEach((a, i) => {
-    const r = replies[i];
-    const there = checked ? !!r && r.returnValue !== false && r.exist === true : true;
-    if (there && !out.some((x) => x.title === a.title)) out.push(a);
+    if (answered(replies[i]) && replies[i].exist === false) absent.push(a.id);
   });
-  return { apps: out, checked };
+  // One per title: an id the TV said is installed before one it didn't answer for; then back in the known order.
+  const keep = (sure: boolean) =>
+    known.forEach((a, i) => {
+      if (absent.indexOf(a.id) < 0 && answered(replies[i]) === sure && !out.some((x) => x.title === a.title)) out.push(a);
+    });
+  keep(true);
+  keep(false);
+  out.sort((x, y) => known.indexOf(x) - known.indexOf(y));
+  return { apps: out, checked, absent };
 }
 
 const NETFLIX_TITLE = /netflix\.com\/(?:[a-z-]+\/)?(?:title|watch)\/(\d+)/i;
