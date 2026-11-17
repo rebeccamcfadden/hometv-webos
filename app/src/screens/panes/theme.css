@@ -1,0 +1,101 @@
+/* Settings › Theme (M9, Figma "Settings · Theme picker"), from design_preview's screens.css; no grid or flex gap
+   (margins instead). Moving highlights an option with the accent fill; the selected one has the accent ring around it. */
+.theme-grid {
+  display: flex;
+  flex-wrap: wrap;
+  margin-right: -6px;
+}
+.theme-opt {
+  flex: none;
+  width: 166px;
+  margin: 0 6px 6px 0;
+  padding: 5px 5px 8px;
+  border-radius: calc(var(--radius-l) * 1.1875);
+  text-align: center;
+}
+.theme-opt.is-selected {
+  box-shadow: 0 0 0 var(--focus-w) var(--accent);
+}
+.theme-opt.is-focused {
+  background: var(--accent);
+  transform: scale(1.04);
+}
+.theme-name {
+  margin-top: 8px;
+  font-size: var(--t-min);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.theme-opt.is-selected .theme-name {
+  color: var(--text-1);
+  font-weight: 600;
+}
+.theme-opt.is-focused .theme-name {
+  color: var(--on-accent);
+}
+.swatch {
+  position: relative;
+  height: 100px;
+  overflow: hidden;
+  border-radius: calc(var(--radius-l) * 0.875);
+  background: linear-gradient(var(--sky-top), var(--sky-mid));
+  box-shadow: inset 0 0 0 var(--line-w) var(--line);
+  color: var(--text-1);
+  text-align: left;
+}
+.swatch-aa {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  font-family: var(--font-display);
+  font-size: 34px;
+  font-weight: var(--display-weight);
+  line-height: 1.2;
+  text-shadow: var(--text-shadow);
+}
+.swatch-shelf {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 42px;
+  display: flex;
+  padding: 4px 12px 0;
+  border-top: 4px solid var(--horizon);
+  background: var(--bg);
+}
+.swatch-shelf i {
+  width: 40px;
+  height: 24px;
+  margin-right: 8px;
+  border-radius: calc(var(--radius-l) * 0.3125);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 var(--line-w) var(--line);
+}
+.swatch-shelf i.is-focus {
+  box-shadow: inset 0 0 0 calc(var(--focus-w) * 0.6) var(--accent);
+}
+.theme-rows {
+  margin-top: 20px;
+}
+.theme-row {
+  min-height: 80px;
+  margin-bottom: 8px;
+  padding: 0 20px 0 28px;
+}
+.theme-row .lr-title {
+  font-weight: 600;
+}
+.theme-val {
+  flex: none;
+  padding: 9px 22px;
+  border-radius: var(--radius-pill);
+  background: rgba(var(--tint-rgb), 0.09);
+  font-size: var(--t-small);
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+.lrow.is-focused .theme-val {
+  background: rgba(var(--on-accent-rgb), 0.12);
+}

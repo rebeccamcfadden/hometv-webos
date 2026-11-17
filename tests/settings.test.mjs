@@ -24,7 +24,7 @@ const NYC = { name: 'New York', region: 'New York', country: 'United States', la
 
 test('nothing chosen at first: no region, no place (no sample data), the unit follows the region', () => {
   const p = ls.loadPrefs(memory());
-  assert.deepEqual(p, { region: null, place: null, recentPlaces: [], unit: 'region', motion: 'full', uiSize: 'normal', screensaverAfter: 'off', screensaverBack: 'glow' });
+  assert.deepEqual(p, { region: null, place: null, recentPlaces: [], unit: 'region', motion: 'full', uiSize: 'normal', theme: 'midnight', themeFont: 'theme', timeOfDay: 'sun', appLogos: 'full', screensaverAfter: 'off', screensaverBack: 'glow' });
   assert.equal(ls.fahrenheit(p), false);
 });
 
@@ -51,7 +51,7 @@ test('choices are saved under hometv-settings-v1 and read back; unreadable ones 
   assert.equal(told, 2, 'a listener stops when asked');
   const saved = JSON.parse(storage.map.get(ls.SETTINGS_KEY));
   assert.equal(saved.region, 'us');
-  assert.deepEqual(ls.loadPrefs(storage), { region: 'us', place: NYC, recentPlaces: [], unit: 'c', motion: 'full', uiSize: 'normal', screensaverAfter: 'off', screensaverBack: 'glow' });
+  assert.deepEqual(ls.loadPrefs(storage), { region: 'us', place: NYC, recentPlaces: [], unit: 'c', motion: 'full', uiSize: 'normal', theme: 'midnight', themeFont: 'theme', timeOfDay: 'sun', appLogos: 'full', screensaverAfter: 'off', screensaverBack: 'glow' });
 
   storage.setItem(ls.SETTINGS_KEY, JSON.stringify({ region: 'fr', place: { name: 'Nowhere', latitude: 200, longitude: 0 }, unit: 'k', recentPlaces: 'x' }));
   assert.deepEqual(ls.loadPrefs(storage), ls.defaults());

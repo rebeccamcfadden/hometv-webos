@@ -1,0 +1,74 @@
+/* Home's own colours (styles.css: the top bar, tiles, buttons, hints, the checks page) as variables, so a theme can
+   restyle them. Midnight keeps the values it always had; every other theme maps them to its tokens (ui/themes.css).
+   The stage's own background does the same: Midnight's radial glow, or the theme's picture over its sky with the
+   shade the design puts over a backdrop (Home's lighter, every other screen's heavier). */
+
+:root {
+  --h-bg: #0b0f1a;
+  --h-text: #e8ecf5;
+  --h-muted: #aab6cf;
+  --h-dim: #7f8aa3;
+  --h-btn: #1c2740;
+  --h-btn-2: #24324f;
+  --h-btn-3: #151e33;
+  --h-focus: #b9d4ff;
+  --h-on-focus: #0b0f1a;
+  --h-warn: #ffd27f;
+  --h-bad: #ffb3a7;
+  --h-good: #9fe3b0;
+}
+
+html[data-theme]:not([data-theme='midnight']) {
+  --h-bg: var(--bg);
+  --h-text: var(--text-1);
+  --h-muted: var(--text-2);
+  --h-dim: var(--text-3);
+  --h-btn: var(--surface-2);
+  --h-btn-2: var(--surface-3);
+  --h-btn-3: var(--surface);
+  --h-focus: var(--accent);
+  --h-on-focus: var(--on-accent);
+  --h-warn: var(--star);
+  --h-good: var(--good);
+  --h-bad: #ff8f80;
+}
+
+html[data-theme]:not([data-theme='midnight']) #stage {
+  background:
+    linear-gradient(rgba(var(--shade-rgb), 0.86), rgba(var(--shade-rgb), 0.9)),
+    var(--vignette),
+    var(--bg-image) center / cover no-repeat,
+    var(--sky),
+    var(--bg);
+  font-family: var(--font-ui);
+}
+html[data-theme]:not([data-theme='midnight']) #stage[data-on='home'] {
+  background:
+    linear-gradient(rgba(var(--shade-rgb), var(--shade-top)), rgba(var(--shade-rgb), var(--shade-mid)) 55%, rgba(var(--shade-rgb), var(--shade-shelf))),
+    var(--vignette),
+    var(--bg-image) center / cover no-repeat,
+    var(--sky),
+    var(--bg);
+}
+html[data-theme]:not([data-theme='midnight']) body {
+  font-family: var(--font-ui);
+}
+
+/* App logos › Minimal (F43): Home's row of apps as wordmarks on the glass tile, whatever the app's own colours. */
+#stage[data-logos='minimal'] .tile {
+  background: var(--tile) !important;
+  box-shadow: inset 0 0 0 var(--line-w, 1px) var(--line);
+}
+#stage[data-logos='minimal'] .tile .mark {
+  color: var(--text-1) !important;
+  font-weight: 500 !important;
+}
+#stage[data-logos='minimal'] .tile .art {
+  display: none;
+}
+#stage[data-logos='minimal'] .tile.has-art .mark {
+  visibility: visible;
+}
+#stage[data-logos='minimal'] .tile.is-focused {
+  box-shadow: 0 0 0 4px var(--h-focus);
+}

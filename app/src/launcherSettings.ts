@@ -8,6 +8,7 @@
 
 import type { KeyValueStore } from './homeRow';
 import { readPlace, samePlace, type Place } from './weather/openMeteo';
+import { THEME_IDS, type ThemeId } from './theme/themes';
 
 export type Region = 'se' | 'us';
 /** °C, °F, or the region's (°F in the United States, else °C). */
@@ -28,6 +29,14 @@ export type UiSize = 'normal' | 'large' | 'larger';
 export const UI_SIZES: UiSize[] = ['normal', 'large', 'larger'];
 export const UI_SIZE_LABELS: Record<UiSize, string> = { normal: 'Normal', large: 'Large', larger: 'Larger' };
 export const UI_SIZE_SCALE: Record<UiSize, number> = { normal: 1, large: 1.25, larger: 1.5 };
+
+/** Settings › Theme: the Typeface (the theme's own, or the TV's Roboto), Time of day (F22) and App logos (F43). */
+export type ThemeFont = 'theme' | 'system';
+export type TimeOfDay = 'sun' | 'day' | 'night';
+export type AppLogos = 'full' | 'minimal';
+export const FONT_LABELS: Record<ThemeFont, string> = { theme: 'Theme font', system: 'System font' };
+export const TIME_OF_DAY_LABELS: Record<TimeOfDay, string> = { sun: 'Follow the sun', day: 'Day', night: 'Night' };
+export const APP_LOGOS_LABELS: Record<AppLogos, string> = { full: 'Full colour', minimal: 'Minimal' };
 
 export const MOTIONS: Motion[] = ['full', 'reduced', 'off'];
 export const MOTION_LABELS: Record<Motion, string> = { full: 'Full', reduced: 'Reduced', off: 'Off' };
@@ -54,9 +63,22 @@ export interface Prefs {
   unit: Unit;
   motion: Motion;
   uiSize: UiSize;
+  theme: ThemeId;
+  themeFont: ThemeFont;
+  timeOfDay: TimeOfDay;
+  appLogos: AppLogos;
   /** Off until the person picks a time (design_preview's first-run value). */
   screensaverAfter: ScreensaverAfter;
   screensaverBack: ScreensaverBack;
+}
+
+/**
+ * A TV that says it has 1 GB of RAM or less starts with Motion Off, as Android's low-RAM devices do; the choice is
+ * the person's after that. Not every TV's browser reports it (navigator.deviceMemory is Chromium 63+), and then it is Full.
+ */
+export function lowMemory(nav: object | undefined = typeof navigator !== 'undefined' ? navigator : undefined): boolean {
+  const mem = nav ? (nav as { deviceMemory?: number }).deviceMemory : undefined;
+  return typeof mem === 'number' && mem <= 1;
 }
 
 export const defaults = (): Prefs => ({
@@ -64,8 +86,12 @@ export const defaults = (): Prefs => ({
   place: null,
   recentPlaces: [],
   unit: 'region',
-  motion: 'full',
+  motion: lowMemory() ? 'off' : 'full',
   uiSize: 'normal',
+  theme: 'midnight',
+  themeFont: 'theme',
+  timeOfDay: 'sun',
+  appLogos: 'full',
   screensaverAfter: 'off',
   screensaverBack: 'glow',
 });
@@ -91,6 +117,10 @@ export function loadPrefs(storage: KeyValueStore | null): Prefs {
       if (saved.unit === 'c' || saved.unit === 'f' || saved.unit === 'region') out.unit = saved.unit;
       out.motion = oneOf(MOTIONS, saved.motion, out.motion);
       out.uiSize = oneOf(UI_SIZES, saved.uiSize, out.uiSize);
+      out.theme = oneOf(THEME_IDS, saved.theme === 'seasonal-nature' ? 'seasonal-vector' : saved.theme, out.theme);
+      out.themeFont = oneOf<ThemeFont>(['theme', 'system'], saved.themeFont, out.themeFont);
+      out.timeOfDay = oneOf<TimeOfDay>(['sun', 'day', 'night'], saved.timeOfDay, out.timeOfDay);
+      out.appLogos = oneOf<AppLogos>(['full', 'minimal'], saved.appLogos, out.appLogos);
       out.screensaverAfter = oneOf(SCREENSAVER_AFTER, saved.screensaverAfter, out.screensaverAfter);
       out.screensaverBack = oneOf(SCREENSAVER_BACKS, saved.screensaverBack, out.screensaverBack);
     }
@@ -158,6 +188,10 @@ export function createPrefs(storage: KeyValueStore | null) {
         unit: data.unit,
         motion: data.motion,
         uiSize: data.uiSize,
+        theme: data.theme,
+        themeFont: data.themeFont,
+        timeOfDay: data.timeOfDay,
+        appLogos: data.appLogos,
         screensaverAfter: data.screensaverAfter,
         screensaverBack: data.screensaverBack,
       };
