@@ -16,15 +16,23 @@
  *   useLgHome  { mode: 'temp' }: LG's Home now, until the next restart (Home pressed three times), run detached, since
  *              the app manager's restart ends HomeTV's page. { mode: 'at-restart' }: LG's Home for good from the next
  *              restart (Settings › Use LG's Home); answers once the hooks are gone
- * Every method but `alive` wants a caller that is HomeTV's page, or LG's Home with HomeTV mounted over it: a TV that
+ * HomeTV's own updates on the root edition (Settings › Updates; update.js and update-apply.js, adapted from lasharor's):
+ *   version       { version }: this service's version (the app's); anyone may ask. update-apply.js checks the new one
+ *   updateCheck   { on, installed, available, failedBefore, refused, error, root }: reads the signed manifest only
+ *   updateInstall { version }: downloads and checks every file, then update-apply.js swaps them in, detached, as root;
+ *                 answers at once, the page follows it with updateStatus
+ *   updateStatus  { last, busy }: the last update's record (updates/last.json)
+ * Every method but `alive` and `version` wants a caller that is HomeTV's page, or LG's Home with HomeTV mounted over it: a TV that
  * doesn't say who called is refused, because these hand out keys or change Home. Nothing is sent anywhere but the key
- * checks that pages.js makes (one free request per key, to its own service); nothing is logged.
+ * checks that pages.js makes (one free request per key, to its own service) and the update requests (HTTPS GETs of the
+ * release's manifest and, after Install update, its files); nothing is logged.
  */
 'use strict';
 
 var fs = require('fs');
 var path = require('path');
 var childProcess = require('child_process');
+var updates = require('./update.js');
 
 var ID = 'com.hometv.app.service';
 /** As root/lib.sh ALIVE. */
@@ -34,6 +42,10 @@ var ROOT_DIR = process.env.HOMETV_DIR || '/media/developer/hometv';
 var INITD = process.env.HOMETV_INITD || '/var/lib/webosbrew/init.d';
 /** As root/lib.sh BOOT_ID: this start's id, new at each start. */
 var BOOT_ID = process.env.HOMETV_BOOT_ID || '/proc/sys/kernel/random/boot_id';
+/** The installed HomeTV app's folder (as root/lib.sh APP). */
+var APP_DIR = process.env.HOMETV_APP || '/media/developer/apps/usr/palm/applications/com.hometv.app';
+/** An update that has said nothing for this long is taken as over (the TV went off mid-way). */
+var BUSY_MS = 15 * 60000;
 /** A second "LG's Home now" within this long is the same press (the first is still restarting the app manager). */
 var TEMP_GAP_MS = 60000;
 /** Who may call: HomeTV's page, also when it is mounted over LG's Home (root/10-hometv-home). */
@@ -145,6 +157,29 @@ function createMethods(deps) {
   };
   var now = deps.now || Date.now;
   var tempAt = -Infinity;
+  var appDir = deps.appDir || APP_DIR;
+  var updateConfig = deps.updateConfig || updates.loadConfig(__dirname);
+  var updateGet = deps.updateGet;
+  var serviceVersion = deps.version || (function () {
+    try {
+      return String(require('./package.json').version || '');
+    } catch (e) {
+      return '';
+    }
+  })();
+  var updOpts = function () {
+    return { config: updateConfig, dir: rootDir, app: appDir, get: updateGet };
+  };
+  var busyFile = function () {
+    return path.join(rootDir, updates.SUB, 'busy');
+  };
+  function updateBusy() {
+    try {
+      return now() - fs.statSync(busyFile()).mtime.getTime() < BUSY_MS;
+    } catch (e) {
+      return false;
+    }
+  }
 
   function refuse(message) {
     message.respond({ returnValue: false, errorText: 'not HomeTV' });
@@ -278,6 +313,65 @@ function createMethods(deps) {
         message.respond({ returnValue: true, chosen: true, hooked: false });
       });
     },
+    version: function (message) {
+      message.respond({ returnValue: true, version: serviceVersion });
+    },
+    updateCheck: function (message) {
+      if (!exact(message)) return refuse(message);
+      updates.check(updOpts(), function (err, r) {
+        message.respond({
+          returnValue: true, on: r.on, installed: r.installed, available: r.available, failedBefore: r.failedBefore,
+          refused: r.refused, error: r.error, root: uid() === 0 && there(path.join(rootDir, 'undo-home.sh'))
+        });
+      });
+    },
+    updateStatus: function (message) {
+      if (!exact(message)) return refuse(message);
+      message.respond({ returnValue: true, last: updates.lastResult(rootDir), busy: updateBusy() });
+    },
+    updateInstall: function (message) {
+      if (!exact(message)) return refuse(message);
+      var want = message.payload && message.payload.version;
+      if (!updateConfig.on) return message.respond({ returnValue: false, errorText: 'updates are off in this build' });
+      if (!there(path.join(rootDir, 'undo-home.sh'))) return message.respond({ returnValue: false, errorText: 'HomeTV\'s root edition isn\'t on this TV' });
+      if (uid() !== 0) return message.respond({ returnValue: false, errorText: 'HomeTV\'s service isn\'t running as root (restart the TV)' });
+      if (typeof want !== 'string' || updates.cmp(want, '0.0.0') === null) return message.respond({ returnValue: false, errorText: 'which version?' });
+      if (updateBusy()) return message.respond({ returnValue: false, errorText: 'an update is already running' });
+      try {
+        fs.mkdirSync(path.join(rootDir, updates.SUB));
+      } catch (e) {
+        // there already
+      }
+      fs.writeFileSync(busyFile(), String(process.pid));
+      updates.writeResult(rootDir, { version: want, state: 'downloading', note: '' });
+      message.respond({ returnValue: true, started: true });
+      var opts = updOpts();
+      var stop = function (state, note) {
+        updates.writeResult(rootDir, { version: want, state: state, note: note });
+        try {
+          fs.unlinkSync(busyFile());
+        } catch (e) {
+          // gone
+        }
+      };
+      updates.check(opts, function (err, found) {
+        if (found.available !== want) {
+          return stop(found.error ? 'failed' : 'refused', found.error || found.refused ||
+            (found.failedBefore === want ? want + ' failed before' : want + ' is no longer on offer'));
+        }
+        var stage = path.join(rootDir, updates.SUB, 'stage');
+        updates.download(opts, found, stage, function (e) {
+          if (e) return stop(/HTTP|connection|timed out|redirect/.test(e.message) ? 'failed' : 'refused', e.message);
+          try {
+            var child = spawn(process.execPath, [path.join(__dirname, 'update-apply.js'), stage], { detached: true, stdio: 'ignore' });
+            if (child && child.on) child.on('error', function () {});
+            if (child && child.unref) child.unref();
+          } catch (x) {
+            stop('failed', 'couldn\'t start update-apply.js');
+          }
+        });
+      });
+    },
     sweep: sweep,
     instance: function () {
       return instance;
@@ -296,7 +390,7 @@ try {
 if (Service) {
   var service = new Service(ID);
   methods = createMethods({ activities: service.activityManager });
-  ['alive', 'start', 'stop', 'token', 'tmdbKey', 'priceKeys', 'rootState', 'useLgHome'].forEach(function (name) {
+  ['alive', 'start', 'stop', 'token', 'tmdbKey', 'priceKeys', 'rootState', 'useLgHome', 'version', 'updateCheck', 'updateStatus', 'updateInstall'].forEach(function (name) {
     service.register(name, methods[name]);
   });
 }

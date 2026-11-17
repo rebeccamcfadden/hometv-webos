@@ -481,7 +481,9 @@ export const STEPS = [
           const payload = JSON.stringify({ id: 'com.ares.defaultName', ipkUrl: tmp, subscribe: true });
           await sh.run('rm -f ' + q(out) + '; luna-send -w 60000 -i ' + q('luna://com.webos.appInstallService/dev/install') + ' ' + q(payload) +
             ' > ' + q(out) + ' 2>&1 & p=$!; i=0; while [ $i -lt 90 ] && ! grep -q -e installed -e failed ' + q(out) +
-            '; do sleep 1; i=$((i+1)); done; kill $p 2>/dev/null; rm -f ' + q(tmp), { ms: 120000 });
+            '; do sleep 1; i=$((i+1)); done; kill $p 2>/dev/null; ' +
+            // kept for Settings › Updates: the copy an in-TV update falls back to (service/update-apply.js)
+            'grep -q installed ' + q(out) + ' && mkdir -p ' + q(P.dir + '/updates') + ' && cp ' + q(tmp) + ' ' + q(P.dir + '/updates/current.ipk') + '; rm -f ' + q(tmp), { ms: 120000 });
           const ok = await sh.run('grep -q installed ' + q(out) + ' && [ -f ' + q(P.app + '/index.html') + ' ]');
           if (ok.code !== 0) return stop('HomeTV couldn\'t be installed again on the rooted TV.', 'Install it from Homebrew Channel, or tell the HomeTV team.');
           ctx.say('  ✓ HomeTV installed again (' + path.basename(ipk) + ')');

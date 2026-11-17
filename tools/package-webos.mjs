@@ -11,7 +11,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { png } from './lib/png.mjs';
-import { appVersion } from './page-build.mjs';
+import { appVersion, KEYS_FILE, parseKeys } from './page-build.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -35,6 +35,18 @@ export function samplesInPage(dir) {
 }
 
 /**
+ * What the service's own updater (service/update.js, the root edition's Settings › Updates) is built with: the signed
+ * manifest's address (HOMETV_ROOT_UPDATE_URL, https; empty: off, the default until the project lead's go) and the same
+ * public keys as the page updates (app/loader/page-keys.txt plus HOMETV_PAGE_KEYS).
+ */
+export function rootUpdateConfig(env = process.env) {
+  const url = (env.HOMETV_ROOT_UPDATE_URL || '').trim();
+  if (url && !/^https:\/\/[^\s]+$/.test(url)) throw new Error(`HOMETV_ROOT_UPDATE_URL is not an https address: ${url}`);
+  const keysText = (fs.existsSync(KEYS_FILE) ? fs.readFileSync(KEYS_FILE, 'utf8') : '') + '\n' + (env.HOMETV_PAGE_KEYS || '');
+  return { url, keys: parseKeys(keysText) };
+}
+
+/**
  * The service folder as it goes in the .ipk: never its private keys, dev data or a test's files. The offline v0 leaves
  * out the key page too (pages.js checks keys against TMDB, Watchmode and Movie of the Night): service.js then only
  * has `alive`, and says so to the key methods.
@@ -46,6 +58,12 @@ export const serviceStage = (out, v1 = true) => {
     filter: (src) =>
       !/[\\/](\.private|\.data|node_modules)([\\/]|$)/.test(src) && (v1 || !/[\\/](pages\.js|keys-page\.html)$/.test(src)),
   });
+  // The updater checks signatures with TweetNaCl, answers with the app's version, and has its address and keys.
+  fs.copyFileSync(path.join(root, 'vendor', 'tweetnacl', 'nacl-fast.min.js'), path.join(out, 'nacl-fast.min.js'));
+  const pkg = JSON.parse(fs.readFileSync(path.join(out, 'package.json'), 'utf8'));
+  pkg.version = appVersion();
+  fs.writeFileSync(path.join(out, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
+  fs.writeFileSync(path.join(out, 'update-config.json'), JSON.stringify(rootUpdateConfig(), null, 2) + '\n');
 };
 
 /** HomeTV's appinfo.json for LG. Back reaches the page (disableBackHistoryAPI); the page handles it. */

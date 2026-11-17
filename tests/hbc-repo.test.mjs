@@ -14,6 +14,9 @@ import { readIpk, readAr, readTar } from '../tools/lib/ipk.mjs';
 import { buildRepo, writeRepo, inspectIpk, addRepositoryLaunch, DEFAULT_BASE_URL } from '../tools/hbc-repo.mjs';
 import { startPageServer } from '../tools/page-serve.mjs';
 import { appinfo as makeAppinfo } from '../tools/package-webos.mjs';
+import { makeRootRelease, rootScripts, writeRootRelease } from '../tools/root-release.mjs';
+import { makeKeyPair } from '../tools/page-key.mjs';
+import { createRequire } from 'node:module';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -60,7 +63,7 @@ function makeAr(members) {
   return Buffer.concat(parts);
 }
 
-function makeIpk({ id = 'com.hometv.app', version = '1.2.3', infoVersion = version, appJs = 'window.x = 1;', long = false } = {}) {
+function makeIpk({ id = 'com.hometv.app', version = '1.2.3', infoVersion = version, appJs = 'window.x = 1;', long = false, svcVersion = version } = {}) {
   const info = { ...makeAppinfo(infoVersion), id };
   const dir = `./usr/palm/applications/${id}/`;
   const control = `Package: ${id}\nVersion: ${version}\nSection: misc\nPriority: optional\nArchitecture: all\nInstalled-Size: 1000\n`;
@@ -70,6 +73,7 @@ function makeIpk({ id = 'com.hometv.app', version = '1.2.3', infoVersion = versi
     [dir + 'assets/app.js', appJs],
     [dir + 'largeIcon.png', Buffer.from('PNG-ICON')],
     ['./usr/palm/services/com.hometv.app.service/service.js', '// service'],
+    ['./usr/palm/services/com.hometv.app.service/package.json', JSON.stringify({ version: svcVersion })],
   ];
   if (long) data.push([dir + 'assets/' + 'a'.repeat(120) + '.js', 'long']);
   return makeAr([
@@ -232,4 +236,26 @@ test('hbc-repo.mjs writes the three files and publishes nothing', () => {
   } finally {
     fs.rmSync(work, { recursive: true, force: true });
   }
+});
+
+test('root-release: the .ipk and every root script, signed; the service must answer with the app\'s version', () => {
+  const U = createRequire(import.meta.url)('../service/update.js');
+  const k = makeKeyPair();
+  const ipkName = 'com.hometv.app_1.2.3_all.ipk';
+  const rel = makeRootRelease({ ipk: makeIpk(), ipkName, scripts: rootScripts(), tag: 'app-v1.2.3', privateKey: k.privateKey });
+  const c = U.checkManifest(rel.manifestBytes, rel.signature, [k.publicKey]);
+  assert.equal(c.refused, undefined);
+  assert.equal(c.manifest.version, '1.2.3');
+  assert.equal(c.manifest.tag, 'app-v1.2.3');
+  assert.deepEqual(c.manifest.files.map((f) => f.name).sort(), [ipkName, ...U.ROOT_FILES].sort());
+  assert.ok(rootScripts().every((f) => !f.data.includes(13)), 'Unix line ends');
+  const out = path.join(root, '.data', 'test-root-release');
+  try {
+    writeRootRelease(out, rel);
+    assert.ok(U.verifyStage(out, [k.publicKey]).manifest, 'the folder checks as the TV checks it');
+  } finally {
+    fs.rmSync(out, { recursive: true, force: true });
+  }
+  assert.throws(() => makeRootRelease({ ipk: makeIpk({ svcVersion: '1.0.0' }), ipkName, scripts: rootScripts(), privateKey: k.privateKey }), /its service says 1\.0\.0/);
+  assert.throws(() => makeRootRelease({ ipk: makeIpk(), ipkName, scripts: rootScripts().slice(1), privateKey: k.privateKey }), /differ from update\.js ROOT_FILES/);
 });
