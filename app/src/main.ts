@@ -74,7 +74,9 @@ async function start() {
     });
   }
   home.setApps(await bridge.apps());
-  if (bridge.mode() === 'app') shell.toast(`${bridge.appCount()} apps on this TV`);
+  const src = bridge.appSource();
+  const n = bridge.appCount();
+  if (bridge.mode() === 'app') shell.toast(src === 'listed' ? `${n} apps on this TV` : src === 'checked' ? `${n} known apps found on this TV` : `${n} known apps (this TV doesn’t say which it has)`);
 }
 
 start();

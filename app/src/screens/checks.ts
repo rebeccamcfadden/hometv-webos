@@ -46,7 +46,7 @@ let open: Screen | null = null;
 export function plainProblem(raw: string): string {
   if (!raw) return '';
   if (/list its apps/.test(raw) && /denied/i.test(raw)) {
-    return `This TV doesn’t let HomeTV list its apps (LG allows that only for its own and store apps). Apps on Home still open. TV: ${raw}`;
+    return `This TV doesn’t let HomeTV list its apps (LG allows that only for its own and store apps), so Home and All apps use HomeTV’s list of known apps. TV: ${raw}`;
   }
   return `The TV had a problem: ${raw}`;
 }
