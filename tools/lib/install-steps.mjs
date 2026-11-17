@@ -505,7 +505,8 @@ export const STEPS = [
           await sh.run('rm -f ' + q(tmp));
           if (!installed) {
             return stop('HomeTV couldn\'t be installed again on the rooted TV (LG\'s installer, ' + INSTALL_TRIES + ' tries).',
-              'Install it from Homebrew Channel, or tell the HomeTV team.');
+              'If LG\'s installer said FAILED_IPKG_INSTALL, see docs/troubleshooting.md (a half-installed HomeTV). Otherwise install it from ' +
+              'Homebrew Channel, or tell the HomeTV team.');
           }
           ctx.say('  ✓ HomeTV installed again (' + path.basename(ipk) + ')');
         } else {

@@ -2,6 +2,8 @@
 
 Levels 3, 4 and 5 of [root-plan.md](root-plan.md) › The way back, as steps to follow on the day. Levels 0-2 (Home
 three times, Settings › Use LG's Home, `hometv-lg unroot-home`) are lighter and come first; level 6 is LG service.
+Light problems that need none of these (a black screen after a restart, Home Style, a half-installed HomeTV) are in
+[troubleshooting.md](troubleshooting.md).
 The guide on the project's Pages site (B5) is written from this page.
 
 **Research only, like the rest of the root edition:** nothing here has been done on the test TV. The factory reset is
