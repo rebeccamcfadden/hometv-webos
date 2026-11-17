@@ -15,7 +15,7 @@ import { fakeTv, HANDLERS } from './fake-ssap.mjs';
 import { fakeCdp } from './fake-cdp.mjs';
 import { PINNED, sha256 } from '../tools/lib/fetch.mjs';
 import { fetchKey, openKey, getKey, KEY_SERVER_DOWN, KEY_SERVER_STILL_DOWN } from '../tools/lib/devmode-key.mjs';
-import { getIpk, installIpk, runDevmode } from '../tools/lib/devmode.mjs';
+import { getIpk, installIpk, runDevmode, regionFor } from '../tools/lib/devmode.mjs';
 import { sshShell } from '../tools/lib/root-shell.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -87,7 +87,7 @@ function pageModel({ problem = '', firstRunAfterUpdate = false, wipeOnUpdate = f
       case 'keypage': return JSON.stringify({ address: 'http://' + HOST + ':' + keyPort + '/keys', qr: true });
       case 'click': {
         const settings = () => JSON.parse(p.storage['hometv-settings-v1'] || '{}');
-        if (arg === 'seg-region-se') p.storage['hometv-settings-v1'] = JSON.stringify({ ...settings(), region: 'se' });
+        if (/^seg-region-(se|us)$/.test(arg)) p.storage['hometv-settings-v1'] = JSON.stringify({ ...settings(), region: arg.slice(-2) });
         else if (arg === 'wr-0') p.storage['hometv-settings-v1'] = JSON.stringify({ ...settings(), place: { name: 'Stockholm' } });
         else if (arg === 'start') { p.stack.pop(); p.storage['hometv-setup-done'] = '1'; }
         else if (arg === 'keys') p.stack.push('screen keys');
@@ -116,7 +116,7 @@ async function setup({ install = 'ok', replies = {}, keyPem = ENCRYPTED, noKeySe
   const read = () => JSON.parse(fs.readFileSync(stateFile, 'utf8'));
   const tv = fakeTv({
     ...HANDLERS,
-    'settings/getSystemSettings': (q) => (read().autoUpdate && q.category === 'option' ? { returnValue: true, settings: { autoUpdate: read().autoUpdate } } : { returnValue: false, errorText: 'no such key' }),
+    'settings/getSystemSettings': (q) => (q.keys && q.keys[0] === 'country' ? { returnValue: true, settings: { country: read().country || 'USA' } } : read().autoUpdate && q.category === 'option' ? { returnValue: true, settings: { autoUpdate: read().autoUpdate } } : { returnValue: false, errorText: 'no such key' }),
     'com.webos.service.update/getCurrentSWInformation': () => ({ returnValue: true, major_ver: '33', minor_ver: '31.61', device_id: 'aa:bb:cc:dd:ee:ff', serial: 'SECRET123' }),
     'com.webos.applicationManager/listLaunchPoints': () => ({ returnValue: true, launchPoints: read().apps.map((id) => ({ id, title: id })) }),
     'com.webos.applicationManager/getForegroundAppInfo': () => ({ returnValue: true, appId: read().foreground, windowId: 'x' }),
@@ -340,7 +340,7 @@ test('devmode: v0, then v1 over it: every check passes, the person is asked only
       assert.equal(checkOf(v1, id).status, 'ok', 'v1 ' + id);
     }
     assert.equal(checkOf(v0, 'firstrun').status, 'ok');
-    assert.match(checkOf(v0, 'firstrun').note, /Sweden.*Stockholm/);
+    assert.match(checkOf(v0, 'firstrun').note, /^region United States \(the TV's country\); weather city left for the person/);
     assert.equal(checkOf(v0, 'settings'), undefined, 'settings kept is a v1 check');
     assert.equal(checkOf(v1, 'settings').status, 'ok');
     assert.equal(checkOf(v1, 'keypage').status, 'ok');
@@ -349,7 +349,7 @@ test('devmode: v0, then v1 over it: every check passes, the person is asked only
     assert.equal(v1.firstRunShownAfterUpdate, false);
     assert.equal(checkOf(v1, 'firstrun').note, 'no (not shown)');
     assert.equal(checkOf(v0, 'keypage'), undefined, 'v0 has no API keys screen');
-    assert.deepEqual(v0.settings, { region: 'se', weatherCity: 'Stockholm', setupDone: true });
+    assert.deepEqual(v0.settings, { region: 'us', weatherCity: null, setupDone: true });
     assert.match(r.report.tv.model, /43UT8000AUA/);
     assert.equal(r.report.tv.firmware, '33.31.61');
     assert.equal(v0.inspector, 'reached');
@@ -525,6 +525,13 @@ test('devmode: when the TV never reports HomeTV in front, the person is asked; a
     assert.equal(checkOf(v, 'launchpoints').status, 'ok');
     assert.notEqual(checkOf(v, 'stays').status, 'skipped');
   } finally { await s.done(); }
+});
+
+test('devmode: v0\'s first run takes the TV\'s country for the region and leaves the weather city to the person', () => {
+  assert.equal(regionFor('USA'), 'us');
+  assert.equal(regionFor('SWE'), 'se');
+  assert.equal(regionFor('GBR'), null);
+  assert.equal(regionFor(''), null);
 });
 
 test('devmode: a wrong passphrase is asked again, and the run goes on', async () => {

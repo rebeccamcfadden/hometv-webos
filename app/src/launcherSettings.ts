@@ -33,6 +33,16 @@ export const SCREENSAVER_BACK_LABELS: Record<ScreensaverBack, string> = { glow: 
 export const REGIONS: Region[] = ['se', 'us'];
 export const REGION_LABELS: Record<Region, string> = { se: 'Sweden', us: 'United States' };
 
+/**
+ * First run's suggestion, as on Android (RegionChoice.suggestion): the region of the TV's own language tag ("en-US" →
+ * United States), only while none is chosen; null for none to save.
+ */
+export function regionSuggestion(chosen: Region | null, language: string | undefined): Region | null {
+  if (chosen) return null;
+  const country = (String(language || '').split(/[-_]/)[1] || '').toUpperCase();
+  return country === 'US' ? 'us' : country === 'SE' ? 'se' : null;
+}
+
 export const SETTINGS_KEY = 'hometv-settings-v1';
 export const SETUP_KEY = 'hometv-setup-done';
 /** Quick picks in Change city: the places chosen before the one showing. */

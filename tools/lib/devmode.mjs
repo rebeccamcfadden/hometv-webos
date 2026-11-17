@@ -225,10 +225,13 @@ async function tvInfo(ctx) {
     return await withTv(ctx, async (tv) => {
       const sw = await tv.request('com.webos.service.update/getCurrentSWInformation');
       const sys = await tv.request('system/getSystemInfo');
+      const opt = await tv.request('settings/getSystemSettings', { category: 'option', keys: ['country'] });
+      const country = opt.returnValue === false || !opt.settings ? '' : String(opt.settings.country || '');
       // only these fields are read: never device_id, serial or the address
       return {
         model: sys.returnValue === false ? '' : String(sys.modelName || ''),
-        firmware: sw.returnValue === false || !sw.major_ver ? '' : String(sw.major_ver) + '.' + String(sw.minor_ver)
+        firmware: sw.returnValue === false || !sw.major_ver ? '' : String(sw.major_ver) + '.' + String(sw.minor_ver),
+        ...(/^[A-Z]{2,3}$/.test(country) ? { country } : {})
       };
     });
   } catch { return {}; }
@@ -310,7 +313,7 @@ async function runVersion(ctx, shell, v, ipk, expected, before, yes) {
           rec('settings', 'settings kept through the update', same ? 'ok' : 'failed', same ? 'the same region, weather city and first-run state' : 'they differ: ' + diffKeys(before, R.snapshot).join(', '));
         } else rec('settings', 'settings kept through the update', 'skipped', before ? 'could not read the page' : 'v0 was not read');
       }
-      R.firstRun = await firstRun(page, v);
+      R.firstRun = await firstRun(page, v, { country: ctx.report && ctx.report.tv && ctx.report.tv.country });
       if (R.firstRun.shown) rec('firstrun', v === 'v0' ? 'first run done with defaults' : 'first run shown after the update', R.firstRun.ok ? 'ok' : 'failed', R.firstRun.note);
       else if (v === 'v1') rec('firstrun', 'first run shown after the update', 'ok', 'no (not shown)');
       if (v === 'v0') R.snapshot = await snapshot(page);
@@ -370,24 +373,30 @@ async function waitForeground(ctx, test, ms, seen = {}) {
 const top = async (page) => String((await page.eval(q('top'))) || '');
 const click = (page, key) => page.eval(q('click', key));
 
-/** First run on top: v0 gets the defaults (Sweden, a Stockholm weather place); either way Start leaves it. */
-async function firstRun(page, v) {
+/** HomeTV's region for the TV's country setting ("USA", "SWE"), or null for one HomeTV doesn't have. */
+export function regionFor(country) {
+  const c = String(country || '').toUpperCase();
+  return c === 'USA' || c === 'US' ? 'us' : c === 'SWE' || c === 'SE' ? 'se' : null;
+}
+
+/**
+ * First run on top: v0 gets the TV's own region (from its country setting); the weather city is left for the person to
+ * choose (the 2026-11-17 call: a US TV got Sweden and Stockholm, °C). Either way Start leaves it.
+ */
+async function firstRun(page, v, ctx = {}) {
   const out = { shown: false, ok: true, note: '' };
   if (!/screen--setup/.test(await top(page))) return out;
   out.shown = true;
   const notes = [];
   if (v === 'v0') {
-    await click(page, 'step-region');
-    await sleep(500);
-    notes.push((await click(page, 'seg-region-se')) ? 'region Sweden' : 'region: could not choose');
-    await click(page, 'step-weather');
-    await sleep(500);
-    await click(page, 'w-change');
-    await sleep(500);
-    for (const c of 'stockholm') await click(page, 'wk-' + c);
-    const hit = await until(() => page.eval(q('has', 'wr-0')), 15000);
-    notes.push(hit && (await click(page, 'wr-0')) ? 'weather city Stockholm' : 'weather city: not chosen (the search didn\'t answer)');
-    await sleep(500);
+    const region = regionFor(ctx.country);
+    if (region) {
+      await click(page, 'step-region');
+      await sleep(500);
+      const name = region === 'us' ? 'United States' : 'Sweden';
+      notes.push((await click(page, 'seg-region-' + region)) ? 'region ' + name + ' (the TV\'s country)' : 'region: could not choose');
+    } else notes.push('region left for the person (the TV\'s country ' + (ctx.country ? ctx.country + ' isn\'t one HomeTV has' : 'wasn\'t read') + ')');
+    notes.push('weather city left for the person');
   } else {
     // v1's First run lists the TMDB key (only while no key is saved) and Sign in to TMDB; the person walks
     // through them after the checks, from Settings › Open first run

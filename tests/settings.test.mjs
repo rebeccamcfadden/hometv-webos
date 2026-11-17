@@ -65,6 +65,15 @@ test('one region at a time, chosen by the person: °C or °F follows it until a 
   assert.deepEqual(ls.REGIONS, ['se', 'us']);
 });
 
+test('First run suggests the region from the TV’s language tag only while none is chosen, as Android does', () => {
+  assert.equal(ls.regionSuggestion(null, 'en-US'), 'us');
+  assert.equal(ls.regionSuggestion(null, 'sv-SE'), 'se');
+  assert.equal(ls.regionSuggestion('se', 'en-US'), null, 'a chosen region stays');
+  assert.equal(ls.regionSuggestion(null, 'en-GB'), null);
+  assert.equal(ls.regionSuggestion(null, 'en'), null);
+  assert.equal(ls.fahrenheit({ ...ls.loadPrefs(memory()), region: ls.regionSuggestion(null, 'en-US') }), true, 'a US TV shows °F');
+});
+
 test('a new place puts the one before it first among the quick picks, three at most, never twice', () => {
   let p = ls.defaults();
   const apply = (place) => (p = { ...p, ...ls.withPlace(p, place) });
