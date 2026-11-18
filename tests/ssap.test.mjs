@@ -130,6 +130,49 @@ test('double-clicked: asks for the address until it looks right, runs the full c
   }
 });
 
+test('webOS 10.3.2: reads answered 401/500 are "unknown" in plain words, not failures', async () => {
+  const { summarize, describe } = await import('../tools/lib/backup.mjs');
+  const denied = { returnValue: false, errorText: '401 insufficient permissions' };
+  const appError = { returnValue: false, errorText: '500 Application error' };
+  const tv = fakeTv({
+    ...HANDLERS,
+    'com.webos.service.update/getCurrentSWInformation': () => denied,
+    'com.webos.service.apiadapter/audio/getSoundOutput': () => denied,
+    'settings/getSystemSettings': (p) => (p.keys[0] === 'powerOnScreen' ? appError : HANDLERS['settings/getSystemSettings'](p))
+  });
+  await new Promise((r) => tv.server.listen(0, '127.0.0.1', r));
+  const port = tv.server.address().port;
+  try {
+    const c = await open('127.0.0.1', { ports: [{ url: 'ws://127.0.0.1:' + port + '/' }] });
+    const r = await readOnlyChecks(c);
+    const s = await readSettings(c, [{ category: 'general', keys: ['powerOnScreen'] }, { category: 'picture', keys: ['contrast'] }]);
+    c.close();
+    assert.deepEqual(r.checks.software, { ok: false, unknown: true, error: '401 insufficient permissions', note: 'unknown: this TV doesn\'t let the laptop read it' });
+    assert.equal(r.checks.soundOutput.unknown, true);
+    assert.equal(r.checks.apps.ok, true);
+    assert.equal(s.general.powerOnScreen.unknown, true);
+    assert.equal(s.picture.contrast.unknown, undefined, 'a missing key is still refused, not unknown');
+    const sum = summarize({ ssap: { reads: [
+      { what: 'setting', ok: false, unknown: true }, { what: 'setting', ok: false }, { what: 'setting', ok: true }
+    ] } });
+    assert.equal(sum.settingsUnknown, 1);
+    assert.equal(sum.settingsRefused, 1);
+    assert.match(describe(sum).join('\n'), /1 unknown: this TV doesn't let the laptop read them/);
+
+    const { execFile } = await import('node:child_process');
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    fs.mkdirSync('dist', { recursive: true });
+    const dir = fs.mkdtempSync(path.resolve('dist', 'test-unknown-'));
+    try {
+      const out = await new Promise((resolve, reject) => execFile(process.execPath, ['tools/tv-check.mjs', '127.0.0.1', '--ws-port', String(port)],
+        { env: { ...process.env, HOMETV_DIR: dir }, timeout: 20000 }, (err, stdout) => (err ? reject(err) : resolve(stdout))));
+      assert.match(out, /software version unknown \(this TV doesn't let the laptop read it: read it on the TV under Settings › Support › TV Information\)/);
+      assert.match(out, /Unknown \(this TV doesn't let the laptop read it; not a problem\): sound output\./);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  } finally { tv.server.close(); }
+});
+
 test('launch reports success and failure; an unknown method is an error, not a hang', async () => {
   await withTv(async (port) => {
     const tv = await open('127.0.0.1', { ports: [{ url: 'ws://127.0.0.1:' + port + '/' }] });

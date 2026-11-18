@@ -18,6 +18,17 @@ export const LAUNCHES = [
   { id: 'youtube-title', label: 'Open a YouTube video ("Me at the zoo")', app: 'youtube.leanback.v4', params: { contentId: 'v=' + YT_VIDEO } }
 ];
 
+// webOS 10.3.2 (seen 2026-11-17) answers some reads with "401 insufficient permissions" or "500 Application error": the
+// TV doesn't let a paired app read them. That's unknown, not a failed check.
+const UNREADABLE = /^\s*(401|403|500)\b|insufficient permissions|application error/i;
+export const UNKNOWN_NOTE = 'unknown: this TV doesn\'t let the laptop read it';
+
+/** A read that didn't work: { ok: false, error }, plus unknown and a plain note when the TV just won't tell. */
+export function notRead(errorText) {
+  const error = String(errorText || 'no answer');
+  return UNREADABLE.test(error) ? { ok: false, unknown: true, error, note: UNKNOWN_NOTE } : { ok: false, error };
+}
+
 function pick(obj, keys) {
   const out = {};
   for (const k of keys) if (obj && obj[k] !== undefined) out[k] = obj[k];
@@ -29,13 +40,13 @@ export async function readOnlyChecks(tv) {
   const c = report.checks;
 
   const sw = await tv.request('com.webos.service.update/getCurrentSWInformation');
-  c.software = sw.returnValue === false ? { ok: false, error: sw.errorText } : { ok: true, ...pick(sw, SW_KEYS) };
+  c.software = sw.returnValue === false ? notRead(sw.errorText) : { ok: true, ...pick(sw, SW_KEYS) };
 
   const sys = await tv.request('system/getSystemInfo');
-  c.system = sys.returnValue === false ? { ok: false, error: sys.errorText } : { ok: true, ...pick(sys, ['modelName', 'receiverType']) };
+  c.system = sys.returnValue === false ? notRead(sys.errorText) : { ok: true, ...pick(sys, ['modelName', 'receiverType']) };
 
   const lp = await tv.request('com.webos.applicationManager/listLaunchPoints');
-  if (lp.returnValue === false || !Array.isArray(lp.launchPoints)) c.apps = { ok: false, error: lp.errorText || 'no list' };
+  if (lp.returnValue === false || !Array.isArray(lp.launchPoints)) c.apps = notRead(lp.errorText || 'no list');
   else {
     const apps = lp.launchPoints.map((a) => ({ id: String(a.id), title: String(a.title || '') }));
     c.apps = {
@@ -46,15 +57,15 @@ export async function readOnlyChecks(tv) {
   }
 
   const fg = await tv.request('com.webos.applicationManager/getForegroundAppInfo');
-  c.foreground = fg.returnValue === false ? { ok: false, error: fg.errorText } : { ok: true, appId: fg.appId || '' };
+  c.foreground = fg.returnValue === false ? notRead(fg.errorText) : { ok: true, appId: fg.appId || '' };
 
   const inputs = await tv.request('tv/getExternalInputList');
   c.inputs = inputs.returnValue === false || !Array.isArray(inputs.devices)
-    ? { ok: false, error: inputs.errorText || 'no list' }
+    ? notRead(inputs.errorText || 'no list')
     : { ok: true, devices: inputs.devices.map((d) => pick(d, ['id', 'label', 'connected', 'appId'])) };
 
   const sound = await tv.request('com.webos.service.apiadapter/audio/getSoundOutput');
-  c.soundOutput = sound.returnValue === false ? { ok: false, error: sound.errorText } : { ok: true, soundOutput: sound.soundOutput };
+  c.soundOutput = sound.returnValue === false ? notRead(sound.errorText) : { ok: true, soundOutput: sound.soundOutput };
 
   return report;
 }

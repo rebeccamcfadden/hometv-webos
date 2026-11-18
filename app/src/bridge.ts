@@ -11,7 +11,7 @@ import { pageChecks } from './pageChecks';
 import type { OpenPlan } from './titleLinks';
 import { platform } from './platform';
 import { luna, lunaError, onWebOS } from './webos/luna';
-import { findApp, guessId, titleParams, type LaunchPoint } from './webos/apps';
+import { findApp, KNOWN_APPS, LG_APP_IDS, pickKnown, titleParams, type LaunchPoint, type LoadStatus } from './webos/apps';
 
 export const SERVICE = 'http://127.0.0.1:8766';
 
@@ -54,30 +54,59 @@ const APP_MANAGER = 'luna://com.webos.applicationManager';
 /** HomeTV's own apps: never listed as apps to open. */
 const OWN_IDS = ['com.hometv.app', 'com.hometv.checks'];
 
+/**
+ * Where the app list came from: the TV's own list; HomeTV's known apps the TV said are installed (getAppLoadStatus),
+ * when the TV won't list its apps; or the known apps unchecked, when it won't say that either.
+ */
+export type AppSource = 'listed' | 'checked' | 'known';
+
 let mode: Mode = 'preview';
 let problem = '';
 let all: LgLaunchPoint[] | null = null;
+let source: AppSource = 'listed';
+/** Known LG ids the TV said aren't installed (getAppLoadStatus), when it won't list its apps. */
+let absent: string[] = [];
 let loading: Promise<LgLaunchPoint[] | null> | null = null;
 const previewLog: Result[] = [];
 let toast: (text: string) => void = () => {};
 
-/** The TV's apps, once per start (again after a failed try). null when the TV won't list them. */
+/** The TV's apps, once per start; HomeTV's known apps (knownApps) when the TV won't list them. */
 function loadApps(): Promise<LgLaunchPoint[] | null> {
   if (all) return Promise.resolve(all);
   if (!loading) {
-    loading = luna(APP_MANAGER + '/listLaunchPoints', {}).then((r) => {
-      loading = null;
-      const list = r.launchPoints as LgLaunchPoint[] | undefined;
-      if (!r.returnValue || !Array.isArray(list)) {
-        problem = 'the TV didn’t list its apps: ' + lunaError(r);
-        return null;
-      }
-      problem = '';
-      all = list.filter((a) => a && a.id && OWN_IDS.indexOf(a.id) < 0);
-      return all;
-    });
+    loading = luna(APP_MANAGER + '/listLaunchPoints', {})
+      .then((r): LgLaunchPoint[] | Promise<LgLaunchPoint[]> => {
+        const list = r.launchPoints as LgLaunchPoint[] | undefined;
+        if (!r.returnValue || !Array.isArray(list)) {
+          problem = 'the TV didn’t list its apps: ' + lunaError(r);
+          return knownApps();
+        }
+        problem = '';
+        source = 'listed';
+        all = list.filter((a) => a && a.id && OWN_IDS.indexOf(a.id) < 0);
+        return all;
+      })
+      .then((list) => {
+        loading = null;
+        return list;
+      });
   }
   return loading;
+}
+
+/**
+ * The TV won't list its apps (Developer Mode on webOS 10.3.2): HomeTV's known apps, asking the TV for each whether it
+ * is installed (getAppLoadStatus; nothing shows on the TV). Never null, so Home's row and All apps still have a list.
+ */
+async function knownApps(): Promise<LgLaunchPoint[]> {
+  const replies = await Promise.all(
+    KNOWN_APPS.map((a) => luna(APP_MANAGER + '/getAppLoadStatus', { appId: a.id }, 5000).then((r) => r as LoadStatus, () => ({ returnValue: false }))),
+  );
+  const picked = pickKnown(KNOWN_APPS, replies);
+  source = picked.checked ? 'checked' : 'known';
+  absent = picked.absent;
+  all = picked.apps.map((a) => ({ id: a.id, title: a.title }));
+  return all;
 }
 
 /**
@@ -94,12 +123,28 @@ function installedFor(key: string, name?: string): LgLaunchPoint | null {
   return (findApp(all, key, (tile && tile.name) || name) as LgLaunchPoint | null) || all.filter((a) => keyForName(a.title) === key)[0] || null;
 }
 
-/** The id to open: the installed app's; when the TV wouldn't list its apps, the first known id (or the "app:" id). */
+/**
+ * The id to open: the installed app's; when the TV wouldn't list its apps, the "app:" id, or the first known id the TV
+ * didn't say is missing (getAppLoadStatus), so a pinned app outside the known list still opens.
+ */
 function idFor(key: string, name?: string): string | null {
   const app = installedFor(key, name);
   if (app) return app.id;
-  if (all) return null;
-  return key.indexOf(APP_PREFIX) === 0 ? key.slice(APP_PREFIX.length) : guessId(key);
+  if (all && source === 'listed') return null;
+  if (key.indexOf(APP_PREFIX) === 0) return key.slice(APP_PREFIX.length);
+  const ids = LG_APP_IDS[key] || [];
+  return ids.filter((id) => absent.indexOf(id) < 0)[0] || null;
+}
+
+/**
+ * Whether a Home tile's app is on the TV: from the TV's own list; from HomeTV's known apps, false only when the TV said
+ * every LG id it has isn't installed; otherwise null (not known, so the tile doesn't say "not on this TV").
+ */
+function installedState(key: string): boolean | null {
+  if (installedFor(key)) return true;
+  if (source === 'listed') return false;
+  const ids = LG_APP_IDS[key] || [];
+  return source === 'checked' && ids.length > 0 && ids.every((id) => absent.indexOf(id) >= 0) ? false : null;
 }
 
 /** Opens an app, with launch params when given. '' when the TV took it, else its error. */
@@ -129,6 +174,8 @@ export const bridge = {
   addresses: (): string[] => [],
   /** How many apps the TV listed. */
   appCount: () => (all ? all.length : 0),
+  /** Where the app list came from (AppSource); 'listed' until the TV has been asked. */
+  appSource: (): AppSource => source,
 
   /** HomeTV's toast, for the bridge's own messages (an app the TV wouldn't open). */
   setToast(fn: (text: string) => void) {
@@ -146,7 +193,7 @@ export const bridge = {
   async apps(): Promise<AppInfo[] | null> {
     if (mode !== 'app') return null;
     if (!(await loadApps())) return null;
-    return HOME_APPS.map((t) => ({ key: t.key, name: t.name, installed: !!installedFor(t.key) }));
+    return HOME_APPS.map((t) => ({ key: t.key, name: t.name, installed: installedState(t.key) }));
   },
 
   /** The TV's own id for a Home row entry (App info): "app:" entries carry it; Home's tiles have it once the TV listed its apps. */

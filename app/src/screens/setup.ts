@@ -11,7 +11,7 @@
 // phone to the key page, which explains getting the key) or the TMDB account screen over First run; Back returns here.
 // After an update from v0, main.ts shows First run once more (`hometv-setup-v1-done`) unless the key is already saved.
 import './settings.css';
-import { markSetupDone, pageStorage, prefs, REGION_LABELS, SETUP_V1_KEY } from '../launcherSettings';
+import { markSetupDone, pageStorage, prefs, REGION_LABELS, regionSuggestion, setupDone, SETUP_V1_KEY } from '../launcherSettings';
 import { shell, type Screen } from '../shell/app';
 import { h, replace } from '../shell/dom';
 import { focusable } from '../shell/focus';
@@ -113,6 +113,11 @@ function tmdbPane(body: () => { eyebrow: string; title: string; sub: string; sta
 
 export function setupScreen(): Screen {
   const tmdb = routes.tmdbSetup;
+  // A US TV starts on United States (°F), not on nothing; the weather city stays for the person to choose. Only on the
+  // very first run: shown again (Settings, or after the v1 update) it leaves an empty region as it was.
+  const firstEver = !setupDone(pageStorage());
+  const suggested = firstEver ? regionSuggestion(prefs.get().region, typeof navigator !== 'undefined' ? navigator.language : '') : null;
+  if (suggested) prefs.set({ region: suggested });
   /** The TMDB key's state; null until First run has read it once. */
   let keySaved: boolean | null = null;
   let steps: Step[] = tmdb ? [STEPS[0], ...tmdbSteps(tmdb, () => !!keySaved), STEPS[1]] : STEPS;

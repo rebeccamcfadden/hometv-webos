@@ -6,7 +6,7 @@
 
 import './allApps.css';
 import { HOME_APPS, homeRow } from '../apps';
-import { APP_PREFIX, bridge, type TvApp } from '../bridge';
+import { APP_PREFIX, bridge, type AppSource, type TvApp } from '../bridge';
 import { onRow, toggleOnRow, type RowEntry } from '../homeRow';
 import { HOME_ROW_MAX } from '@hometv/core/services.ts';
 import { shell, type Screen } from '../shell/app';
@@ -42,6 +42,12 @@ function tvApps(): Promise<TvApp[] | null> {
 const facts = (a: TvApp, moved?: Moved) => ({ name: a.name, watch: !!a.key, moved });
 const inFolder = (a: TvApp) => isTvUtility(facts(a, loadMoves(storage())[a.id]));
 const count = (n: number) => `${n} app${n === 1 ? '' : 's'}`;
+/** All apps' line for a list that isn't the TV's own (bridge.appSource). */
+const KNOWN_NOTE: Record<AppSource, string> = {
+  listed: '',
+  checked: 'This TV doesn’t let HomeTV list every app, so these are the apps HomeTV knows that the TV says are installed. Hold OK on one to add it to Home or take it off.',
+  known: 'This TV doesn’t let HomeTV list or check its apps, so these are the apps HomeTV knows; some may not be on this TV. Hold OK on one to add it to Home or take it off.',
+};
 /** Home's row entry for an app: its Home tile key when it is one, else its id. */
 const entryOf = (a: TvApp): RowEntry => ({ id: a.key || APP_PREFIX + a.id, name: a.name });
 
@@ -75,12 +81,16 @@ export function allAppsScreen(folder = false): Screen {
   const title = folder ? 'TV Utilities' : 'All apps';
   const countEl = h('span.aa-count');
   const grid = h('div.aa-grid');
+  // When the TV won't list its apps (Developer Mode), the list is HomeTV's known apps: say so, once it is known.
+  const knownNote = h('div.aa-note');
+  knownNote.style.display = 'none';
   const scroll = h('div.aa-scroll', { 'data-scroll': 'y', 'data-scroll-pad': 40 }, grid);
   const el = h(
     'div.screen.screen--full.aa-page',
     back,
     h('div.aa-head', h('h1.page-title', title), countEl),
     folder ? h('div.aa-note', 'Apps that came with the TV. Hold OK on one to move it back to All apps.') : null,
+    folder ? null : knownNote,
     scroll,
   );
 
@@ -120,6 +130,9 @@ export function allAppsScreen(folder = false): Screen {
       return;
     }
     const all = listed;
+    const src = bridge.appSource();
+    knownNote.textContent = KNOWN_NOTE[src];
+    knownNote.style.display = KNOWN_NOTE[src] ? '' : 'none';
     const inside = all.filter(inFolder);
     shown = folder ? inside : all.filter((a) => !inFolder(a));
     countEl.textContent = count(folder ? inside.length : all.length);

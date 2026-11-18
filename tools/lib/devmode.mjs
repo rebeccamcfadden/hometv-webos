@@ -118,7 +118,7 @@ export async function runDevmode(ctx) {
     for (const v of wanted) ipks[v] = await getIpk(v, ctx);
 
     say('\n  Getting the Developer Mode key from the TV …');
-    const key = await getKey(ctx.host, ctx.dir, ctx.ask, say, { port: ctx.keyPort });
+    const key = await getKey(ctx.host, ctx.dir, ctx.ask, say, { port: ctx.keyPort, waitMs: ctx.keyWaitMs, stepMs: ctx.keyStepMs });
     if (key.error) throw Object.assign(new Error(key.error), { plain: true });
     shell = sshShell({
       host: ctx.host, key: key.file, knownHosts: path.join(ctx.dir, 'devmode-known-hosts'), port: ctx.sshPort || 9922, user: 'prisoner',
@@ -225,10 +225,13 @@ async function tvInfo(ctx) {
     return await withTv(ctx, async (tv) => {
       const sw = await tv.request('com.webos.service.update/getCurrentSWInformation');
       const sys = await tv.request('system/getSystemInfo');
+      const opt = await tv.request('settings/getSystemSettings', { category: 'option', keys: ['country'] });
+      const country = opt.returnValue === false || !opt.settings ? '' : String(opt.settings.country || '');
       // only these fields are read: never device_id, serial or the address
       return {
         model: sys.returnValue === false ? '' : String(sys.modelName || ''),
-        firmware: sw.returnValue === false || !sw.major_ver ? '' : String(sw.major_ver) + '.' + String(sw.minor_ver)
+        firmware: sw.returnValue === false || !sw.major_ver ? '' : String(sw.major_ver) + '.' + String(sw.minor_ver),
+        ...(/^[A-Z]{2,3}$/.test(country) ? { country } : {})
       };
     });
   } catch { return {}; }
@@ -262,14 +265,28 @@ async function runVersion(ctx, shell, v, ipk, expected, before, yes) {
 
   // Opens
   const launchedAt = Date.now();
-  const launched = await launchApp(shell, ctx);
-  const open = launched && (await waitForeground(ctx, (id) => id === APP, ctx.openWaitMs || 20000));
+  let launched = await launchApp(shell, ctx);
+  const fg = {};
+  const openWait = ctx.openWaitMs || 30000;
+  let open = launched && !!(await waitForeground(ctx, (id) => id === APP, openWait, fg));
+  if (!open) {
+    // On the real TV v1 opened by hand but the foreground read missed it once: launch again and wait once more.
+    launched = (await launchApp(shell, ctx)) || launched;
+    open = launched && !!(await waitForeground(ctx, (id) => id === APP, openWait, fg));
+  }
+  let toldOpen = false;
+  if (!open && launched) {
+    toldOpen = (await yes('The script can\'t see HomeTV in front (the TV says: ' + scrub(String(fg.last || 'nothing'), ctx.host) + '). Is HomeTV on the TV screen now?', v)) === true;
+    open = toldOpen;
+  }
   lap('open');
-  rec('opens', 'launches and comes to the front', open ? 'ok' : 'failed', open ? '' : launched ? 'the TV\'s foreground app isn\'t HomeTV' : 'the launch call failed');
-  if (open) {
+  rec('opens', 'launches and comes to the front', open ? 'ok' : 'failed',
+    toldOpen ? 'told by person; the TV\'s foreground read: ' + (fg.last || 'nothing')
+      : open ? '' : launched ? 'the TV\'s foreground app isn\'t HomeTV (' + (fg.last || 'nothing read') + ')' : 'the launch call failed');
+  if (open && !toldOpen) {
     const on = await yes('Is HomeTV on the TV screen now?', v);
     rec('screen', 'the person sees HomeTV on screen', on ? 'ok' : 'failed', on === null ? 'no answer' : '');
-  }
+  } else if (toldOpen) rec('screen', 'the person sees HomeTV on screen', 'ok', '');
 
   // the Web Inspector
   let page = null;
@@ -296,7 +313,7 @@ async function runVersion(ctx, shell, v, ipk, expected, before, yes) {
           rec('settings', 'settings kept through the update', same ? 'ok' : 'failed', same ? 'the same region, weather city and first-run state' : 'they differ: ' + diffKeys(before, R.snapshot).join(', '));
         } else rec('settings', 'settings kept through the update', 'skipped', before ? 'could not read the page' : 'v0 was not read');
       }
-      R.firstRun = await firstRun(page, v);
+      R.firstRun = await firstRun(page, v, { country: ctx.report && ctx.report.tv && ctx.report.tv.country });
       if (R.firstRun.shown) rec('firstrun', v === 'v0' ? 'first run done with defaults' : 'first run shown after the update', R.firstRun.ok ? 'ok' : 'failed', R.firstRun.note);
       else if (v === 'v1') rec('firstrun', 'first run shown after the update', 'ok', 'no (not shown)');
       if (v === 'v0') R.snapshot = await snapshot(page);
@@ -335,33 +352,51 @@ function describeSettings(s) {
   return { region: p.region || null, weatherCity: (p.place && p.place.name) || null, setupDone: s['hometv-setup-done'] === '1' };
 }
 
-async function waitForeground(ctx, test, ms) {
-  try {
-    return await withTv(ctx, async (tv) => until(async () => { const id = await foreground(tv); return test(id) ? id : ''; }, ms, 1000));
-  } catch { return null; }
+/**
+ * Polls the TV's foreground app until `test` passes or `ms` has gone by. A failed read (the remote-control connection
+ * dropping, say while the TV starts the app) is retried with a new connection instead of ending the wait. `seen.last`
+ * gets the last app id read, or the last error.
+ */
+async function waitForeground(ctx, test, ms, seen = {}) {
+  return until(async () => {
+    try {
+      const id = await withTv(ctx, foreground);
+      seen.last = id || '(none)';
+      return test(id) ? id : '';
+    } catch (e) {
+      seen.last = 'no answer (' + String((e && e.message) || e).slice(0, 80) + ')';
+      return '';
+    }
+  }, ms, 1000);
 }
 
 const top = async (page) => String((await page.eval(q('top'))) || '');
 const click = (page, key) => page.eval(q('click', key));
 
-/** First run on top: v0 gets the defaults (Sweden, a Stockholm weather place); either way Start leaves it. */
-async function firstRun(page, v) {
+/** HomeTV's region for the TV's country setting ("USA", "SWE"), or null for one HomeTV doesn't have. */
+export function regionFor(country) {
+  const c = String(country || '').toUpperCase();
+  return c === 'USA' || c === 'US' ? 'us' : c === 'SWE' || c === 'SE' ? 'se' : null;
+}
+
+/**
+ * First run on top: v0 gets the TV's own region (from its country setting); the weather city is left for the person to
+ * choose (the 2026-11-17 call: a US TV got Sweden and Stockholm, °C). Either way Start leaves it.
+ */
+async function firstRun(page, v, ctx = {}) {
   const out = { shown: false, ok: true, note: '' };
   if (!/screen--setup/.test(await top(page))) return out;
   out.shown = true;
   const notes = [];
   if (v === 'v0') {
-    await click(page, 'step-region');
-    await sleep(500);
-    notes.push((await click(page, 'seg-region-se')) ? 'region Sweden' : 'region: could not choose');
-    await click(page, 'step-weather');
-    await sleep(500);
-    await click(page, 'w-change');
-    await sleep(500);
-    for (const c of 'stockholm') await click(page, 'wk-' + c);
-    const hit = await until(() => page.eval(q('has', 'wr-0')), 15000);
-    notes.push(hit && (await click(page, 'wr-0')) ? 'weather city Stockholm' : 'weather city: not chosen (the search didn\'t answer)');
-    await sleep(500);
+    const region = regionFor(ctx.country);
+    if (region) {
+      await click(page, 'step-region');
+      await sleep(500);
+      const name = region === 'us' ? 'United States' : 'Sweden';
+      notes.push((await click(page, 'seg-region-' + region)) ? 'region ' + name + ' (the TV\'s country)' : 'region: could not choose');
+    } else notes.push('region left for the person (the TV\'s country ' + (ctx.country ? ctx.country + ' isn\'t one HomeTV has' : 'wasn\'t read') + ')');
+    notes.push('weather city left for the person');
   } else {
     // v1's First run lists the TMDB key (only while no key is saved) and Sign in to TMDB; the person walks
     // through them after the checks, from Settings › Open first run

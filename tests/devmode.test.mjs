@@ -14,8 +14,8 @@ import { spawnSync } from 'node:child_process';
 import { fakeTv, HANDLERS } from './fake-ssap.mjs';
 import { fakeCdp } from './fake-cdp.mjs';
 import { PINNED, sha256 } from '../tools/lib/fetch.mjs';
-import { fetchKey, openKey, getKey, KEY_SERVER_DOWN } from '../tools/lib/devmode-key.mjs';
-import { getIpk, installIpk, runDevmode } from '../tools/lib/devmode.mjs';
+import { fetchKey, openKey, getKey, KEY_SERVER_DOWN, KEY_SERVER_STILL_DOWN } from '../tools/lib/devmode-key.mjs';
+import { getIpk, installIpk, runDevmode, regionFor } from '../tools/lib/devmode.mjs';
 import { sshShell } from '../tools/lib/root-shell.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -87,7 +87,7 @@ function pageModel({ problem = '', firstRunAfterUpdate = false, wipeOnUpdate = f
       case 'keypage': return JSON.stringify({ address: 'http://' + HOST + ':' + keyPort + '/keys', qr: true });
       case 'click': {
         const settings = () => JSON.parse(p.storage['hometv-settings-v1'] || '{}');
-        if (arg === 'seg-region-se') p.storage['hometv-settings-v1'] = JSON.stringify({ ...settings(), region: 'se' });
+        if (/^seg-region-(se|us)$/.test(arg)) p.storage['hometv-settings-v1'] = JSON.stringify({ ...settings(), region: arg.slice(-2) });
         else if (arg === 'wr-0') p.storage['hometv-settings-v1'] = JSON.stringify({ ...settings(), place: { name: 'Stockholm' } });
         else if (arg === 'start') { p.stack.pop(); p.storage['hometv-setup-done'] = '1'; }
         else if (arg === 'keys') p.stack.push('screen keys');
@@ -107,7 +107,7 @@ function pageModel({ problem = '', firstRunAfterUpdate = false, wipeOnUpdate = f
 }
 
 /** A whole pretend set-up for one run of runDevmode. */
-async function setup({ install = 'ok', replies = {}, keyPem = ENCRYPTED, noKeyServer = false, noInspector = false, page = {}, noKeyPage = false, only } = {}) {
+async function setup({ install = 'ok', replies = {}, keyPem = ENCRYPTED, noKeyServer = false, noInspector = false, page = {}, noKeyPage = false, only, handlers = {} } = {}) {
   const t = scratch('devmode');
   const laptop = path.join(t, 'laptop');
   fs.mkdirSync(laptop);
@@ -116,7 +116,7 @@ async function setup({ install = 'ok', replies = {}, keyPem = ENCRYPTED, noKeySe
   const read = () => JSON.parse(fs.readFileSync(stateFile, 'utf8'));
   const tv = fakeTv({
     ...HANDLERS,
-    'settings/getSystemSettings': (q) => (read().autoUpdate && q.category === 'option' ? { returnValue: true, settings: { autoUpdate: read().autoUpdate } } : { returnValue: false, errorText: 'no such key' }),
+    'settings/getSystemSettings': (q) => (q.keys && q.keys[0] === 'country' ? { returnValue: true, settings: { country: read().country || 'USA' } } : read().autoUpdate && q.category === 'option' ? { returnValue: true, settings: { autoUpdate: read().autoUpdate } } : { returnValue: false, errorText: 'no such key' }),
     'com.webos.service.update/getCurrentSWInformation': () => ({ returnValue: true, major_ver: '33', minor_ver: '31.61', device_id: 'aa:bb:cc:dd:ee:ff', serial: 'SECRET123' }),
     'com.webos.applicationManager/listLaunchPoints': () => ({ returnValue: true, launchPoints: read().apps.map((id) => ({ id, title: id })) }),
     'com.webos.applicationManager/getForegroundAppInfo': () => ({ returnValue: true, appId: read().foreground, windowId: 'x' }),
@@ -126,7 +126,8 @@ async function setup({ install = 'ok', replies = {}, keyPem = ENCRYPTED, noKeySe
       s.foreground = q.id;
       fs.writeFileSync(stateFile, JSON.stringify(s));
       return { returnValue: true };
-    }
+    },
+    ...(typeof handlers === 'function' ? handlers(read) : handlers)
   });
   const ws = await listen(tv.server);
   const keys = keyServer(keyPem);
@@ -151,7 +152,7 @@ async function setup({ install = 'ok', replies = {}, keyPem = ENCRYPTED, noKeySe
   const ctx = {
     host: HOST, dir: laptop, v0, v1, anyIpk: true, only,
     ssapPorts: [{ url: 'ws://' + HOST + ':' + ws + '/', insecure: false }], keyPort,
-    stayMs: 300, settleMs: 0, installMs: 4000, listWaitMs: 5000, openWaitMs: 5000, inspectorWaitMs: noInspector ? 600 : 5000, pageWaitMs: 5000,
+    stayMs: 300, settleMs: 0, keyWaitMs: 300, keyStepMs: 100, installMs: 4000, listWaitMs: 5000, openWaitMs: 5000, inspectorWaitMs: noInspector ? 600 : 5000, pageWaitMs: 5000,
     say: (s) => out.push(String(s)),
     ask: async (q) => {
       asked.push(q);
@@ -213,6 +214,34 @@ test('the key server not answering says to switch Key Server on', async () => {
   const p2 = await listen(s);
   assert.equal((await fetchKey(HOST, { port: p2 })).error, KEY_SERVER_DOWN);
   await closeAll(s);
+});
+
+test('a key server that answers late is waited for, without asking the person anything', async () => {
+  let misses = 3;
+  const s = http.createServer((q, res) => { if (misses-- > 0) { res.statusCode = 503; res.end(); } else res.end(ENCRYPTED); });
+  const port = await listen(s);
+  const asked = [];
+  const got = await getKey(HOST, scratch('key'), async (q) => { asked.push(q); return PASS; }, () => {}, { port, waitMs: 2000, stepMs: 50 });
+  await closeAll(s);
+  assert.ok(got.file);
+  assert.equal(asked.filter((q) => /Key Server/.test(q)).length, 0);
+});
+
+test('a key server that stays silent: the person is asked to switch Key Server off and on, then it is tried again', async () => {
+  let toggled = false;
+  const s = http.createServer((q, res) => { if (!toggled) { res.statusCode = 503; res.end(); } else res.end(ENCRYPTED); });
+  const port = await listen(s);
+  const asked = [];
+  const ask = async (q) => { asked.push(q); if (/off,\s+then on again/.test(q)) toggled = true; return /passphrase/.test(q) ? PASS : ''; };
+  const got = await getKey(HOST, scratch('key'), ask, () => {}, { port, waitMs: 200, stepMs: 50 });
+  assert.ok(got.file);
+  assert.match(asked[0], /switch "Key Server" off,\s+then on again \(even if it already says On\)/);
+  toggled = false;
+  const ask2 = async (q) => { asked.push(q); return ''; };
+  const bad = await getKey(HOST, scratch('key'), ask2, () => {}, { port, waitMs: 200, stepMs: 50 });
+  await closeAll(s);
+  assert.equal(bad.error, KEY_SERVER_STILL_DOWN);
+  assert.match(bad.error, /off and on again/);
 });
 
 // ---- the downloads ----
@@ -311,7 +340,7 @@ test('devmode: v0, then v1 over it: every check passes, the person is asked only
       assert.equal(checkOf(v1, id).status, 'ok', 'v1 ' + id);
     }
     assert.equal(checkOf(v0, 'firstrun').status, 'ok');
-    assert.match(checkOf(v0, 'firstrun').note, /Sweden.*Stockholm/);
+    assert.match(checkOf(v0, 'firstrun').note, /^region United States \(the TV's country\); weather city left for the person/);
     assert.equal(checkOf(v0, 'settings'), undefined, 'settings kept is a v1 check');
     assert.equal(checkOf(v1, 'settings').status, 'ok');
     assert.equal(checkOf(v1, 'keypage').status, 'ok');
@@ -320,7 +349,7 @@ test('devmode: v0, then v1 over it: every check passes, the person is asked only
     assert.equal(v1.firstRunShownAfterUpdate, false);
     assert.equal(checkOf(v1, 'firstrun').note, 'no (not shown)');
     assert.equal(checkOf(v0, 'keypage'), undefined, 'v0 has no API keys screen');
-    assert.deepEqual(v0.settings, { region: 'se', weatherCity: 'Stockholm', setupDone: true });
+    assert.deepEqual(v0.settings, { region: 'us', weatherCity: null, setupDone: true });
     assert.match(r.report.tv.model, /43UT8000AUA/);
     assert.equal(r.report.tv.firmware, '33.31.61');
     assert.equal(v0.inspector, 'reached');
@@ -453,10 +482,56 @@ test('devmode: key server off stops with the plain message; no report holds the 
   try {
     const r = await s.run();
     assert.equal(r.stopped, true);
-    assert.match(r.report.stopped, /switch "Key Server" on/);
+    assert.match(r.report.stopped, /key server still didn't answer.*switch "Key Server" off and on again/);
+    assert.equal(s.asked.filter((q) => /off,\s+then on again/.test(q)).length, 1, 'asked once to switch it off and on');
     assert.equal(s.lines().length, 0, 'ssh never started');
     noLeaks(s, r);
   } finally { await s.done(); }
+});
+
+test('devmode: a foreground read that misses HomeTV at first is retried; v1\'s checks still run', async () => {
+  let misses = 3;
+  const s = await setup({
+    only: 'v1',
+    handlers: (read) => ({
+      'com.webos.applicationManager/getForegroundAppInfo': () => (read().foreground === APP && misses-- > 0
+        ? { returnValue: false, errorText: 'busy' }
+        : { returnValue: true, appId: read().foreground, windowId: 'x' })
+    })
+  });
+  try {
+    const r = await s.run();
+    const v = r.report.versions[0];
+    assert.equal(checkOf(v, 'opens').status, 'ok', s.out.join('\n'));
+    for (const id of ['launchpoints', 'stays', 'applaunch']) assert.equal(checkOf(v, id).status, 'ok', id);
+    assert.equal(s.asked.filter((q) => /can't see HomeTV in front/.test(q)).length, 0);
+  } finally { await s.done(); }
+});
+
+test('devmode: when the TV never reports HomeTV in front, the person is asked; a yes runs v1\'s checks instead of skipping them', async () => {
+  const s = await setup({
+    only: 'v1',
+    handlers: { 'com.webos.applicationManager/getForegroundAppInfo': () => ({ returnValue: true, appId: 'com.webos.app.home', windowId: 'x' }) }
+  });
+  s.ctx.openWaitMs = 1500;
+  try {
+    const r = await s.run();
+    const v = r.report.versions[0];
+    assert.equal(s.asked.filter((q) => /can't see HomeTV in front \(the TV says: com\.webos\.app\.home\)/.test(q)).length, 1);
+    assert.ok(s.lines().filter((l) => l.command && l.command.includes('applicationManager/launch')).length >= 2, 'launched again');
+    assert.equal(checkOf(v, 'opens').status, 'ok');
+    assert.match(checkOf(v, 'opens').note, /told by person; the TV's foreground read: com\.webos\.app\.home/);
+    assert.equal(s.asked.filter((q) => /Is HomeTV on the TV screen now\?/.test(q)).length, 1, 'not asked twice');
+    assert.equal(checkOf(v, 'launchpoints').status, 'ok');
+    assert.notEqual(checkOf(v, 'stays').status, 'skipped');
+  } finally { await s.done(); }
+});
+
+test('devmode: v0\'s first run takes the TV\'s country for the region and leaves the weather city to the person', () => {
+  assert.equal(regionFor('USA'), 'us');
+  assert.equal(regionFor('SWE'), 'se');
+  assert.equal(regionFor('GBR'), null);
+  assert.equal(regionFor(''), null);
 });
 
 test('devmode: a wrong passphrase is asked again, and the run goes on', async () => {

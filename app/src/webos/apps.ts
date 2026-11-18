@@ -45,6 +45,72 @@ export function findApp(apps: LaunchPoint[], key: string, name?: string): Launch
 /** The id to try when the TV wouldn't list its apps: the first known one. */
 export const guessId = (key: string): string | null => (LG_APP_IDS[key] || [])[0] || null;
 
+/**
+ * Apps HomeTV knows by LG id, for a TV that won't list its apps to a Developer Mode app (listLaunchPoints is denied:
+ * the 2026-11-17 call, webOS 10.3.2). Ids from LG_APP_IDS and from that TV's own list as the laptop check read it;
+ * several ids for one app where LG's differ by year, newest first (only the first installed one shows). Swedish
+ * services (SVT Play, TV4 Play, Viaplay) aren't here: their LG ids aren't known yet.
+ */
+export const KNOWN_APPS: LaunchPoint[] = [
+  { id: 'netflix', title: 'Netflix' },
+  { id: 'youtube.leanback.v4', title: 'YouTube' },
+  { id: 'com.webos.app.youtube', title: 'YouTube' },
+  { id: 'amazon', title: 'Prime Video' },
+  { id: 'com.disney.disneyplus-prod', title: 'Disney+' },
+  { id: 'com.wbd.stream', title: 'HBO Max' },
+  { id: 'com.hbo.hbomax', title: 'HBO Max' },
+  { id: 'com.apple.appletv', title: 'Apple TV' },
+  { id: 'com.apple.appletv.web', title: 'Apple TV' },
+  { id: 'hulu', title: 'Hulu' },
+  { id: 'com.cbs-all-access.webapp.prod', title: 'Paramount+' },
+  { id: 'com.peacock.tv', title: 'Peacock' },
+  { id: 'com.peacocktv.peacock', title: 'Peacock' },
+  { id: 'youtube.leanback.ytv.v1', title: 'YouTube TV' },
+  { id: 'cdp-30', title: 'Plex' },
+  { id: 'com.tubitv.ott.tubi', title: 'Tubi' },
+  { id: 'com.plutotv.app', title: 'Pluto TV' },
+  { id: 'com.webos.app.lgchannels', title: 'LG Channels' },
+  { id: 'com.lgtvod.us.app', title: 'LG Movies & TV' },
+  { id: 'spotify-beehive', title: 'Spotify' },
+  { id: 'spotify', title: 'Spotify' },
+  { id: 'pandora.lgerp.app', title: 'Pandora' },
+  { id: 'com.webos.app.livetv', title: 'Live TV' },
+  { id: 'com.webos.app.mediadiscovery', title: 'Media Player' },
+  { id: 'com.webos.app.browser', title: 'Web Browser' },
+  { id: 'com.webos.app.discovery', title: 'Apps' },
+];
+
+/** One reply of luna://com.webos.applicationManager/getAppLoadStatus: { returnValue, exist }. */
+export interface LoadStatus {
+  returnValue?: boolean;
+  exist?: boolean;
+}
+
+/**
+ * The known apps on this TV from getAppLoadStatus's replies (same order as `known`), one per title. Only an answer
+ * "not installed" (exist false) drops an app; one with no usable answer (refused, timed out) stays, as the TV may have
+ * it. `absent` holds the ids the TV said aren't installed. `checked` is false when the TV answered none of them: then
+ * every known app is offered, unchecked (opening one that isn't there says so).
+ */
+export function pickKnown(known: LaunchPoint[], replies: LoadStatus[]): { apps: LaunchPoint[]; checked: boolean; absent: string[] } {
+  const answered = (r: LoadStatus | undefined) => !!r && r.returnValue !== false && typeof r.exist === 'boolean';
+  const checked = replies.some(answered);
+  const out: LaunchPoint[] = [];
+  const absent: string[] = [];
+  known.forEach((a, i) => {
+    if (answered(replies[i]) && replies[i].exist === false) absent.push(a.id);
+  });
+  // One per title: an id the TV said is installed before one it didn't answer for; then back in the known order.
+  const keep = (sure: boolean) =>
+    known.forEach((a, i) => {
+      if (absent.indexOf(a.id) < 0 && answered(replies[i]) === sure && !out.some((x) => x.title === a.title)) out.push(a);
+    });
+  keep(true);
+  keep(false);
+  out.sort((x, y) => known.indexOf(x) - known.indexOf(y));
+  return { apps: out, checked, absent };
+}
+
 const NETFLIX_TITLE = /netflix\.com\/(?:[a-z-]+\/)?(?:title|watch)\/(\d+)/i;
 
 /**

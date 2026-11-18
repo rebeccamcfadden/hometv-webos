@@ -10,6 +10,11 @@ import { lockFile } from './sshkey.mjs';
 
 export const KEY_SERVER_DOWN = 'The TV\'s key server didn\'t answer. In the Developer Mode app on the TV, switch "Key Server" on ' +
   '(the app then shows a passphrase), and check the laptop and the TV are on the same Wi-Fi.';
+// Seen on a real TV (2026-11-17): Key Server showed On but didn't answer until it was switched off and on again.
+export const KEY_SERVER_TOGGLE = '  The TV\'s key server isn\'t answering yet. In the Developer Mode app on the TV, switch "Key Server" off,\n' +
+  '  then on again (even if it already says On), wait a few seconds, then press Enter here. ';
+export const KEY_SERVER_STILL_DOWN = 'The TV\'s key server still didn\'t answer. In the Developer Mode app on the TV, switch "Key Server" ' +
+  'off and on again, check the laptop and the TV are on the same Wi-Fi, then run this again.';
 
 export function keyFile(dir) {
   return path.join(dir, 'devmode_rsa');
@@ -33,6 +38,16 @@ export function fetchKey(host, { port = 9991, timeoutMs = 6000 } = {}) {
   });
 }
 
+/** fetchKey, asked again every `stepMs` until it answers or `waitMs` has gone by. */
+export async function fetchKeyPatiently(host, { waitMs = 15000, stepMs = 2000, ...opts } = {}) {
+  const end = Date.now() + waitMs;
+  for (;;) {
+    const got = await fetchKey(host, opts);
+    if (!got.error || Date.now() + stepMs > end) return got;
+    await new Promise((r) => setTimeout(r, stepMs));
+  }
+}
+
 /** The key in OpenSSH-readable PKCS#1 text, or null when the passphrase is wrong. */
 export function openKey(pem, passphrase) {
   try {
@@ -53,11 +68,16 @@ export function saveKey(dir, plain) {
 
 /**
  * Gets the key with the passphrase the person types (three tries), saves it, and returns its file; or { error }.
- * `ask(question)` is the person's typed answer.
+ * `ask(question)` is the person's typed answer. A key server that doesn't answer is waited for, then the person is asked
+ * to switch Key Server off and on, and it is waited for once more.
  */
 export async function getKey(host, dir, ask, say, opts = {}) {
-  const got = await fetchKey(host, opts);
-  if (got.error) return { error: got.error };
+  let got = await fetchKeyPatiently(host, opts);
+  if (got.error) {
+    await ask(KEY_SERVER_TOGGLE);
+    got = await fetchKeyPatiently(host, opts);
+    if (got.error) return { error: KEY_SERVER_STILL_DOWN };
+  }
   for (let tries = 0; tries < 3; tries++) {
     const pass = (await ask('  Type the passphrase the Developer Mode app shows (6 characters, capitals matter) and press Enter: ')).trim();
     const plain = pass ? openKey(got.pem, pass) : null;

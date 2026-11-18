@@ -25,6 +25,19 @@ apps and webOS notes, not seen on the test TV (LG 43UT8000AUA, webOS 25). The te
 
 `started()` is unchanged from the first copy.
 
+## The app list (Home's row, All apps)
+
+`bridge.ts` asks `com.webos.applicationManager/listLaunchPoints` once per start. On the real TV (webOS 10.3.2,
+2026-11-17) LG denies it to a Developer Mode app (`Denied method call "listLaunchPoints" for category "/"`). Then
+HomeTV uses its own list of known LG app ids (`KNOWN_APPS` in `app/src/webos/apps.ts`) and asks
+`getAppLoadStatus { appId }` for each (LG's public method; nothing shows on the TV). The installed ones are the list
+(`bridge.appSource()` `'checked'`). If the TV refuses that too, every known app is offered unchecked (`'known'`): no
+tile says "not on this TV", and opening one that isn't there says so. All apps says which it is in a line under its
+title; hold OK adds an app to Home's row or takes it off, as before. No icons in this mode (LG's icon paths come only
+with `listLaunchPoints`). Pairing with the TV's remote-control port to list every app ("Scan my apps") would show a
+prompt on the TV, so it isn't built: it is a question for the next TV call. Tests:
+`tests/known-apps.test.mjs`. `getAppLoadStatus` on the real TV is unproven.
+
 ## v1: the key page, API keys and Watch
 
 v1 (`HOMETV_V1=1`) reads TMDB and the price APIs with keys the household sends from a phone to HomeTV's own service

@@ -42,10 +42,19 @@ export function summary(r: Result): string {
 
 let open: Screen | null = null;
 
+/** The TV's problem in plain words, then the TV's own words, for the Checks screen only (Home shows none). */
+export function plainProblem(raw: string): string {
+  if (!raw) return '';
+  if (/list its apps/.test(raw) && /denied/i.test(raw)) {
+    return `This TV doesn’t let HomeTV list its apps (LG allows that only for its own and store apps), so Home and All apps use HomeTV’s list of known apps. TV: ${raw}`;
+  }
+  return `The TV had a problem: ${raw}`;
+}
+
 export function showChecks() {
   if (open && shell.has(open)) return;
   const el = h('div.screen.checks');
-  el.appendChild(topBar('Checks for the TV call'));
+  el.appendChild(topBar('Checks for the TV call', plainProblem(bridge.problem())));
   const addr = bridge.addresses();
   const link = addr.length ? `http://${addr[0]}:8766/report` : 'http://<the TV’s address>:8766/report';
   el.appendChild(

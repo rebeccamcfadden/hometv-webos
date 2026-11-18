@@ -26,7 +26,8 @@ doesn't change LG's software.
    press **Key Server**. The app now shows a 6-letter **passphrase**.
 2. **Run the laptop tool:** `hometv-lg devmode <tv address>` (or double-click `hometv-lg.exe` and choose 2). It
    downloads HomeTV v0 and v1 and checks each against its pinned SHA-256, gets the Developer Mode key from the TV
-   (you type the passphrase), and then:
+   (you type the passphrase; if the key server doesn't answer within 15 s it asks you to switch Key Server off and on
+   again, which fixed it on a real TV), and then:
    - **First, automatic updates off.** It asks you to switch off *Settings › Support › Software Update › Allow
      Automatic Updates*, so the TV doesn't update itself during the checks. It reads the setting if the TV says,
      otherwise it asks two yes/no questions (was it on, is it off now). It never changes the setting itself.
