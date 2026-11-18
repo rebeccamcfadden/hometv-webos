@@ -1,9 +1,11 @@
 // "An LG update ended root" from the laptop (docs/root-plan.md, When an LG update ends root): `hometv-lg check` says
-// plainly whether a TV this laptop rooted still is, with the choices when it isn't. Read-only: one `id -u` over
-// Homebrew Channel's SSH, which only runs while root does. A TV this laptop never rooted gets no root line at all.
+// plainly whether a TV this laptop rooted still is, and if not, what's wrong and the next step (the project lead's choice,
+// 2026-11-18): Homebrew Channel in LG's app list (SSAP, works unrooted), then one read-only command over its SSH (who it
+// logs in as, and the start-up hook's start note). A TV this laptop never rooted gets no root line at all.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { sq } from './root-shell.mjs';
 
 const HBC = 'org.webosbrew.hbchannel';
 
@@ -45,48 +47,101 @@ export function knownHost(file, host) {
 
 /**
  * SSH's failure in fixed words: never its own text, which names the TV's address (and, on a timeout, the key's path).
- * `ended` only for "nothing listens there": Homebrew Channel's SSH runs only while root does.
+ * kind: 'off' (refused or no answer on port 22: Homebrew Channel's SSH Server isn't running, or root ended), 'route'
+ * (this laptop can't reach that address at all), 'other'.
  */
 function sshFailure(r) {
   const err = String(r.stderr || '');
-  if (/Connection refused/i.test(err)) return { ended: true, why: 'Homebrew Channel\'s SSH refuses the connection; it only runs while root does' };
-  if (/timed out/i.test(err)) return { ended: true, why: 'Homebrew Channel\'s SSH doesn\'t answer; it only runs while root does' };
-  if (/Permission denied/i.test(err)) return { ended: false, why: 'SSH answers but the root key doesn\'t log in' };
+  if (/Connection refused/i.test(err)) return { kind: 'off', why: 'SSH refuses the connection' };
+  if (/timed out/i.test(err)) return { kind: 'off', why: 'SSH doesn\'t answer' };
+  if (/Permission denied/i.test(err)) return { kind: 'other', why: 'SSH answers but the root key doesn\'t log in' };
   if (/Host key verification failed|REMOTE HOST IDENTIFICATION HAS CHANGED/i.test(err)) {
-    return { ended: false, why: 'the TV\'s SSH key changed since root (a reset, or another TV at this address)' };
+    return { kind: 'other', why: 'the TV\'s SSH key changed since root (a reset, or another TV at this address)' };
   }
-  if (/No route to host|Network is unreachable|Could not resolve/i.test(err)) return { ended: false, why: 'this laptop can\'t reach the TV over SSH' };
-  if (/Connection reset|Connection closed|closed by remote/i.test(err)) return { ended: false, why: 'SSH closed the connection' };
-  return { ended: false, why: 'SSH failed (exit ' + r.code + ')' };
+  if (/No route to host|Network is unreachable|Could not resolve/i.test(err)) return { kind: 'route', why: 'this laptop can\'t reach the TV over SSH' };
+  if (/Connection reset|Connection closed|closed by remote/i.test(err)) return { kind: 'other', why: 'SSH closed the connection' };
+  return { kind: 'other', why: 'SSH failed (exit ' + r.code + ')' };
 }
+
+/** Where the start-up hook keeps its start note on the TV (root/lib.sh STARTED and BOOT_ID; TV_PATHS in install-steps). */
+export const NOTE_PATHS = {
+  dir: '/media/developer/hometv',
+  initd: '/var/lib/webosbrew/init.d',
+  bootId: '/proc/sys/kernel/random/boot_id'
+};
+
+/** One read-only command: who SSH logs in as, this start's id, the hook's note of the last start it ran at, its state. */
+export function noteCommand(p = NOTE_PATHS) {
+  const hook = sq(p.initd + '/10-hometv-home');
+  return 'echo "uid=$(id -u)"; echo "boot=$(cat ' + sq(p.bootId) + ' 2>/dev/null)"; ' +
+    'echo "noted=$(cat ' + sq(p.dir + '/started') + ' 2>/dev/null)"; ' +
+    'if [ -e ' + hook + ' ] || [ -L ' + hook + ' ]; then echo hooked=1; fi; ' +
+    'if [ -e ' + sq(p.dir + '/DISABLE') + ' ]; then echo chosen=1; fi';
+}
+
+const CANT_TELL_HBC = 'the TV\'s app list couldn\'t be read, so this can\'t tell whether root has ended or only the laptop ' +
+  'can\'t log in';
+
 /**
- * { state, why }: 'never' (this laptop didn't root it), 'rooted', 'ended', or 'unknown' (can't tell; why says why).
- * `apps` are the TV's app ids, read over LG's remote-control connection just before, so the TV is known to be there
- * (null when that list couldn't be read).
+ * { state, why }: 'never' (this laptop didn't root it), 'rooted', 'ended', 'no-login' (Homebrew Channel is in the
+ * TV's app list but its SSH refuses or doesn't answer), 'unreachable' (the TV answers neither LG's remote-control
+ * connection nor SSH), or 'unknown' (can't tell; `why` says what it couldn't tell). `noteEnded`: ended because the
+ * start-up hook's note holds an older start.
+ * `tvAnswers`: LG's remote-control connection (SSAP, works unrooted) answered. `apps`: the TV's app ids read over it,
+ * or null when that list couldn't be read.
  */
-export async function rootStatus({ wasRooted, apps, shell }) {
+export async function rootStatus({ wasRooted, tvAnswers = true, apps, shell, paths = NOTE_PATHS }) {
   if (!wasRooted) return { state: 'never', why: '' };
-  if (apps && !apps.includes(HBC)) return { state: 'ended', why: 'Homebrew Channel isn\'t on the TV any more' };
-  if (!shell) return { state: 'unknown', why: 'no root key on this laptop' };
-  const r = await shell.run('id -u');
-  if (r.code === 0 && String(r.stdout).trim() === '0') return { state: 'rooted', why: '' };
-  if (r.code === 0) return { state: 'unknown', why: 'SSH logs in, but not as root' };
+  const hbc = tvAnswers && apps ? apps.includes(HBC) : null;
+  if (hbc === false) return { state: 'ended', why: 'Homebrew Channel isn\'t in the TV\'s app list any more' };
+  if (!shell) {
+    if (!tvAnswers) return { state: 'unreachable', why: '' };
+    return { state: 'unknown', why: 'no root key on this laptop' };
+  }
+  const r = await shell.run(noteCommand(paths));
+  if (r.code === 0) {
+    const v = {};
+    for (const line of String(r.stdout).split(/\r?\n/)) {
+      const m = line.trim().match(/^(\w+)=(.*)$/);
+      if (m) v[m[1]] = m[2].trim();
+    }
+    if (v.uid !== '0') return { state: 'unknown', why: 'SSH logs in, but not as root' };
+    // the TV's own notice reads it the same way (service.js rootStateOf, rootEdition.ts rootEnded): the hook is linked,
+    // not set aside by "Use LG's Home", and its note holds an older start's id
+    if (v.hooked && !v.chosen && v.boot && v.noted && v.noted !== v.boot) {
+      return { state: 'ended', why: 'HomeTV\'s start note says its start-up hook didn\'t run at this start', noteEnded: true };
+    }
+    return { state: 'rooted', why: '' };
+  }
   const f = sshFailure(r);
-  return { state: f.ended ? 'ended' : 'unknown', why: f.why };
+  if (!tvAnswers && f.kind !== 'other') return { state: 'unreachable', why: '' };
+  if (f.kind === 'other') return { state: 'unknown', why: f.why };
+  if (hbc === true) return { state: 'no-login', why: f.why };
+  return { state: 'unknown', why: f.why + '; ' + CANT_TELL_HBC, hbcUnread: true };
 }
+
+export const GUIDE_AFTER_UPDATE = 'https://rebeccamcfadden.github.io/hometv-webos/root/#after-an-update';
 
 /** What `hometv-lg check` prints; [] for a TV this laptop never rooted. */
 export function describeRootStatus(s) {
   if (s.state === 'never') return [];
   if (s.state === 'rooted') return ['Root: still on (HomeTV\'s root edition can start as Home).'];
+  if (s.state === 'unreachable') return ['Can\'t reach the TV. Check it\'s on and on the same Wi-Fi, then run this again.'];
+  if (s.state === 'no-login') {
+    return ['Root looks fine, but the laptop can\'t log in (' + s.why + '). On the TV, open Homebrew Channel > ' +
+      'Settings, check SSH Server is on, then run this again.'];
+  }
+  if (s.state === 'unknown' && s.hbcUnread) {
+    return ['Root: can\'t tell (' + s.why + ').', 'Look for Homebrew Channel in the TV\'s apps. There: open it > Settings, check SSH ' +
+      'Server is on, then run this again. Gone: root has ended (' + GUIDE_AFTER_UPDATE + ').'];
+  }
   if (s.state === 'unknown') return ['Root: can\'t tell (' + s.why + ').'];
   return [
-    'Root: ended (' + s.why + '). This is what an LG software update does. LG\'s Home is back at each start, HomeTV works ' +
-      'as an app on its tile, and nothing is broken.',
+    (s.noteEnded ? 'Root has ended (an update may have removed it). ' : 'Root has ended. ') + s.why + '. ' +
+      'This is what an LG software update does. LG\'s Home is back at each start, HomeTV works as an app on its tile, ' +
+      'and nothing is broken.',
     'Choices:',
     ...ROOT_ENDED_CHOICES.map((c, i) => '  ' + (i + 1) + '. ' + c),
-    ...(/SSH/.test(s.why) ? ['If Homebrew Channel still opens on the TV and its Settings > SSH Server is off, root may still be on: ' +
-      'switch SSH Server on and check again.'] : []),
-    'More: https://rebeccamcfadden.github.io/hometv-webos/root/#after-an-update'
+    'More: ' + GUIDE_AFTER_UPDATE
   ];
 }

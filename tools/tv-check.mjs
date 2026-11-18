@@ -41,6 +41,8 @@ const rootKeyFile = process.env.HOMETV_ROOT_KEY || path.join(dir, 'lg-root-key')
 const clientKey = fs.existsSync(keyFile) ? fs.readFileSync(keyFile, 'utf8').trim() : undefined;
 
 const say = (s) => console.log(s);
+const rootShellFor = () => (fs.existsSync(rootKeyFile)
+  ? sshShell({ host, key: rootKeyFile, knownHosts: path.join(dir, 'lg-known-hosts') }) : null);
 
 say('Connecting to the TV…');
 const tv = await open(host, {
@@ -48,9 +50,18 @@ const tv = await open(host, {
   onPrompt: () => say('Press "Allow" on the TV (the remote\'s OK button).'),
   // Tests only: a pretend TV on plain ws at this port.
   ports: wsPort ? [{ url: 'ws://' + host + ':' + wsPort + '/', insecure: false }] : undefined
-}).catch((e) => {
-  console.error('Could not connect to the TV at ' + host + ' (' + (e.code || e.message) + '). Check the TV is on and ' +
-    'on the same network as this laptop, then run this again.');
+}).catch(async (e) => {
+  // A TV this laptop rooted: SSH may still answer, and the root line says which of the two didn't
+  if (rootedBefore(dir, host, rootKeyFile)) {
+    const rs = await rootStatus({ wasRooted: true, tvAnswers: false, apps: null, shell: rootShellFor() });
+    if (rs.state !== 'unreachable') {
+      console.error('LG\'s remote-control connection didn\'t answer (' + (e.code || e.message) + ').');
+      for (const line of describeRootStatus(rs)) console.error(line);
+      process.exit(1);
+    }
+  }
+  console.error('Can\'t reach the TV at ' + host + ' (' + (e.code || e.message) + '). Check it\'s on and on the same ' +
+    'Wi-Fi, then run this again.');
   process.exit(1);
 });
 if (tv.clientKey && tv.clientKey !== clientKey) fs.writeFileSync(keyFile, tv.clientKey, { mode: 0o600 });
@@ -108,10 +119,9 @@ const rd = report.readiness;
 say('For v0: root ' + rd.root + '; Developer Mode app ' + (rd.developerModeApp ? 'installed' : 'not installed') +
   '; Homebrew Channel ' + (rd.homebrewChannel ? 'installed' : 'not installed') + '.');
 
-// A TV this laptop rooted: is root still on, or did an LG update end it? (one `id -u` over SSH; nothing changes)
+// A TV this laptop rooted: is root still on, and if not, what's wrong? (one read-only command over SSH; nothing changes)
 if (rootedBefore(dir, host, rootKeyFile)) {
-  const rootShell = fs.existsSync(rootKeyFile) ? sshShell({ host, key: rootKeyFile, knownHosts: path.join(dir, 'lg-known-hosts') }) : null;
-  const rs = await rootStatus({ wasRooted: true, apps: rd.appList ? c.apps.all.map((a) => a.id) : null, shell: rootShell });
+  const rs = await rootStatus({ wasRooted: true, apps: rd.appList ? c.apps.all.map((a) => a.id) : null, shell: rootShellFor() });
   report.rootStatus = rs;
   for (const line of describeRootStatus(rs)) say(line);
 }

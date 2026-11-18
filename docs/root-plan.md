@@ -180,8 +180,13 @@ SlopBro's bug, and may stop the start-up scripts. Then:
   rooted, a hook that ran, or a service that can't tell (no note since install, a jailed service) shows nothing.
   Homebrew Channel's failsafe start also skips the hook and so shows it too (still true for that start). On the laptop,
   `hometv-lg check` on a TV this laptop rooted (root done or the root key here, and this address in `lg-known-hosts`)
-  says "Root: still on", "Root: ended" with the three choices (Homebrew Channel gone, or its SSH refusing or timing out:
-  one read-only `id -u`), or "can't tell" (in fixed words, never SSH's own text, which names the TV).
+  names the problem and the next step (the project lead, 2026-11-18), from LG's remote-control connection (works
+  unrooted: does the TV answer, is Homebrew Channel in its app list) and one read-only command over SSH (`id -u`, the
+  hook's start note): "Root: still on"; the TV answers neither: "Can't reach the TV" (on, same Wi-Fi, run again);
+  Homebrew Channel listed but SSH refuses or times out: "Root looks fine, but the laptop can't log in" (Homebrew
+  Channel > Settings > SSH Server on); Homebrew Channel gone: "Root has ended" with the three choices; SSH logs in
+  but the start note holds an older start: "Root has ended (an update may have removed it)"; the app list unread:
+  "can't tell" which of the two, and what to look for. Fixed words, never SSH's own text, which names the TV.
   First real-TV check: that LG's update leaves HomeTV's folder (`/media/developer/hometv`) readable to its service.
 
 ## Decided

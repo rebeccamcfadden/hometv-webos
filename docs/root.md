@@ -125,8 +125,15 @@ Two cases that look alike:
   and asks before putting HomeTV back ([troubleshooting.md](troubleshooting.md)).
 - ***Use LG's Home* was chosen** (level 1): a choice, not an update; HomeTV says nothing then.
 
-On the laptop, `hometv-lg.exe check <tv address>` says *Root: still on*, *Root: ended* (with the choices) or *can't
-tell* ([root-plan.md › When an LG update ends root](root-plan.md#when-an-lg-update-ends-root)).
+On the laptop, `hometv-lg.exe check <tv address>` says *Root: still on*, or what's wrong and what to do next
+([root-plan.md › When an LG update ends root](root-plan.md#when-an-lg-update-ends-root)):
+
+- *Can't reach the TV*: check it's on and on the same Wi-Fi, then run it again.
+- *Root looks fine, but the laptop can't log in* (Homebrew Channel is still in the TV's apps): on the TV, open
+  Homebrew Channel › Settings, check SSH Server is on, then run it again.
+- *Root has ended* (Homebrew Channel is gone), with the choices above; or *Root has ended (an update may have removed
+  it)* when HomeTV's start note says its start-up hook didn't run.
+- *Can't tell*, when the TV's app list couldn't be read: it says which, and to look for Homebrew Channel in the apps.
 
 ## Good to know
 
