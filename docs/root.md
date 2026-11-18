@@ -139,7 +139,7 @@ tell* ([root-plan.md › When an LG update ends root](root-plan.md#when-an-lg-up
 ## Thanks
 
 HomeTV builds on other people's open-source work: [SlopBro](https://github.com/throwaway96/slopbro) (the root itself,
-pinned to `21023d5`); [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel), from the webOS Homebrew
+pinned to `f76b717`, its single file built and checked by `hometv-lg get root-kit`); [Homebrew Channel](https://github.com/webosbrew/webos-homebrew-channel), from the webOS Homebrew
 project (the start-up hooks, the failsafe start, the lock-down switches);
 [lasharor's cleanyourtv-WebOS](https://github.com/lasharor/cleanyourtv-WebOS) (taking Home over in memory, its checks
 and its updater; MIT, notices in [../THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)). Home pressed three times is

@@ -375,7 +375,7 @@ export const STEPS = [
   {
     id: 'root',
     title: 'Root with SlopBro',
-    what: 'SlopBro (v0.1.0, by throwaway96; the checked copy) runs on this laptop. The TV opens a page it serves, an LG ' +
+    what: 'SlopBro (f76b717, by throwaway96; the checked build) runs on this laptop. The TV opens a page it serves, an LG ' +
       'bug gives it a root shell for a moment, and it installs Homebrew Channel (an app store for rooted TVs) set to ' +
       'start with the TV. It changes only the TV\'s writable storage, never LG\'s signed firmware.',
     undo: 'There is no unroot button. The full undo is LG\'s Reset to Initial Settings (a factory reset): it removes root, ' +

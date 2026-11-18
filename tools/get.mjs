@@ -1,11 +1,11 @@
 // hometv-lg get dev-manager | root-kit: fetches the laptop's other tools (tools/lib/fetch.mjs), checked, into
 // %USERPROFILE%\HomeTV\tools. dev-manager then starts its installer (Windows asks to allow it); root-kit unpacks Python
-// next to SlopBro and stops there: rooting is a separate, later step.
+// next to SlopBro (built from its pinned sources, checked) and stops there: rooting is a separate, later step.
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
 import { spawn, execFileSync } from 'node:child_process';
-import { PINNED, download } from './lib/fetch.mjs';
+import { PINNED, download, buildSlopbro } from './lib/fetch.mjs';
 
 const what = process.argv[2];
 const dir = path.join(process.env.HOMETV_DIR || path.join(os.homedir(), 'HomeTV'), 'tools');
@@ -27,7 +27,7 @@ if (what === 'dev-manager') {
     execFileSync('tar', ['-xf', zip, '-C', py]);
     log('Python unpacked (nothing installed in Windows): ' + py);
   }
-  await download(PINNED.slopbro, dir, { log });
+  await buildSlopbro(PINNED.slopbro, dir, { log });
   log('root kit ready in ' + dir + '. Nothing has been run on the TV.');
 } else if (what === 'recovery') {
   // Reads the stick only: nothing is downloaded or written, nothing touches the TV (docs/recovery.md)

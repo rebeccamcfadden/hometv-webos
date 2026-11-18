@@ -80,7 +80,7 @@ export async function toast(tv, message) {
 }
 
 // What v0 will need, from what the laptop check read (v-1). Root status is dated: re-check
-// CanI.RootMy.TV before root (docs/jailbreak.md). `slopbro` is the options the root step gives SlopBro (pinned v0.1.0)
+// CanI.RootMy.TV before root (docs/jailbreak.md). `slopbro` is the options the root step gives SlopBro (pinned f76b717)
 // for that version: on 33.31.75 only com.webos.app.voiceweb worked, which SlopBro tries alone with --webos-version 11
 // (its TARGET_APPS lists voiceweb for 11 only; the option only picks the app). docs/root-plan.md, "33.31.75".
 // The takeover after root has its own list, root/compat.json (firmware + model family; install.sh stops and asks).
