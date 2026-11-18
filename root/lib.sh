@@ -18,6 +18,10 @@ APP=${HOMETV_APP:-/media/developer/apps/usr/palm/applications/$APP_ID}
 INITD=${HOMETV_INITD:-/var/lib/webosbrew/init.d}
 # Homebrew Channel's tool that lets an installed app's service run as root, outside LG's jail (webosbrew, MIT)
 ELEVATE=${HOMETV_ELEVATE:-/media/developer/apps/usr/palm/services/org.webosbrew.hbchannel.service/elevate-service}
+# luna-service2's permission files, read only (decide.js acg): LG's own, and those for installed apps
+LS2_ROOTS=${HOMETV_LS2_ROOTS:-/usr/share/luna-service2 /var/luna-service2 /var/luna-service2-dev}
+# The heartbeat's way in over 127.0.0.1 (the tests point it at a stand-in that only notes it ran)
+HEARTBEAT=${HOMETV_HEARTBEAT:-$D/heartbeat.js}
 up() { cut -d' ' -f1 /proc/uptime 2>/dev/null || echo 0; }
 say() { echo "$(up) $*" >> "$LOG"; }
 luna_send() { command luna-send "$@" </dev/null; }

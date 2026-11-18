@@ -7,6 +7,7 @@
 //   decide.js stage <stock home appinfo.json> <out>  writes the appinfo.json for HomeTV over LG's Home
 //   decide.js family <model name>                 -> the model family (43UT8000AUA -> UT80), or nothing
 //   decide.js compat <compat.json> <model> <firmware>  -> "listed <status>: <note>", "unlisted", or "nolist" (no list)
+//   decide.js acg <home id> <service id> <luna-service2 root>...  -> the bus groups each holds, and the shared ones
 var fs = require('fs');
 
 function rj(f, d) {
@@ -86,7 +87,51 @@ function compat(file, model, firmware) {
   return null;
 }
 
-module.exports = { kind: kind, takeover: takeover, afterSam: afterSam, stage: stage, family: family, compat: compat };
+// Which bus permission groups LG's Home holds, and which groups HomeTV's service's methods are in, from luna-service2's
+// files under each root (client-permissions.d, api-permissions.d): the bus lets a client call a method only when they
+// share a group. Read only, for the boot log (call #2: did the bus refuse the mounted page's heartbeat?). A pattern
+// ending in * matches a prefix, as luna-service2's do. Groups are LG's names, never anything of the household's.
+function acg(home, svc, roots) {
+  var homeGroups = {};
+  var svcGroups = {};
+  var read = 0;
+  roots.forEach(function (r) {
+    ['client-permissions.d', 'api-permissions.d'].forEach(function (sub) {
+      var dir = r + '/' + sub;
+      var names = [];
+      try {
+        names = fs.readdirSync(dir);
+      } catch (e) {
+        return;
+      }
+      names.forEach(function (n) {
+        var o = /\.json$/.test(n) ? rj(dir + '/' + n, null) : null;
+        if (!o || typeof o !== 'object') return;
+        read++;
+        Object.keys(o).forEach(function (k) {
+          var v = Array.isArray(o[k]) ? o[k] : [];
+          if (sub === 'client-permissions.d') {
+            var hit = k === home || (k.slice(-1) === '*' && home.indexOf(k.slice(0, -1)) === 0);
+            if (hit) v.forEach(function (g) { homeGroups[String(g)] = 1; });
+          } else if (v.some(function (m) { return String(m).indexOf(svc + '/') === 0; })) {
+            svcGroups[k] = 1;
+          }
+        });
+      });
+    });
+  });
+  var hg = Object.keys(homeGroups).sort();
+  var sg = Object.keys(svcGroups).sort();
+  // a client holding "all" may call anything
+  var shared = homeGroups.all ? sg.slice() : sg.filter(function (g) { return homeGroups[g]; });
+  return {
+    read: read, home: hg, service: sg, shared: shared,
+    line: 'files read ' + read + '; ' + home + ': ' + (hg.join(' ') || 'none found') + '; ' + svc + ': ' + (sg.join(' ') || 'none found') +
+      '; shared: ' + (shared.join(' ') || 'none')
+  };
+}
+
+module.exports = { kind: kind, takeover: takeover, afterSam: afterSam, stage: stage, family: family, compat: compat, acg: acg };
 
 if (require.main === module) {
   var a = process.argv.slice(2);
@@ -99,8 +144,9 @@ if (require.main === module) {
     var l = rj(a[1], null);
     var e = compat(a[1], a[2], a[3]);
     console.log(!l || !Array.isArray(l.entries) ? 'nolist' : e ? 'listed ' + (e.status || '') + ': ' + (e.note || '') : 'unlisted');
-  } else {
-    console.error('usage: decide.js kind|takeover|aftersam|stage|family|compat');
+  } else if (a[0] === 'acg') console.log(acg(a[1] || '', a[2] || '', a.slice(3)).line);
+  else {
+    console.error('usage: decide.js kind|takeover|aftersam|stage|family|compat|acg');
     process.exit(2);
   }
 }

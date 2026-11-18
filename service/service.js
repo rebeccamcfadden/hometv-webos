@@ -27,7 +27,8 @@
  * Every method but `alive`, `version` and `keysSaved` wants a caller that is HomeTV's page, or LG's Home with HomeTV mounted over it: a TV that
  * doesn't say who called is refused, because these hand out keys or change Home. Nothing is sent anywhere but the key
  * checks that pages.js makes (one free request per key, to its own service) and the update requests (HTTPS GETs of the
- * release's manifest and, after Install update, its files); nothing is logged.
+ * release's manifest and, after Install update, its files); nothing is logged but a few notes in the boot log (who was
+ * refused, by method, and who sent the first heartbeat: ids only).
  */
 'use strict';
 
@@ -39,6 +40,8 @@ var updates = require('./update.js');
 var ID = 'com.hometv.app.service';
 /** As root/lib.sh ALIVE. */
 var ALIVE = process.env.HOMETV_ALIVE || '/tmp/hometv-alive';
+/** As root/lib.sh LOG: the boot log, where the service notes refused callers and the first heartbeat. */
+var LOG = process.env.HOMETV_LOG || '/tmp/hometv-boot.log';
 /** As root/lib.sh D and INITD (the tests point them elsewhere). */
 var ROOT_DIR = process.env.HOMETV_DIR || '/media/developer/hometv';
 var INITD = process.env.HOMETV_INITD || '/var/lib/webosbrew/init.d';
@@ -67,10 +70,25 @@ function callerOf(message) {
   return s.replace(/[ -](\d+|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i, '');
 }
 
-/** `alive` only touches one empty file: a TV that doesn't say who called is let through. */
+/**
+ * `alive` only touches one empty file: a TV that doesn't say who called is let through, and so is LG's Home with any
+ * instance or suffix after its id ("com.webos.app.home 1", "com.webos.app.home-…"), as HomeTV mounted over it may be
+ * named (call #2, 2026-11-18). The methods that change Home or hand out keys stay strict.
+ */
 function allowed(message) {
   var who = callerOf(message);
-  return !who || CALLERS.indexOf(who) >= 0;
+  return !who || CALLERS.indexOf(who) >= 0 || /^com\.webos\.app\.home[ -]/.test(rawCaller(message));
+}
+
+/** The caller's id as the service library gave it, before any cut. */
+function rawCaller(message) {
+  var s = message && (message.sender || message.applicationID);
+  return typeof s === 'string' ? s : '';
+}
+
+/** An id for the boot log: letters, digits and . _ - : and spaces only, cut short (never anything else the caller sent). */
+function idForLog(s) {
+  return String(s || '').replace(/[^A-Za-z0-9 ._:-]/g, '?').slice(0, 80);
 }
 
 /** The key page's methods: the caller must be known, and be HomeTV. */
@@ -158,6 +176,15 @@ function createMethods(deps) {
     return process.getuid ? process.getuid() : -1;
   };
   var now = deps.now || Date.now;
+  var logFile = deps.logFile || '';
+  var aliveFile = deps.alive || ALIVE;
+  var uptimeOf = deps.uptime || function () {
+    try {
+      return String(fs.readFileSync('/proc/uptime', 'utf8')).split(' ')[0];
+    } catch (e) {
+      return String(Math.round(process.uptime()));
+    }
+  };
   var tempAt = -Infinity;
   var appDir = deps.appDir || APP_DIR;
   var updateConfig = deps.updateConfig || updates.loadConfig(__dirname);
@@ -183,7 +210,40 @@ function createMethods(deps) {
     }
   }
 
-  function refuse(message) {
+  /**
+   * Notes for the boot log (root/lib.sh say's format: uptime, then the text), a few per process: who was refused, by
+   * method, and who sent the first heartbeat. Read after a failed restart check (call #2: was the mounted page's call
+   * refused here, or never seen?). Ids only.
+   */
+  var notesLeft = 20;
+  var noted = {};
+  function note(key, text) {
+    if (!logFile || noted[key] || notesLeft <= 0) return;
+    noted[key] = true;
+    notesLeft--;
+    try {
+      fs.appendFileSync(logFile, uptimeOf() + ' service: ' + text + '\n');
+    } catch (e) {
+      // no log (a jailed service, a PC): nothing else changes
+    }
+  }
+  function who(message) {
+    var ls = message && message.ls2Message;
+    var app = '';
+    var svc = '';
+    try {
+      app = ls && ls.applicationID ? String(ls.applicationID() || '') : '';
+      svc = ls && ls.senderServiceName ? String(ls.senderServiceName() || '') : '';
+    } catch (e) {
+      // older library
+    }
+    return '\'' + idForLog(rawCaller(message)) + '\'' + (app ? ' (app id \'' + idForLog(app) + '\')' : '') +
+      (svc ? ' (service \'' + idForLog(svc) + '\')' : '');
+  }
+
+  function refuse(message, method) {
+    var w = who(message);
+    note('refused ' + method + ' ' + w, 'refused ' + (method || '?') + ' from ' + w);
     message.respond({ returnValue: false, errorText: 'not HomeTV' });
   }
 
@@ -220,16 +280,17 @@ function createMethods(deps) {
 
   return {
     alive: function (message) {
-      if (!allowed(message)) return refuse(message);
+      if (!allowed(message)) return refuse(message, 'alive');
       try {
-        touch(ALIVE);
+        touch(aliveFile);
+        note('first heartbeat', 'first heartbeat, from ' + who(message));
         message.respond({ returnValue: true });
       } catch (e) {
         message.respond({ returnValue: false, errorText: String(e && e.message) });
       }
     },
     start: function (message) {
-      if (!strict(message)) return refuse(message);
+      if (!strict(message)) return refuse(message, 'start');
       var mine = one(message);
       if (!mine) return;
       // Without an open activity a webOS service is stopped a few seconds after its last call.
@@ -255,26 +316,26 @@ function createMethods(deps) {
       });
     },
     stop: function (message) {
-      if (!strict(message)) return refuse(message);
+      if (!strict(message)) return refuse(message, 'stop');
       if (instance) instance.stop();
       instance = null;
       release();
       message.respond({ returnValue: true });
     },
     token: function (message) {
-      if (!strict(message)) return refuse(message);
+      if (!strict(message)) return refuse(message, 'token');
       var t = instance ? instance.tvToken() : '';
       if (!t) return message.respond({ returnValue: false, errorText: 'the key page is not listening' });
       message.respond({ returnValue: true, token: t });
     },
     tmdbKey: function (message) {
-      if (!strict(message)) return refuse(message);
+      if (!strict(message)) return refuse(message, 'tmdbKey');
       var p = one(message);
       if (!p) return;
       message.respond({ returnValue: true, key: p.keyOf('tmdb') });
     },
     priceKeys: function (message) {
-      if (!strict(message)) return refuse(message);
+      if (!strict(message)) return refuse(message, 'priceKeys');
       var p = one(message);
       if (!p) return;
       message.respond({ returnValue: true, watchmode: p.keyOf('watchmode'), motn: p.keyOf('motn') });
@@ -286,12 +347,12 @@ function createMethods(deps) {
       message.respond({ returnValue: true, keys: p.fingerprints() });
     },
     rootState: function (message) {
-      if (!exact(message)) return refuse(message);
+      if (!exact(message)) return refuse(message, 'rootState');
       var s = rootStateOf(rootDir, initd, bootIdFile);
       message.respond({ returnValue: true, edition: s.edition, hooked: s.hooked, chosen: s.chosen, ranThisStart: s.ranThisStart });
     },
     useLgHome: function (message) {
-      if (!exact(message)) return refuse(message);
+      if (!exact(message)) return refuse(message, 'useLgHome');
       var mode = message.payload && message.payload.mode;
       if (mode !== 'temp' && mode !== 'at-restart') {
         return message.respond({ returnValue: false, errorText: 'mode must be temp or at-restart' });
@@ -325,7 +386,7 @@ function createMethods(deps) {
       message.respond({ returnValue: true, version: serviceVersion });
     },
     updateCheck: function (message) {
-      if (!exact(message)) return refuse(message);
+      if (!exact(message)) return refuse(message, 'updateCheck');
       updates.check(updOpts(), function (err, r) {
         message.respond({
           returnValue: true, on: r.on, installed: r.installed, available: r.available, failedBefore: r.failedBefore,
@@ -334,11 +395,11 @@ function createMethods(deps) {
       });
     },
     updateStatus: function (message) {
-      if (!exact(message)) return refuse(message);
+      if (!exact(message)) return refuse(message, 'updateStatus');
       message.respond({ returnValue: true, last: updates.lastResult(rootDir), busy: updateBusy() });
     },
     updateInstall: function (message) {
-      if (!exact(message)) return refuse(message);
+      if (!exact(message)) return refuse(message, 'updateInstall');
       var want = message.payload && message.payload.version;
       if (!updateConfig.on) return message.respond({ returnValue: false, errorText: 'updates are off in this build' });
       if (!there(path.join(rootDir, 'undo-home.sh'))) return message.respond({ returnValue: false, errorText: 'HomeTV\'s root edition isn\'t on this TV' });
@@ -397,7 +458,7 @@ try {
 }
 if (Service) {
   var service = new Service(ID);
-  methods = createMethods({ activities: service.activityManager });
+  methods = createMethods({ activities: service.activityManager, logFile: LOG });
   ['alive', 'start', 'stop', 'token', 'tmdbKey', 'priceKeys', 'keysSaved', 'rootState', 'useLgHome', 'version', 'updateCheck', 'updateStatus', 'updateInstall'].forEach(function (name) {
     service.register(name, methods[name]);
   });

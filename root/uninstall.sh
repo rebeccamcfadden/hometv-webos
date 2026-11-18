@@ -12,8 +12,9 @@ if ! sh "$D/undo-home.sh" </dev/null; then
   echo "uninstall: LG's Home isn't back yet; the start-up hooks are gone, so it is after a restart. The HomeTV folder ($D) is kept: restart the TV, then run this again." >&2
   exit 1
 fi
-# HomeTV's own watchdog only (its path in the command line); no other process is touched
+# HomeTV's own watchdog and heartbeat listener only (their paths in the command line); no other process is touched
 pkill -f "[h]ometv/watchdog.sh" 2>/dev/null
+pkill -f "[h]ometv/heartbeat.js" 2>/dev/null
 rm -f "$INITD/10-hometv-home" "$INITD/15-hometv-debloat"
 case "$D" in */hometv) rm -rf "$D" ;; *) echo "uninstall: unexpected folder $D, left in place" >&2 ;; esac
 echo "HomeTV's root edition is removed. Restart the TV."

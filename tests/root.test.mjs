@@ -70,9 +70,12 @@ function setup({ homeType = 'flutter', fg = 'com.webos.app.home', services = 'vi
     HOMETV_LOG: fwd(path.join(t, 'boot.log')),
     HOMETV_ALIVE: fwd(path.join(t, 'alive')), HOMETV_LASTAPP: fwd(path.join(t, 'lastapp.json')),
     STUB_LOG: fwd(path.join(t, 'stub.log')), STUB_FG: fg, STUB_SERVICES: services,
-    HOMETV_WATCH_MAX: '8', HOMETV_BOOT_ID: fwd(path.join(t, 'boot_id'))
+    HOMETV_WATCH_MAX: '8', HOMETV_BOOT_ID: fwd(path.join(t, 'boot_id')),
+    // a stand-in for heartbeat.js that only notes it ran, and luna-service2's permission files (none unless a test adds them)
+    HOMETV_HEARTBEAT: fwd(path.join(t, 'heartbeat-stub.js')), HOMETV_LS2_ROOTS: fwd(path.join(t, 'ls2'))
   };
   fs.writeFileSync(path.join(t, 'boot_id'), 'boot-1\n');
+  fs.writeFileSync(path.join(t, 'heartbeat-stub.js'), 'require("fs").appendFileSync(process.env.STUB_LOG, "heartbeat listener started\\n");\n');
   const run = (script, ...args) => execFileSync(SH, [fwd(path.join(D, script)), ...args], { env, encoding: 'utf8', timeout: 20000 });
   const read = (f) => (fs.existsSync(path.join(t, f)) ? fs.readFileSync(path.join(t, f), 'utf8') : '');
   const mounted = () => read('mounts').includes(' ' + HOME_APP + ' ');
@@ -583,5 +586,81 @@ test('lib.sh luna_send: the URI and JSON stay separate literal arguments, and lu
     assert.equal(s.read('stdin'), '', 'stdin closed');
   } finally {
     s.done();
+  }
+});
+
+// --- The heartbeat while mounted (call #2, 2026-11-18: the heartbeat never came while HomeTV was LG's Home)
+
+test('decide.js acg: the bus groups LG\'s Home holds, HomeTV\'s service\'s, and the shared ones', () => {
+  const t = fs.mkdtempSync(path.join(os.tmpdir(), 'hometv-acg-'));
+  try {
+    const lg = path.join(t, 'lg');
+    const dev = path.join(t, 'dev');
+    fs.mkdirSync(path.join(lg, 'client-permissions.d'), { recursive: true });
+    fs.mkdirSync(path.join(dev, 'api-permissions.d'), { recursive: true });
+    fs.writeFileSync(path.join(lg, 'client-permissions.d', 'home.json'), JSON.stringify({ 'com.webos.app.home': ['settings'], 'com.webos.app.*': ['applications'], 'com.webos.app.other': ['public'] }));
+    fs.writeFileSync(path.join(dev, 'api-permissions.d', 'com.hometv.app.service.api.public.json'), JSON.stringify({ public: ['com.hometv.app.service/*'] }));
+    fs.writeFileSync(path.join(dev, 'api-permissions.d', 'broken.json'), '{');
+    const none = decide.acg('com.webos.app.home', 'com.hometv.app.service', [lg, dev, path.join(t, 'missing')]);
+    assert.deepEqual([none.home, none.service, none.shared], [['applications', 'settings'], ['public'], []]);
+    assert.match(none.line, /files read 2; com\.webos\.app\.home: applications settings; com\.hometv\.app\.service: public; shared: none/);
+    fs.writeFileSync(path.join(lg, 'client-permissions.d', 'more.json'), JSON.stringify({ 'com.webos.app.home*': ['public'] }));
+    assert.deepEqual(decide.acg('com.webos.app.home', 'com.hometv.app.service', [lg, dev]).shared, ['public']);
+    fs.writeFileSync(path.join(lg, 'client-permissions.d', 'more.json'), JSON.stringify({ 'com.webos.app.home': ['all'] }));
+    assert.deepEqual(decide.acg('com.webos.app.home', 'com.hometv.app.service', [lg, dev]).shared, ['public'], 'all may call anything');
+  } finally {
+    fs.rmSync(t, { recursive: true, force: true });
+  }
+});
+
+test('the start-up hook notes the bus groups and starts the 127.0.0.1 heartbeat listener; LG\'s Home back ends it', { skip: !SH }, async () => {
+  const s = setup();
+  try {
+    s.run('10-hometv-home');
+    await s.waitFor(/heartbeat listener started/);
+    assert.match(s.read('stub.log'), /heartbeat listener started/);
+    assert.match(s.read('boot.log'), /home: bus groups: files read 0; com\.webos\.app\.home: none found/);
+    // undo-home.sh temp: LG's Home back, the listener ended (only HomeTV's, by its path)
+    s.run('undo-home.sh', 'temp');
+    assert.match(s.read('stub.log'), /pkill -f \[h\]ometv\/heartbeat\.js/);
+  } finally {
+    s.done();
+  }
+});
+
+test('heartbeat.js: GET /alive on 127.0.0.1 touches the heartbeat and notes the first beat and why the service call failed, masked', async () => {
+  const t = fs.mkdtempSync(path.join(os.tmpdir(), 'hometv-hb-'));
+  const alive = path.join(t, 'alive');
+  const log = path.join(t, 'boot.log');
+  const old = { a: process.env.HOMETV_ALIVE, l: process.env.HOMETV_LOG };
+  process.env.HOMETV_ALIVE = alive;
+  process.env.HOMETV_LOG = log;
+  const hbPath = require.resolve('../root/heartbeat.js');
+  delete require.cache[hbPath];
+  const hb = require('../root/heartbeat.js');
+  const server = await new Promise((resolve, reject) => hb.start(0, (e, srv) => (e ? reject(e) : resolve(srv))));
+  const port = server.address().port;
+  const get = (p, method = 'GET') => fetch('http://127.0.0.1:' + port + p, { method }).then((r) => ({ status: r.status, cors: r.headers.get('access-control-allow-origin') }));
+  try {
+    assert.equal(server.address().address, '127.0.0.1', 'loopback only');
+    const why = encodeURIComponent('Denied method call "alive" for category "/" (from 192.168.1.50)');
+    assert.deepEqual(await get('/alive?why=' + why + '&as=com.webos.app.home%201234&hidden=0'), { status: 204, cors: '*' });
+    assert.ok(fs.existsSync(alive));
+    await get('/alive?why=' + why);
+    assert.equal((await get('/other')).status, 404);
+    assert.equal((await get('/alive', 'POST')).status, 404);
+    const text = fs.readFileSync(log, 'utf8');
+    assert.match(text, /heartbeat: first beat from the page \(running as com\.webos\.app\.home 1234\)/);
+    assert.equal((text.match(/service failed: Denied method call "alive" for category "\/" \(from ADDRESS\)/g) || []).length, 1, 'once while it stays the same');
+    assert.ok(!text.includes('192.168'), 'no address');
+    assert.equal(hb.clean('a<script>b'.repeat(20)).length <= 80, true);
+  } finally {
+    server.close();
+    process.env.HOMETV_ALIVE = old.a;
+    process.env.HOMETV_LOG = old.l;
+    if (old.a === undefined) delete process.env.HOMETV_ALIVE;
+    if (old.l === undefined) delete process.env.HOMETV_LOG;
+    delete require.cache[hbPath];
+    fs.rmSync(t, { recursive: true, force: true });
   }
 });

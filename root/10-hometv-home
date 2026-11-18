@@ -34,6 +34,12 @@ if [ -f "$ELEVATE" ]; then
 else
   say "home: no elevate-service ($ELEVATE); the watchdog may give LG's Home back"
 fi
+# Mounted, the page runs as LG's Home: can the bus let LG's Home call HomeTV's service? (the groups each holds; read only)
+say "home: bus groups: $(node "$D/decide.js" acg com.webos.app.home "$APP_ID.service" $LS2_ROOTS 2>/dev/null)"
+# The heartbeat's second way in, over 127.0.0.1 (heartbeat.js), for when the bus refuses the page's call; in memory only
+if [ -f "$HEARTBEAT" ] && ! pgrep -f "[h]ometv/heartbeat.js" >/dev/null; then
+  (node "$HEARTBEAT" </dev/null >/dev/null 2>&1 &)
+fi
 pgrep -f "[h]ometv/watchdog.sh" >/dev/null || (sh "$D/watchdog.sh" </dev/null >/dev/null 2>&1 &)
 if replaced; then
   say "home: already HomeTV (the page was refreshed in place)"

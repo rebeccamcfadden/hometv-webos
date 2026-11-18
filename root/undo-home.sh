@@ -9,7 +9,8 @@
 # and root stay. Undone by install.sh (hometv-lg root <tv address> --home-again), which links the hooks again and
 # removes DISABLE. Lifts the debloat first: LG's Home doesn't start without the ad services it stops. Unmounts only
 # HomeTV's own mount over LG's Home (lib.sh ours); a mount there that isn't HomeTV's, or one still busy, is left in place
-# and it says so (exit 1), so LG's Home is never claimed back when it isn't. Kills no process but LG Home's renderer.
+# and it says so (exit 1), so LG's Home is never claimed back when it isn't. Kills no process but LG Home's renderer and,
+# once LG's Home is back, HomeTV's own heartbeat listener (heartbeat.js).
 # From lasharor's undo-home.sh and its "Native Home restoration safety" (MIT, read at 2debe62), the mount way only.
 . "$(dirname "$0")/lib.sh"
 case "$1" in
@@ -29,6 +30,7 @@ if [ "$1" = at-restart ]; then
 fi
 [ -f "$D/debloat-undo.sh" ] && sh "$D/debloat-undo.sh" </dev/null >/dev/null 2>&1
 if ! replaced; then
+  pkill -f "[h]ometv/heartbeat.js" 2>/dev/null
   say "undo-home: LG's Home isn't replaced; nothing to undo"
   exit 0
 fi
@@ -58,5 +60,6 @@ for t in 1 2 3 4; do
   sleep 8
   pgrep -f "[f]lutter-client -i com.webos.app.home" >/dev/null && ! pgrep -f "[a]pp-id=com.webos.app.home" >/dev/null && break
 done
+pkill -f "[h]ometv/heartbeat.js" 2>/dev/null
 say "undo-home: LG's Home is back${1:+ until the next restart}"
 exit 0
