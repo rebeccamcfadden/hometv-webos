@@ -83,7 +83,9 @@ export async function toast(tv, message) {
 // CanI.RootMy.TV before root (docs/jailbreak.md). `slopbro` is the options the root step gives SlopBro (pinned f76b717)
 // for that version: on 33.31.75 only com.webos.app.voiceweb worked, which SlopBro tries alone with --webos-version 11
 // (its TARGET_APPS lists voiceweb for 11 only; the option only picks the app). docs/root-plan.md, "33.31.75".
-// The takeover after root has its own list, root/compat.json (firmware + model family; install.sh stops and asks).
+// The takeover after root has its own list, root/compat.json (firmware + model family; install.sh stops and asks). The
+// two agree (root.test.mjs): each firmware here is listed there for the test TV's family (UT80), 33.31.75 as "known"
+// (the project lead, 2026-11-18), so the installer asks nothing extra on it.
 export const ROOTABLE = {
   '33.31.61': { note: 'SlopBro: the newest version known to work (CanI.RootMy.TV, read 2026-11-04)', slopbro: [] },
   '33.31.75': {

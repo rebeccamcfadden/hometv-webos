@@ -205,6 +205,12 @@ SlopBro's bug, and may stop the start-up scripts. Then:
   the mark is what the hooks and the watchdog honour should a hook be linked again, and what tells HomeTV and the
   laptop the choice was made. Both are undone by one command (`install.sh`, through `hometv-lg root --home-again`).
   HomeTV's setting takes effect at the next restart, so its own page is never pulled from under the confirm.
+- **33.31.75 is known on the test TV's model** (the project lead, 2026-11-18): `root/compat.json` lists it for UT80 as
+  `known`, agreeing with `ROOTABLE`; the installer asks nothing extra for it. The takeover is still first tried on the
+  call.
+- **`hometv-lg check` names the problem and the next step** (the project lead, 2026-11-18), rather than "can't tell" or
+  "ended" for an SSH that refuses: see [When an LG update ends root](#when-an-lg-update-ends-root).
+- **The root call is in two stages** (the project lead, 2026-11-18): stage 1 root, stage 2 the v2 install and checks.
 
 ## Sources
 

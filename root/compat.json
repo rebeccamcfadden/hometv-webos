@@ -1,7 +1,7 @@
 {
  "version": 1,
  "updated": "2026-11-18",
- "comment": "The LG firmware (Settings > All Settings > Support > TV Information, Software Version) and model families HomeTV's root edition may take Home over on. install.sh refuses a TV not listed here unless the owner agreed (hometv-lg asks; --unlisted-ok), and the start-up hook leaves LG's Home alone after the software changed to one not listed. A family is the model name without the size and region (43UT8000AUA: UT80); no families: any model on that firmware. A trailing * in firmware matches a prefix. status: tested (on a TV by us), reported (others' reports, linked in note), planned (not tried yet). The idea is lasharor/cleanyourtv-WebOS's compat.json (MIT, read at 2debe62).",
+ "comment": "The LG firmware (Settings > All Settings > Support > TV Information, Software Version) and model families HomeTV's root edition may take Home over on. install.sh refuses a TV not listed here unless the owner agreed (hometv-lg asks; --unlisted-ok), and the start-up hook leaves LG's Home alone after the software changed to one not listed. A family is the model name without the size and region (43UT8000AUA: UT80); no families: any model on that firmware. A trailing * in firmware matches a prefix. status: tested (on a TV by us), reported (others' reports, linked in note), known (the project lead treats it as known: the test TV's model and software; root checked by tools/lib/checks.mjs ROOTABLE, which lists the same firmware), planned (not tried yet). The idea is lasharor/cleanyourtv-WebOS's compat.json (MIT, read at 2debe62).",
  "entries": [
   {
    "firmware": "33.31.61",
@@ -18,8 +18,8 @@
    "families": [
     "UT80"
    ],
-   "status": "planned",
-   "note": "the test TV since 2026-11-17; the takeover is first tried on the TV call"
+   "status": "known",
+   "note": "the test TV (43UT8000AUA) since 2026-11-17, known as the project lead decided on 2026-11-18 (root there through voiceweb reported on 55UT80006LA, SlopBro issues 28 and 29; ROOTABLE in tools/lib/checks.mjs); the takeover is first tried on the TV call"
   },
   {
    "firmware": "33.31.75",

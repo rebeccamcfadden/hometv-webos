@@ -10,6 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { sq } from '../tools/lib/root-shell.mjs';
 import { q } from '../tools/lib/telnet.mjs';
+import { ROOTABLE } from '../tools/lib/checks.mjs';
 
 const require = createRequire(import.meta.url);
 const decide = require('../root/decide.js');
@@ -454,9 +455,16 @@ test('decide.js: model families and the firmware list (compat.json, lasharor\'s 
   assert.equal(decide.family('OLED65C46LA'), 'OLEDC4');
   assert.equal(decide.family('65QNED86T6A'), 'QNED86');
   assert.equal(decide.family('webOS TV'), '');
-  assert.equal(decide.compat(list, '55UT80006LA', '33.31.75').status, 'planned');
+  assert.equal(decide.compat(list, '55UT80006LA', '33.31.75').status, 'known');
+  assert.equal(decide.compat(list, '43UT8000AUA', '33.31.75').status, 'known', 'the test TV\'s model: known, so no question');
   assert.equal(decide.compat(list, '43UT7590PUA', '33.31.75').status, 'reported');
   assert.equal(decide.compat(list, '43UT8000AUA', '33.31.61').status, 'planned');
+  // the root step's list and the takeover's agree: each firmware root is run on is listed for the test TV's family
+  for (const fw of Object.keys(ROOTABLE)) assert.ok(decide.compat(list, '43UT8000AUA', fw), fw + ' in compat.json for UT80');
+  for (const e of JSON.parse(fs.readFileSync(list, 'utf8')).entries) {
+    assert.ok(ROOTABLE[e.firmware], e.firmware + ': compat.json lists a firmware the root step refuses');
+    assert.ok(['tested', 'reported', 'known', 'planned'].includes(e.status), e.status);
+  }
   assert.equal(decide.compat(list, '43UT7590PUA', '33.31.61'), null, 'a family the entry doesn\'t name');
   assert.equal(decide.compat(list, '43UT8000AUA', '33.31.80'), null, 'a newer firmware');
   assert.equal(decide.compat(list, '43UT8000AUA', ''), null, 'unread');
