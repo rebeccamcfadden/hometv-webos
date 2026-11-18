@@ -665,6 +665,18 @@ test('the .exe build includes every devmode module', () => {
   }
 });
 
+test('the .exe build includes every module its files import (B10: keep-keys.mjs was missed)', () => {
+  const build = fs.readFileSync(path.join(HERE, '..', 'tools', 'build-exe.mjs'), 'utf8');
+  const list = [...build.slice(build.indexOf('const files'), build.indexOf('];', build.indexOf('const files'))).matchAll(/'(tools\/[^']+\.mjs)'/g)].map((m) => m[1]);
+  for (const f of list) {
+    const text = fs.readFileSync(path.join(HERE, '..', f), 'utf8');
+    for (const m of text.matchAll(/(?:^import [^;]*? from |import\()\s*'(\.{1,2}\/[^']+\.mjs)'/gm)) {
+      const dep = path.posix.join(path.posix.dirname(f), m[1]);
+      assert.ok(list.includes(dep), f + ' imports ' + dep + ', which the .exe leaves out');
+    }
+  }
+});
+
 test('sha256 of a file is the pin format (lowercase hex)', async () => {
   const f = path.join(scratch('sha'), 'x');
   fs.writeFileSync(f, 'abc');
