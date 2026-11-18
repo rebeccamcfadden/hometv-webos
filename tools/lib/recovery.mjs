@@ -75,7 +75,7 @@ export function readVolume(root) {
   try {
     const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
       'Get-Volume -DriveLetter ' + d[1] + ' | Select-Object FileSystemType,SizeRemaining,DriveType | ConvertTo-Json'],
-    { encoding: 'utf8', timeout: 20000, windowsHide: true });
+    { encoding: 'utf8', timeout: 20000, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     const v = JSON.parse(out);
     return { root: true, format: String(v.FileSystemType || ''), free: Number(v.SizeRemaining), type: String(v.DriveType || '') };
   } catch {
