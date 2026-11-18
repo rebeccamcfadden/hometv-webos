@@ -10,9 +10,9 @@ const IPV6 = /\b(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}\b|\b(?:[0-9a-f]{1,4}:)+:(?:[0
 // a URL keeps its scheme, host and port; its path and query go (they can carry names, ids and tokens)
 const URL_PATH = /\b((?:https?|wss?):\/\/[^\s/"'<>)]+)\/[^\s"'<>)]+/gi;
 const SECRET_NAMES = 'token|key|password|passwd|pass|secret|apikey|api_key|access_token|refresh_token';
-// "token": "…" in JSON, and token=… in a query or a command line
-const SECRET_JSON = new RegExp('("(?:' + SECRET_NAMES + ')"\\s*:\\s*")[^"]*"', 'gi');
-const SECRET_ARG = new RegExp('\\b((?:' + SECRET_NAMES + ')=)[^\\s&"\']+', 'gi');
+// "token": "…" in JSON, and token=… in a query or a command line; also with a prefix (LG's "client-key", client_key=)
+const SECRET_JSON = new RegExp('("[\\w-]*?(?:' + SECRET_NAMES + ')"\\s*:\\s*")[^"]*"', 'gi');
+const SECRET_ARG = new RegExp('(?<![0-9a-z])([\\w-]*?(?:' + SECRET_NAMES + ')=)[^\\s&"\']+', 'gi');
 
 /** Masks `text`. `host`: the TV's address or name as the person typed it; `home`: a folder shown as %USERPROFILE%. */
 export function mask(text, { host, home } = {}) {
@@ -25,6 +25,7 @@ export function mask(text, { host, home } = {}) {
   if (home) s = s.split(home).join('%USERPROFILE%');
   return s
     .replace(MAC, '<mac>')
-    .replace(IPV6, '<ip6>')
-    .replace(IPV4, '<ip>');
+    // IPv4 first, so an IPv4-mapped IPv6 address (::ffff:192.168.1.50) loses its IPv4 part too
+    .replace(IPV4, '<ip>')
+    .replace(IPV6, '<ip6>');
 }

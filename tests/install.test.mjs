@@ -59,7 +59,7 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
   const slopbro = [];
   const logins = [];
   const sticks = [];
-  const flags = { defaultPassword: false, lost: [], homeUp: 'mounted\nalive\n', rollBacks: 0 };
+  const flags = { defaultPassword: false, lost: [], homeUp: 'mounted\nalive\n', rollBacks: 0, rollBackCut: false };
   const ctx = {
     host: '127.0.0.1', dir: laptop, ipk, kit, verifyWaitMs: 0,
     ssapPorts: [{ url: 'ws://127.0.0.1:' + ws + '/', insecure: false }],
@@ -95,8 +95,9 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
         // the roll back: undo-home.sh for good takes HomeTV's two hooks out; the boot notes come back
         if (cmd.includes('undo-home.sh')) {
           flags.rollBacks++;
+          if (flags.rollBackCut) return { code: 255, stdout: '', stderr: '' }; // ssh's time limit, or the link dropped
           for (const h of ['10-hometv-home', '15-hometv-debloat']) fs.rmSync(path.join(t, 'tv', 'initd', h), { force: true });
-          return { code: 0, stdout: '---\n12.3 home: mounting HomeTV over LG\'s Home at 192.168.1.50, restarting sam\n', stderr: '' };
+          return { code: 0, stdout: 'rollback-checked\n---\n12.3 home: mounting HomeTV over LG\'s Home at 192.168.1.50, restarting sam\n', stderr: '' };
         }
         return { code: 127, stdout: '', stderr: 'not in the pretend ssh' };
       }
@@ -158,6 +159,9 @@ test('scrub takes out addresses, MACs, URL paths, secrets and the home folder, k
     '{"token": "…", "apiKey": "…", "password":"…"} token=…&x=1 secret=…');
   assert.equal(scrub('fe80::1 2001:db8::8a2e:370:7334 at 12:30:45 on 2026-11-18, luna://com.webos.service.tv.systemproperty/getSystemInfo'),
     '<ip6> <ip6> at 12:30:45 on 2026-11-18, luna://com.webos.service.tv.systemproperty/getSystemInfo');
+  // LG's pairing key under its own names, and an IPv4-mapped IPv6 address (Node's dual-stack errors)
+  assert.equal(scrub('{"client-key":"abcd1234"} {"clientKey": "z"} client_key=abc ::ffff:192.168.1.50'),
+    '{"client-key":"…"} {"clientKey": "…"} client_key=… <ip6>:<ip>');
 });
 
 test('root files go with Unix line ends, all but the README', () => {
@@ -549,6 +553,12 @@ test('restart check: HomeTV not mounted, or its page not answering, rolls back (
     assert.deepEqual(await runInstall(s.ctx, { from: 'restart-check' }), { stopped: 'restart-check' });
     assert.match(s.text(), /HomeTV isn't mounted over LG's Home/);
     assert.equal(s.flags.rollBacks, 2);
+    // a roll back cut short (no answer, ssh's time limit) is never reported as done
+    s.flags.rollBackCut = true;
+    s.out.length = 0;
+    assert.deepEqual(await runInstall(s.ctx, { from: 'restart-check' }), { stopped: 'restart-check' });
+    assert.match(s.text(), /the roll back over SSH didn't finish or couldn't be checked/);
+    assert.doesNotMatch(s.text(), /so it was rolled back/);
   } finally {
     await s.done();
   }
@@ -589,24 +599,30 @@ test('the command line: --list, usage, and the double-click menu\'s install choi
     const env = { ...process.env, HOMETV_DIR: dir, HOMETV_NO_EXPLORER: '1', HOMETV_TEST_WS_PORT: String(port) };
     assert.match(execFileSync(process.execPath, ['tools/hometv-lg.mjs', 'install', '--list'], { env, encoding: 'utf8' }), /^1\. backup +not run/);
     assert.throws(() => execFileSync(process.execPath, ['tools/hometv-lg.mjs', 'install', '127.0.0.1', '--from', 'nope'], { env, stdio: 'pipe' }), /Usage/);
-    const out = await new Promise((resolve, reject) => {
+    const menu = (choice) => new Promise((resolve, reject) => {
       const p = spawn(process.execPath, ['tools/hometv-lg.mjs'], { env });
       let text = '';
       const timer = setTimeout(() => { p.kill(); reject(new Error('timed out:\n' + text)); }, 40000);
       p.stdout.on('data', (d) => {
         text += d;
-        if (/\[1\]: $/.test(text)) p.stdin.write('3\n');
+        if (/\[1\]: $/.test(text)) p.stdin.write(choice + '\n');
         else if (/address and press Enter: $/.test(text)) p.stdin.write('127.0.0.1\n');
         else if (/\[y\/N\] $/.test(text)) p.stdin.write('n\n');
         else if (/Press Enter to close\. $/.test(text)) p.stdin.write('\n');
       });
       p.on('exit', () => { clearTimeout(timer); resolve(text); });
     });
+    const out = await menu('3');
+    assert.match(out, /Type 1, 2, 3 or 4/);
     assert.match(out, /Step 1 of 8: Back up/);
     assert.match(out, /HomeTV is installed and opens/);
     assert.match(out, /Stopped before root/);
     assert.ok(!out.includes('SECRET123') && !out.includes('aa:bb:cc'));
     assert.ok(!fs.readFileSync(path.join(dir, 'install-log.txt'), 'utf8').includes('127.0.0.1'));
+    // 4: hometv-lg root, from its checklist (here the backup is there; the first question's "no" stops it)
+    const root = await menu('4');
+    assert.match(root, /Step 1 of 7: Before root: the checklist/);
+    assert.match(root, /photos of the TV's settings aren't taken/);
   } finally {
     tv.server.close();
     fs.rmSync(dir, { recursive: true, force: true });
@@ -745,6 +761,12 @@ test('hometv-lg root: the backup must be on this laptop, and of this model', asy
     s.out.length = 0;
     assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'root-preflight' });
     assert.match(s.text(), /another TV model \(OLED55C4\)/);
+    // a backup that doesn't say its model is asked about, never taken as this TV's
+    fs.writeFileSync(path.join(s.laptop, 'lg-backup-2026-01-02-00-00-00.json'), JSON.stringify({ format: 'hometv-lg-backup', tv: {} }));
+    s.out.length = 0;
+    assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'root-preflight' });
+    assert.match(s.asked.at(-1), /The backup doesn't say its TV model[\s\S]*lg-backup-2026-01-02/);
+    assert.match(s.text(), /may not be this TV's/);
   } finally {
     await s.done();
   }

@@ -637,9 +637,9 @@ export async function homeCameUp(shell, P, waitMs = 10000) {
 export async function rollBack(ctx, why, shell = null) {
   const P = { ...TV_PATHS, ...ctx.tvPaths };
   const back = 'HomeTV as Home again, once the HomeTV team has looked: hometv-lg root <tv ip> --home-again.';
+  const sshPort = ctx.sshPort || 22;
+  const { key, knownHosts } = keyPaths(ctx.dir);
   if (!shell) {
-    const sshPort = ctx.sshPort || 22;
-    const { key, knownHosts } = keyPaths(ctx.dir);
     const s = (ctx.rootShell || sshShell)({ host: ctx.host, port: sshPort, key, knownHosts });
     if ((await portOpen(ctx.host, sshPort)) && (await isRoot(s))) shell = s;
   }
@@ -650,12 +650,19 @@ export async function rollBack(ctx, why, shell = null) {
       'again with --from restart-check: it rolls back.');
   }
   ctx.say('  HomeTV didn\'t come up as Home (' + why + '): rolling back (undo-home.sh: its start-up hooks removed, LG\'s Home back)');
-  const r = await shell.run('sh ' + sq(P.dir + '/undo-home.sh') + ' </dev/null >/dev/null 2>&1; ' +
+  // undo-home.sh restarts sam and waits for LG's Home: minutes, not the usual 30 s, so a shell of its own
+  const long = (ctx.rootShell || sshShell)({ host: ctx.host, port: sshPort, key, knownHosts, timeoutMs: 300000 });
+  const r = await long.run('sh ' + sq(P.dir + '/undo-home.sh') + ' </dev/null >/dev/null 2>&1; ' +
     '{ [ -e ' + sq(P.initd + '/10-hometv-home') + ' ] || [ -L ' + sq(P.initd + '/10-hometv-home') + ' ]; } && echo hooks-left; ' +
-    'grep -q ' + sq(' ' + P.home + ' ') + ' ' + sq(P.mounts) + ' && echo still-mounted; echo ---; tail -n 30 ' + sq(P.log) + ' 2>/dev/null; true');
+    'grep -q ' + sq(' ' + P.home + ' ') + ' ' + sq(P.mounts) + ' && echo still-mounted; echo rollback-checked; echo ---; tail -n 30 ' + sq(P.log) + ' 2>/dev/null; true');
   const out = String(r.stdout || '');
   const [head, notes = ''] = out.split('---');
   if (notes.trim()) ctx.say('  The TV\'s start-up notes (' + P.log + ', masked):\n' + scrub(notes.trim(), ctx.host).split('\n').map((l) => '    ' + l).join('\n'));
+  if (r.code !== 0 || !/rollback-checked/.test(head)) {
+    return stop('HomeTV didn\'t come up as Home (' + why + '), and the roll back over SSH didn\'t finish or couldn\'t be checked.',
+      'Its start-up hooks may still be on the TV; when HomeTV\'s page doesn\'t answer, the watchdog gives LG\'s Home back about a ' +
+      'minute after each start. Restart the TV (' + RESTART + '), then run this again with --from restart-check: it checks and rolls back.');
+  }
   if (/hooks-left/.test(head)) {
     return stop('HomeTV didn\'t come up as Home (' + why + '), and rolling it back didn\'t remove its start-up hooks.',
       'Run: ssh -i ' + KEY_FILE + ' root@<tv ip> sh ' + P.dir + '/undo-home.sh , then restart the TV. Send the start-up notes above to the HomeTV team.');
@@ -727,6 +734,10 @@ export const ROOT_PRE = [
       if (was && tv.model && was !== tv.model) {
         return stop('The newest backup on this laptop (' + b.file + ') is of another TV model (' + was + ').',
           'Back this TV up: hometv-lg check <tv address> --backup, then run this again.');
+      }
+      if ((!was || !tv.model) && !yes(await ctx.ask('  ' + (tv.model ? 'The backup doesn\'t say its TV model' : 'The TV doesn\'t say its model') +
+        ', so the laptop can\'t tell it\'s this TV\'s. Is ' + b.file + ' the backup of this TV? [y/N] '))) {
+        return stop('The backup on this laptop may not be this TV\'s.', 'Back this TV up: hometv-lg check <tv address> --backup, then run this again.');
       }
       ctx.say('  ✓ the backup on this laptop: ' + b.file);
       for (const [question, why, next] of PREFLIGHT) {

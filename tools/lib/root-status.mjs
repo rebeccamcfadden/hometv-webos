@@ -85,6 +85,8 @@ export function describeRootStatus(s) {
       'as an app on its tile, and nothing is broken.',
     'Choices:',
     ...ROOT_ENDED_CHOICES.map((c, i) => '  ' + (i + 1) + '. ' + c),
-    'More: docs/root-plan.md, When an LG update ends root.'
+    ...(/SSH/.test(s.why) ? ['If Homebrew Channel still opens on the TV and its Settings > SSH Server is off, root may still be on: ' +
+      'switch SSH Server on and check again.'] : []),
+    'More: https://rebeccamcfadden.github.io/hometv-webos/root/#after-an-update'
   ];
 }

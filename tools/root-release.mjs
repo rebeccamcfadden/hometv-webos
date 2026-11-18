@@ -65,7 +65,10 @@ function main() {
   const ipkPath = arg('--ipk') || path.join(root, 'dist', `${APP_ID}_${v}_all.ipk`);
   const privateKey = loadPrivateKey({ keyPath: arg('--key') || process.env.HOMETV_PAGE_KEY_FILE, pem: process.env.HOMETV_PAGE_PRIVATE_KEY });
   const out = arg('--out') || path.join(root, '.data', 'root-release');
-  const rel = makeRootRelease({ ipk: fs.readFileSync(ipkPath), ipkName: path.basename(ipkPath), scripts: rootScripts(), tag: arg('--tag') || `app-v${v}`, privateKey });
+  const ipk = fs.readFileSync(ipkPath);
+  // the release tag names the .ipk's own version (the files' download addresses), not the repo's
+  const tag = arg('--tag') || `app-v${inspectIpk(ipk, path.basename(ipkPath)).appinfo.version}`;
+  const rel = makeRootRelease({ ipk, ipkName: path.basename(ipkPath), scripts: rootScripts(), tag, privateKey });
   writeRootRelease(out, rel);
   console.log(`Root update ${rel.manifest.version} (${rel.files.length} files) in ${out}. Nothing was published.`);
 }

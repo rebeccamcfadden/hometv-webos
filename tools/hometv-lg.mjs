@@ -31,13 +31,14 @@ async function guided() {
     '  ------------------------------------------------------------',
     '  1  Check the TV: reads it and changes nothing (the usual choice)',
     '  2  Install HomeTV v0 then v1 and check them (Developer Mode, no root): only if you were asked to',
-    ...(ROOT ? ['  3  Install HomeTV, step by step: only if you were asked to (it can root the TV, and asks first)'] : []),
+    ...(ROOT ? ['  3  Install HomeTV, step by step: only if you were asked to (it can root the TV, and asks first)',
+      '  4  Root a TV that passed the install: a checklist first, then root, and a report (asks before root)'] : []),
     ''
   ].join('\n'));
-  const choice = (await rl.question(ROOT ? '  Type 1, 2 or 3 and press Enter [1]: ' : '  Type 1 or 2 and press Enter [1]: ')).trim();
-  if (choice === '2' || (ROOT && choice === '3')) {
+  const choice = (await rl.question(ROOT ? '  Type 1, 2, 3 or 4 and press Enter [1]: ' : '  Type 1 or 2 and press Enter [1]: ')).trim();
+  if (choice === '2' || (ROOT && (choice === '3' || choice === '4'))) {
     rl.close();
-    return choice === '2' ? guidedDevmode() : guidedInstall();
+    return choice === '2' ? guidedDevmode() : guidedInstall(choice === '4' ? 'root' : 'install');
   }
   console.log([
     '',
@@ -103,7 +104,7 @@ async function guidedDevmode() {
   end.close();
 }
 
-async function guidedInstall() {
+async function guidedInstall(command = 'install') {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   console.log('\n  The TV\'s address: on the TV, Settings > All Settings > General > Network > Wi-Fi Connection >\n' +
     '  your network > Advanced Wi-Fi Settings > IP Address. It looks like 192.168.1.50.\n');
@@ -114,7 +115,7 @@ async function guidedInstall() {
     console.log('  That doesn\'t look like four numbers with dots. Try again.');
   }
   rl.close();
-  process.argv = [process.argv[0], 'install', host];
+  process.argv = [process.argv[0], command, host];
   try {
     await import('./install.mjs');
   } catch (e) {

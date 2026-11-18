@@ -92,6 +92,9 @@ test('laptop: a TV this laptop never rooted gets no root line; ended names the c
   assert.match(text, /1\. Leave it/);
   assert.match(text, /2\. A factory reset .*then HomeTV as a Developer Mode app/);
   assert.match(text, /3\. Root again, only if a tool exists/);
+  assert.match(text, /root\/#after-an-update/, 'the guide\'s address, as the TV\'s notice gives it');
+  assert.doesNotMatch(text, /SSH Server is off/);
+  assert.match(describeRootStatus({ state: 'ended', why: 'Homebrew Channel\'s SSH refuses the connection' }).join('\n'), /SSH Server is off, root may still be on/);
   assert.match(describeRootStatus({ state: 'rooted', why: '' })[0], /^Root: still on/);
 });
 
