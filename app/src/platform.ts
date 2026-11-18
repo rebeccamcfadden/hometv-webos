@@ -473,7 +473,10 @@ export const platform = {
   settingsCopy(): SettingsCopy | null {
     if (!onWebOS()) return null;
     return {
-      load: () => luna(SERVICE + '/settingsLoad', {}, 5000).then((r) => (r.returnValue && r.settings && typeof r.settings === 'object' ? (r.settings as Record<string, string>) : null)),
+      load: () => luna(SERVICE + '/settingsLoad', {}, 5000).then((r) => ({
+        ok: r.returnValue === true,
+        settings: r.returnValue === true && r.settings && typeof r.settings === 'object' ? (r.settings as Record<string, string>) : null,
+      })),
       save: (settings) => luna(SERVICE + '/settingsSave', { settings }, 5000).then((r) => r.returnValue === true),
     };
   },

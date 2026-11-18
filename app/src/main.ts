@@ -69,11 +69,14 @@ async function start() {
     } catch (e) {
       once = null;
     }
-    if (await restoreIfEmpty(pageStorage(), copy, once)) {
+    const start = await restoreIfEmpty(pageStorage(), copy, once);
+    if (start.state === 'restored') {
       window.location.reload();
       return;
     }
-    startKeeping(pageStorage(), copy);
+    // unknown: the service couldn't be asked; nothing is sent this session (an empty store must never replace the copy)
+    if (start.state === 'none') startKeeping(pageStorage(), copy, true);
+    else if (start.state === 'kept') startKeeping(pageStorage(), copy, !start.copied);
   }
   const serviceFoundMs = Date.now() - t0;
   home.setApps(null);

@@ -384,7 +384,15 @@ function settingsStore(dirs) {
       },
       write: function (settings, now) {
         var s = cleanSettings(settings);
-        return !!s && writeWhole(file, JSON.stringify({ format: 1, savedAt: now, settings: s }));
+        if (!s) return false;
+        // the copy before, kept once more beside it, so a bad save can be undone by hand
+        try {
+          var before = fs.readFileSync(file, 'utf8');
+          writeWhole(file + '.prev', before);
+        } catch (e) {
+          // no copy yet
+        }
+        return writeWhole(file, JSON.stringify({ format: 1, savedAt: now, settings: s }));
       }
     };
   }

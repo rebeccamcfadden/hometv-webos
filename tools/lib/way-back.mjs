@@ -160,41 +160,64 @@ async function privateSums(shell, p) {
   return new Map(out.split(/\r?\n/).map((l) => /^([0-9a-f]{64}) [ *](hometv-[\w.-]+\.json)$/.exec(l.trim())).filter(Boolean).map((m) => [m[2], m[1]]));
 }
 
+/** The kept copy's folder on the TV, and its mark that an earlier run couldn't put it back (then it is never replaced). */
+const keptDir = (p) => p.dir + '/backup/private-before';
+const HELD = '.not-put-back';
+
 /**
  * Before anything changes: a copy of HomeTV's saved keys and settings, kept on the TV (root only, beside the root
- * scripts; never sent to the laptop or shown), and their SHA-256 sums. Returns { sums }, or a stop.
+ * scripts; never sent to the laptop or shown), and their SHA-256 sums. A copy an earlier run couldn't put back is left
+ * as it is, and this stops. Returns { sums }, or a stop.
  */
 async function keepPrivate(ctx, shell, p) {
+  const bk = keptDir(p);
+  if ((await shell.run('[ -e ' + sq(bk + '/' + HELD) + ' ]')).code === 0) {
+    return stop('An earlier run couldn\'t put HomeTV\'s saved keys or settings back; their copy is kept on the TV (' + bk + ').',
+      'Nothing changed. Tell the HomeTV team before running this again.');
+  }
   const sums = await privateSums(shell, p);
   if (!sums.size) {
     ctx.say('  HomeTV has no saved keys or settings on the TV yet (nothing to keep)');
     return { sums };
   }
-  const bk = p.dir + '/backup/private-before';
   const r = await shell.run('rm -rf ' + sq(bk + '.part') + ' && mkdir -p ' + sq(bk + '.part') + ' && chmod 700 ' + sq(bk + '.part') + ' && cp -p ' +
     [...sums.keys()].map((f) => sq(p.keys + '/' + f)).join(' ') + ' ' + sq(bk + '.part') + '/ && rm -rf ' + sq(bk) + ' && mv ' + sq(bk + '.part') + ' ' + sq(bk));
   if (r.code !== 0) return stop('Couldn\'t keep a copy of HomeTV\'s saved keys and settings on the TV first.', 'Nothing changed. Check the TV\'s storage isn\'t full, then run this again.');
   ctx.say('  ✓ HomeTV\'s saved keys and settings kept on the TV first (' + sums.size + ' file' + (sums.size === 1 ? '' : 's') + ', in ' + bk + ')');
-    return { sums };
+  return { sums };
 }
 
-/** After the change: each kept file still there and the same, else put back from the copy and checked again. */
+/** Which of `names` in the private folder are missing, empty or not JSON (lost), by the TV's own Node. */
+async function lostOnTv(shell, p, names) {
+  const js = 'var f=require("fs");process.argv.slice(1).forEach(function(n){var ok=false;try{ok=f.statSync(n).size>0&&!!JSON.parse(f.readFileSync(n,"utf8"))}catch(e){}if(!ok)console.log("lost "+n)})';
+  const out = String((await shell.run('cd ' + sq(p.keys) + ' 2>/dev/null; node -e ' + sq(js) + ' ' + names.map(sq).join(' ') + '; true')).stdout || '');
+  return names.filter((n) => out.split(/\r?\n/).some((l) => l.trim() === 'lost ' + n));
+}
+
+/**
+ * After the change: each kept file still there and readable. One that is missing, empty or broken is put back from the
+ * copy and checked again; one that changed but reads fine is left alone (HomeTV saved something newer meanwhile).
+ */
 async function privateKept(ctx, shell, p, before) {
   if (!before.size) return null;
-  const lost = (now) => [...before].filter(([f, h]) => now.get(f) !== h).map(([f]) => f);
-  let gone = lost(await privateSums(shell, p));
+  const names = [...before.keys()];
+  let gone = await lostOnTv(shell, p, names);
+  const bk = keptDir(p);
   if (gone.length) {
-    const bk = p.dir + '/backup/private-before';
     await shell.run('mkdir -p ' + sq(p.keys) + ' && chmod 700 ' + sq(p.keys) + ' && cp -p ' + gone.map((f) => sq(bk + '/' + f)).join(' ') + ' ' + sq(p.keys) + '/; true');
-    gone = lost(await privateSums(shell, p));
-    if (gone.length) return stop('HomeTV\'s saved keys or settings changed and couldn\'t be put back: ' + gone.join(', ') + '.', 'The copy is in ' + bk + ' on the TV. Tell the HomeTV team before anything else.');
+    gone = await lostOnTv(shell, p, names);
+    if (gone.length) {
+      await shell.run('touch ' + sq(bk + '/' + HELD) + '; true');
+      return stop('HomeTV\'s saved keys or settings were lost and couldn\'t be put back: ' + gone.join(', ') + '.', 'The copy is kept in ' + bk + ' on the TV. Tell the HomeTV team before anything else.');
+    }
     ctx.say('  ✓ HomeTV\'s saved keys and settings were put back from the copy, and checked');
     return null;
   }
-  ctx.say('  ✓ settings kept: HomeTV\'s saved keys and settings are as they were (SHA-256 checked)');
+  const now = await privateSums(shell, p);
+  const changed = names.filter((f) => now.get(f) !== before.get(f));
+  ctx.say('  ✓ settings kept: HomeTV\'s saved keys and settings are all there' + (changed.length ? ' (' + changed.join(', ') + ' saved anew by HomeTV meanwhile)' : ' and as they were') + ' (checked)');
   return null;
 }
-
 /** HomeTV installed from this program's .ipk when it is newer than the TV's. Returns a stop, or null. */
 async function updateApp(ctx, shell, p) {
   const tvVersion = String((await shell.run('node -e ' + sq('try{console.log(require(process.argv[1]).version||"")}catch(e){console.log("")}') + ' ' + sq(p.app + '/appinfo.json') + ' 2>/dev/null; true')).stdout || '').trim();

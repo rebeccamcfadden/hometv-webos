@@ -225,36 +225,62 @@ test('service: the page\'s settings copy is HomeTV\'s only, its own names only, 
   }
 });
 
-test('page: settings come back from the service\'s copy when the page\'s store is empty (mounted, or reinstalled), once', async () => {
+test('page: settings come back from the service\'s copy into an empty store, once; an older or empty store never replaces the copy', async () => {
   const k = await loadTs('settingsKeep.ts');
-  const mk = (o = {}) => { const m = new Map(Object.entries(o)); return { getItem: (x) => (m.has(x) ? m.get(x) : null), setItem: (x, v) => m.set(x, String(v)), m }; };
+  const mk = (o = {}, failAt = '') => {
+    const m = new Map(Object.entries(o));
+    return { getItem: (x) => (m.has(x) ? m.get(x) : null), setItem: (x, v) => { if (x === failAt) throw new Error('QuotaExceededError'); m.set(x, String(v)); }, removeItem: (x) => m.delete(x), m };
+  };
   let kept = null;
+  let up = true;
   const saves = [];
-  const copy = { load: async () => kept, save: async (s) => (saves.push(s), (kept = s), true) };
+  const copy = { load: async () => (up ? { ok: true, settings: kept } : { ok: false, settings: null }), save: async (s) => (saves.push(s), (kept = s), true) };
   const timers = { set: () => 1, clear: () => {} };
-  // the tile's store: first run done; sent to the service (caches and logs left out)
+  const tick = () => new Promise((r) => setTimeout(r, 5));
+  // the tile's store, no copy yet: sent at once (caches and logs left out)
   const tile = mk({ 'hometv-setup-done': '1', 'hometv-settings-v1': '{"theme":"night"}', 'hometv-home-row': '["netflix"]', 'hometv-live-v1:index': 'x', 'hometv-error-log': 'y' });
-  k.startKeeping(tile, copy, 60000, timers);
-  await new Promise((r) => setTimeout(r, 5));
+  const s1 = await k.restoreIfEmpty(tile, copy, mk());
+  assert.deepEqual(s1, { state: 'kept', copied: false });
+  k.startKeeping(tile, copy, !s1.copied, 60000, timers);
+  await tick();
   assert.deepEqual(Object.keys(kept).sort(), ['hometv-home-row', 'hometv-settings-v1', 'hometv-setup-done']);
-  // an empty store never writes over the copy
-  k.startKeeping(mk(), copy, 60000, timers);
-  await new Promise((r) => setTimeout(r, 5));
-  assert.equal(saves.length, 1);
-  // mounted over LG's Home with a store of its own, empty: the copy is put back, then once only
+  // mounted with a store of its own, empty: the copy is put back, first run done last; then once only
   const home = mk();
   const once = mk();
-  assert.equal(await k.restoreIfEmpty(home, copy, once), true);
+  assert.deepEqual(await k.restoreIfEmpty(home, copy, once), { state: 'restored' });
   assert.equal(home.getItem('hometv-settings-v1'), '{"theme":"night"}');
-  assert.equal(home.getItem('hometv-setup-done'), '1');
-  const again = mk();
-  assert.equal(await k.restoreIfEmpty(again, copy, once), false, 'no second time in one page session');
-  // a store with first run done is left alone; no copy (an older service) changes nothing
-  assert.equal(await k.restoreIfEmpty(tile, copy, mk()), false);
+  assert.equal((await k.restoreIfEmpty(mk(), copy, once)).state, 'unknown', 'no second time in one page session');
+  // the household changes the theme while mounted: nothing sent at start (the service holds a copy), the change is
+  let look = null;
+  k.startKeeping(home, copy, false, 60000, { set: (fn) => ((look = fn), 1), clear: () => {} });
+  await tick();
+  assert.equal(saves.length, 1, 'nothing sent at start when the service holds a copy');
+  home.setItem('hometv-settings-v1', '{"theme":"day"}');
+  look();
+  await tick();
+  assert.equal(kept['hometv-settings-v1'], '{"theme":"day"}');
+  // the tile's older store opened next: its start sends nothing, so the newer copy stays
+  const s2 = await k.restoreIfEmpty(tile, copy, mk());
+  assert.deepEqual(s2, { state: 'kept', copied: true });
+  k.startKeeping(tile, copy, !s2.copied, 60000, timers);
+  await tick();
+  assert.equal(kept['hometv-settings-v1'], '{"theme":"day"}', 'the older store never replaces the newer copy');
+  const before = saves.length;
+  // the service can't be asked at start: unknown, and the page doesn't keep (an empty store after first run would replace the copy)
+  up = false;
+  assert.deepEqual(await k.restoreIfEmpty(mk(), copy, mk()), { state: 'unknown' });
+  up = true;
+  assert.equal(saves.length, before);
+  // a restore that fails part-way leaves no first run done behind
+  const full = mk({}, 'hometv-household-v1');
+  kept = { ...kept, 'hometv-household-v1': '[1]' };
+  assert.deepEqual(await k.restoreIfEmpty(full, copy, mk()), { state: 'unknown' });
+  assert.equal(full.getItem('hometv-setup-done'), null);
+  assert.equal(full.getItem('hometv-settings-v1'), null, 'what was written is taken out again');
+  // no copy and an empty store: a first run
   kept = null;
-  assert.equal(await k.restoreIfEmpty(mk(), copy, mk()), false);
+  assert.deepEqual(await k.restoreIfEmpty(mk(), copy, mk()), { state: 'none' });
 });
-
 // --- HomeTV's page
 
 const { re, settings } = await loadTs({ re: 'webos/rootEdition.ts', settings: 'screens/settingsGroups.ts' });
@@ -459,7 +485,7 @@ test('hometv-lg root --home-again: HomeTV\'s saved keys and settings are kept fi
     const r = await runWayBack(s.ctx, 'home-again');
     assert.ok(r.done, s.text());
     assert.match(s.text(), /kept on the TV first \(2 files/);
-    assert.match(s.text(), /settings kept: HomeTV's saved keys and settings are as they were/);
+    assert.match(s.text(), /settings kept: HomeTV's saved keys and settings are all there and as they were/);
     assert.ok(!s.text().includes('secret-token'), 'no key shown');
   } finally {
     s.done();
