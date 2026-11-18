@@ -143,3 +143,16 @@ test('laptop: SSH\'s own error text, which names the TV, never reaches the repor
   const closed = await rootStatus({ wasRooted: true, apps: APPS, shell: shellSaying({ code: 255, stderr: 'Connection closed by remote host' }) });
   assert.equal(closed.state, 'unknown', 'a closed connection isn\'t proof root ended');
 });
+
+test('the notice\'s help address is a page and an anchor in docs/, linked from /install/ and /check/', () => {
+  const u = new URL(re.AFTER_UPDATE_URL);
+  const m = u.pathname.match(/^\/hometv-webos\/(.+)\/$/);
+  assert.ok(m, 'a Pages folder: ' + u.pathname);
+  const docs = path.join(import.meta.dirname, '..', 'docs');
+  const page = fs.readFileSync(path.join(docs, m[1], 'index.html'), 'utf8');
+  assert.match(page, new RegExp('id="' + u.hash.slice(1) + '"'), 'the anchor ' + u.hash);
+  assert.match(fs.readFileSync(path.join(docs, m[1] + '.md'), 'utf8'), new RegExp('id="' + u.hash.slice(1) + '"'));
+  for (const from of ['install', 'check']) {
+    assert.match(fs.readFileSync(path.join(docs, from, 'index.html'), 'utf8'), new RegExp('href="\\.\\./' + m[1] + '/"'), from);
+  }
+});

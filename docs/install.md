@@ -77,7 +77,8 @@ With root, HomeTV's own scripts (in [`root/`](../root/README.md)) can show HomeT
 only, so a start without them gives LG's Home back. None of it has been run on a TV.
 
 Read [root-plan.md](root-plan.md) first: what root changes, the backup, the undo levels, and the order (an unrooted
-test first, then the backup, then root).
+test first, then the backup, then root). Step by step for the person at the TV: [root.md](root.md) (the Pages page
+[/root/](https://rebeccamcfadden.github.io/hometv-webos/root/)).
 
 ## The laptop tool's install steps
 

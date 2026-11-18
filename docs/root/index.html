@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rooting an LG TV for HomeTV, and the way back</title>
+<style>
+  body { font: 18px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #1f2328; background: #fff; margin: 0; }
+  main { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1.25rem 4rem; }
+  h1 { font-size: 1.9rem; margin: 0.5rem 0 0.25rem; }
+  h2 { font-size: 1.3rem; margin: 2rem 0 0.5rem; border-bottom: 1px solid #d0d7de; padding-bottom: 0.25rem; }
+  .warn { background: #fff8c5; border: 1px solid #d4a72c; border-radius: 8px; padding: 0.75rem 1rem; }
+  ol > li { margin: 0 0 1rem; }
+  .path { font-weight: 600; }
+  code, .cmd { font-family: ui-monospace, Consolas, monospace; font-size: 0.92em; background: #f6f8fa; border-radius: 6px; }
+  code { padding: 0.1em 0.35em; word-break: break-all; }
+  .cmd { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border: 1px solid #d0d7de; overflow-x: auto; }
+  .cmd span { flex: 1; white-space: pre; }
+  button { font: inherit; font-size: 0.9rem; padding: 0.3rem 0.8rem; border-radius: 6px; border: 1px solid #1f6feb; background: #1f6feb; color: #fff; cursor: pointer; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.95rem; }
+  td, th { border: 1px solid #d0d7de; padding: 0.4rem 0.6rem; text-align: left; vertical-align: top; }
+  .small { color: #59636e; font-size: 0.9rem; }
+  @media (max-width: 40rem) {
+    .levels, .levels tbody, .levels tr, .levels td { display: block; width: auto; }
+    .levels tr:first-child { display: none; }
+    .levels tr { border: 1px solid #d0d7de; border-radius: 8px; margin: 0 0 0.75rem; padding: 0.5rem 0.75rem; }
+    .levels td { border: 0; padding: 0.15rem 0; }
+    .levels td:first-child, .levels td:nth-child(2) { font-weight: 600; }
+    .levels td:first-child::before { content: "Level "; }
+    .levels td:last-child::before { content: "Then: "; color: #59636e; }
+  }
+</style>
+</head>
+<body>
+<main>
+<p class="warn"><strong>Only if you were asked to, and only if the TV's owner agrees.</strong> Work in progress, not
+  tested on a real TV yet. Rooting can go wrong, and there is no "unroot" button. If nobody asked you to do this, stop
+  here: HomeTV works without it, as an app (<a href="../install/">Install HomeTV</a>).</p>
+
+<h1>Rooting an LG TV for HomeTV, and the way back</h1>
+<p>Rooting lets HomeTV open when you press Home and when the TV switches on, in place of LG's own Home. It is done
+  together with the person helping you, on the phone. A program on the laptop does the work and checks each step.
+  About an hour, plus the time to get ready.</p>
+<p class="small">Do this only after HomeTV was installed without root and worked (<a href="../install/">Install HomeTV
+  on an LG TV</a>). The same steps with more detail, for helpers:
+  <a href="https://github.com/rebeccamcfadden/hometv-webos/blob/main/docs/root.md">docs/root.md</a>.</p>
+
+<h2 id="what">What root is, and isn't</h2>
+<ul>
+  <li><strong>It is</strong> using a mistake in LG's software to get full control of the TV. A free tool,
+    <a href="https://github.com/throwaway96/slopbro">SlopBro</a>, does that from the laptop and puts the
+    <a href="https://github.com/webosbrew/webos-homebrew-channel">Homebrew Channel</a> app on the TV. HomeTV then goes
+    on through Homebrew Channel.</li>
+  <li><strong>It changes</strong> only the TV's own storage for apps and settings: Homebrew Channel, a few of its
+    switches, and two small start-up steps of HomeTV's. HomeTV takes the place of LG's Home only <strong>in
+    memory</strong>, again at each start: a start without it gives LG's Home back.</li>
+  <li><strong>It isn't</strong> new TV software. LG's own software is never changed, and nothing is "flashed".</li>
+  <li><strong>It doesn't</strong> send anything anywhere, or touch your apps, accounts or settings.</li>
+</ul>
+
+<h2 id="risk">The risk, in plain words</h2>
+<ul>
+  <li><strong>There is no unroot button.</strong> The full undo is LG's own factory reset. It works, but it clears
+    all the TV's settings, apps and sign-ins. That's why the backup comes first.</li>
+  <li><strong>A TV that won't start</strong> is possible, but rare. The ways back below cover it, from a restart to
+    LG's USB recovery. The only known ways to a TV that even those can't fix are writing to LG's protected software or
+    locking files; SlopBro, Homebrew Channel and HomeTV do neither.</li>
+  <li><strong>The TV stays off LG's updates.</strong> An LG update usually ends root, so automatic updates stay off.
+    That also means no security fixes from LG meanwhile. If an update comes anyway, LG's Home simply comes back
+    (<a href="#after-an-update">After an LG update</a>).</li>
+  <li><strong>It may void the warranty.</strong></li>
+  <li><strong>Only some TVs.</strong> LG fixed the mistake in software released after about October 2026. The program
+    checks the TV's software version and stops on any it doesn't know.</li>
+</ul>
+
+<h2 id="ready">Have these ready</h2>
+<ul>
+  <li><strong>The rooting program.</strong> The <code>hometv-lg.exe</code> from the <a href="../check/">check page</a>
+    can't root (it says it "leaves out the root install"). The person helping you sends you the one that can. Put it
+    in your Downloads folder.</li>
+  <li><strong>The backup file</strong> of this TV on the laptop: <code>lg-backup-….json</code>, in the
+    <code>HomeTV</code> folder in your user folder. The install made one. If it's missing, run this in Command Prompt,
+    in Downloads, with your TV's address:
+    <div class="cmd"><span id="c1">hometv-lg.exe check 192.168.1.50 --backup</span><button onclick="copy('c1', this)">Copy</button></div></li>
+  <li><strong>Photos of the TV's settings screens</strong>, with your phone: picture, sound, the privacy switches, the
+    order of the apps on Home, Power On Screen and Quick Start+, HDMI device links (SIMPLINK), the channel list if you
+    use an aerial, accessibility.</li>
+  <li><strong>A sign-in list</strong>, on paper: the apps you'd sign in to again, the LG account if there is one, the
+    Wi-Fi name. No passwords on it; just make sure you know them.</li>
+  <li><strong>A USB stick with LG's software for this TV</strong> (32 GB or smaller; it gets erased). It's for the
+    very last way back. How to make it, step by step:
+    <a href="https://github.com/rebeccamcfadden/hometv-webos/blob/main/docs/recovery.md#the-usb-stick-level-5">The USB
+    stick</a>. Keep it in the laptop for the checklist: the program reads it.</li>
+  <li><strong>Automatic updates off:</strong> <span class="path">Settings › All Settings › Support › Software Update ›
+    Allow Automatic Updates</span> OFF (done during the install).</li>
+  <li><strong>The remote, and an hour</strong> with the TV free. The laptop on the same Wi-Fi as the TV.</li>
+</ul>
+
+<h2 id="steps">The steps</h2>
+<ol>
+  <li>
+    <p><strong>Run the rooting program.</strong> In Command Prompt, in your Downloads folder, with the TV's address
+      (the four numbers from the check):</p>
+    <div class="cmd"><span id="c2">hometv-lg.exe root 192.168.1.50</span><button onclick="copy('c2', this)">Copy</button></div>
+    <p class="small">Change <code>192.168.1.50</code> to your TV's own address before pressing Enter.</p>
+    <p>Before each step it says what the step does and how it's undone. It stops at the first thing that isn't right
+      and says what to do. Run the same line again and it carries on where it stopped.</p>
+  </li>
+  <li>
+    <p><strong>The checklist.</strong> It checks the TV answers and the backup is on the laptop. Then it asks, one at a
+      time: the photos? the sign-in list? which drive is the USB stick (type its letter, like <code>E</code>)? It reads
+      the stick, and asks about automatic updates if the TV doesn't say. Type <code>y</code> or <code>n</code> and
+      press Enter. Last, if the TV's owner agrees, type <code>root</code>.</p>
+  </li>
+  <li>
+    <p><strong>Clear the way.</strong> It asks you to delete HomeTV and the <span class="path">Developer Mode</span>
+      app on the TV, then to restart the TV: <strong>unplug it at the wall, wait 30 seconds, plug it in, turn it
+      on</strong> (the remote's power button isn't a restart). The order matters: the Developer Mode app goes
+      <em>before</em> root, and never comes back after. Then it checks that LG's Home and all your apps are there.</p>
+  </li>
+  <li>
+    <p><strong>The checks.</strong> The TV's software version (if the TV won't say, it asks you to read it in
+      <span class="path">Settings › All Settings › Support › TV Information</span> and type it), the stick again, and
+      that the TV can reach the laptop. Windows may ask to allow the program on private networks: click
+      <span class="path">Allow</span>.</p>
+  </li>
+  <li>
+    <p><strong>Root.</strong> It says once more what happens. To start, type <code>root the TV</code>. The TV's
+      browser opens and works for a while, then the TV restarts. Press Enter when it shows its Home screen.</p>
+  </li>
+  <li>
+    <p><strong>Open Homebrew Channel once</strong> from the TV's app list, wait for its list, then press Enter on the
+      laptop. (That sets it to start with the TV.) If Homebrew Channel isn't there, the program stops: don't try
+      again, tell the person helping you.</p>
+  </li>
+  <li>
+    <p><strong>HomeTV goes on.</strong> The program puts HomeTV back and locks the TV down: a key only this laptop
+      has, the open doors closed, LG's updates blocked. Just wait.</p>
+  </li>
+  <li>
+    <p><strong>Restart and check.</strong> Restart the TV the same way (unplug, 30 seconds). The picture may stay black
+      for about ten seconds: that's normal. Press Home; it asks <span class="path">Is it HomeTV on screen?</span>. If
+      HomeTV didn't come up, the program puts LG's Home back by itself and says so.</p>
+  </li>
+  <li>
+    <p><strong>The report.</strong> At the end it saves <code>lg-root-report-….txt</code> in the <code>HomeTV</code>
+      folder (no address or serial number in it). Send it to the person helping you.</p>
+  </li>
+</ol>
+
+<h2 id="way-back">The ways back, lightest first</h2>
+<p>Pick the lightest that does the job. Each is safe to try before the next.</p>
+<table class="levels">
+  <tr><th>Level</th><th>When</th><th>What to do</th><th>Then</th></tr>
+  <tr id="level-0"><td>0</td><td>Something is odd, once</td><td>Press <strong>Home three times</strong> quickly (within
+    two seconds) while HomeTV is on screen. Or unplug the TV for 30 seconds.</td><td>LG's Home until the next
+    start.</td></tr>
+  <tr id="level-1"><td>1</td><td>You'd rather have LG's Home</td><td>In HomeTV: <span class="path">Settings › Use
+    LG's Home</span>, then restart the TV. To have HomeTV back: <code>hometv-lg.exe root &lt;tv address&gt;
+    --home-again</code>.</td><td>LG's Home. HomeTV stays as an app; root stays, unused.</td></tr>
+  <tr id="level-2"><td>2</td><td>HomeTV off Home for good</td><td>On the laptop: <code>hometv-lg.exe unroot-home
+    &lt;tv address&gt;</code>. It has you restart the TV and checks. Then delete HomeTV in Homebrew Channel, if you
+    like.</td><td>LG's Home. Homebrew Channel stays.</td></tr>
+  <tr id="level-3"><td>3</td><td>No root at all: the full unroot</td><td><span class="path">Settings › All Settings ›
+    General › System › Reset to Initial Settings</span>. Then set the TV up again with the backup, the photos and the
+    sign-in list.</td><td>The TV as it came, on its current software.</td></tr>
+  <tr id="level-4"><td>4</td><td>The TV won't finish starting</td><td>Unplug it for 30 seconds. If Settings opens, go to
+    level 3. If not: turn it on and pull the plug while LG's logo still shows. Next time it says
+    <span class="path">Failsafe mode!</span>: choose <span class="path">Reboot later</span>, then go straight on to
+    level 3.</td><td>A working TV.</td></tr>
+  <tr id="level-5"><td>5</td><td>Still won't start</td><td>TV unplugged, the USB stick in, plug in and turn on. Say
+    <span class="path">Yes</span> to the update and don't switch off until it restarts by itself. Then level 3.</td>
+    <td>LG's software put back.</td></tr>
+  <tr id="level-6"><td>6</td><td>Nothing works</td><td>LG service. Tell them the TV was rooted.</td><td>LG's repair.</td></tr>
+</table>
+<p class="small">Levels 3 to 5 step by step:
+  <a href="https://github.com/rebeccamcfadden/hometv-webos/blob/main/docs/recovery.md">the heavy ways back</a>. Smaller
+  troubles (a black screen after a restart, the Home button opening LG's full-screen Home):
+  <a href="https://github.com/rebeccamcfadden/hometv-webos/blob/main/docs/troubleshooting.md">troubleshooting</a>.</p>
+
+<h2 id="after-an-update">After an LG update</h2>
+<p>If the TV updates its software (by hand, or after automatic updates came back on), root usually ends. That is
+  harmless:</p>
+<ul>
+  <li><strong>LG's Home is back</strong> from the next start. When you open HomeTV from its tile, it may say so once:
+    <span class="path">LG's Home is back</span>.</li>
+  <li><strong>HomeTV still works</strong> as an app: open it from its tile.</li>
+  <li><strong>Nothing is broken.</strong> Your apps, inputs and settings are as they were.</li>
+</ul>
+<p>Your choices, none of them urgent:</p>
+<ol>
+  <li><strong>Leave it as it is:</strong> LG's Home, and HomeTV as an app.</li>
+  <li><strong>Clean up:</strong> a factory reset (<a href="#level-3">level 3</a>), then HomeTV as an app again
+    (<a href="../install/">Install HomeTV</a>).</li>
+  <li><strong>Root again</strong>, only if a tool exists for the new software. Ask the person helping you.</li>
+</ol>
+<p>Two cases that look alike:</p>
+<ul>
+  <li><strong>Homebrew Channel still opens, but Home is LG's:</strong> root is still there. HomeTV stepped back because
+    the new software is one it wasn't tried on. On the laptop, <code>hometv-lg.exe root &lt;tv address&gt;
+    --home-again</code> explains it and asks before putting HomeTV back.</li>
+  <li><strong>You chose <span class="path">Use LG's Home</span></strong> (level 1): that's your choice, not an update.
+    HomeTV says nothing then.</li>
+</ul>
+<p class="small">On the laptop, <code>hometv-lg.exe check &lt;tv address&gt;</code> says
+  <span class="path">Root: still on</span> or <span class="path">Root: ended</span>.</p>
+
+<h2 id="good-to-know">Good to know</h2>
+<ul>
+  <li><strong>HomeTV's own updates:</strong> <span class="path">Settings › Updates</span> in HomeTV. Nothing is
+    downloaded until you press <span class="path">Install update</span>. If a new version doesn't start, HomeTV puts
+    the old one back by itself.</li>
+  <li><strong>Keep the USB stick, the backup file, the photos and the sign-in list</strong> for as long as the TV is
+    rooted.</li>
+  <li><strong>Never install the Developer Mode app again</strong> on a rooted TV: it can wipe Homebrew Channel and
+    HomeTV. (<code>hometv-lg.exe devmode</code> refuses a rooted TV for that reason.)</li>
+</ul>
+
+<h2 id="credits">Thanks</h2>
+<p class="small">HomeTV builds on other people's open-source work: <a href="https://github.com/throwaway96/slopbro">SlopBro</a>
+  (the root itself); <a href="https://github.com/webosbrew/webos-homebrew-channel">Homebrew Channel</a>, from the webOS
+  Homebrew project (the start-up steps, the failsafe start, the lock-down switches);
+  <a href="https://github.com/lasharor/cleanyourtv-WebOS">lasharor's cleanyourtv-WebOS</a> (taking Home over in
+  memory, its checks and its updater, under its MIT licence). Home pressed three times is an idea from
+  <a href="https://github.com/Razdva122/clean-your-tv-lg-webos">Razdva122's launcher</a>.</p>
+
+<p class="small">HomeTV for LG is open source: <a href="https://github.com/rebeccamcfadden/hometv-webos">github.com/rebeccamcfadden/hometv-webos</a>.</p>
+</main>
+<script>
+  function copy(id, btn) {
+    var text = document.getElementById(id).textContent;
+    var done = function () { btn.textContent = 'Copied'; setTimeout(function () { btn.textContent = 'Copy'; }, 1500); };
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, done);
+    else { var r = document.createRange(); r.selectNode(document.getElementById(id)); getSelection().removeAllRanges(); getSelection().addRange(r); document.execCommand('copy'); done(); }
+  }
+</script>
+</body>
+</html>
