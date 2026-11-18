@@ -213,6 +213,33 @@ export async function findIpk(ctx) {
   }
 }
 
+/**
+ * LG's installer, as root, on HomeTV's .ipk already at `tmp` on the TV; true once it is installed and registered.
+ * `run(cmd)` resolves to the command's output. As Homebrew Channel's own tools/install.sh and SlopBro's autoroot.sh. As
+ * lasharor's install.sh (MIT, read at 2debe62): an install can be dropped without a word (after a sam restart there), so
+ * it counts only once LG's installer reports the state "installed" and the app is registered, and is tried up to 4 times.
+ */
+export async function lgInstall(run, P, tmp, ctx) {
+  const out = P.tmp + '/hometv-install.out';
+  const payload = JSON.stringify({ id: 'com.ares.defaultName', ipkUrl: tmp, subscribe: true });
+  const done = '"state": *"installed"';
+  const appInfo = q(JSON.stringify({ id: APP }));
+  let tries = 0;
+  let installed = false;
+  while (!installed && tries < INSTALL_TRIES) {
+    tries++;
+    const r = await run('rm -f ' + q(out) + '; luna-send -w 60000 -i ' + q('luna://com.webos.appInstallService/dev/install') + ' ' + q(payload) +
+      ' > ' + q(out) + ' 2>&1 & p=$!; i=0; while [ $i -lt 90 ] && ! grep -Eq ' + q(done) + ' ' + q(out) + ' && ! grep -Eq ' +
+      q('failed|"returnValue": *false') + ' ' + q(out) + '; do sleep 1; i=$((i+1)); done; kill $p 2>/dev/null; ' +
+      'if grep -Eq ' + q(done) + ' ' + q(out) + '; then j=0; while [ $j -lt 8 ]; do [ -f ' + q(P.app + '/index.html') + ' ] && ' +
+      'luna-send -n 1 -w 5000 -f ' + q('luna://com.webos.applicationManager/getAppInfo') + ' ' + appInfo +
+      ' 2>/dev/null | grep -Eq ' + q('"returnValue": *true') + ' && echo hometv-registered && break; sleep 3; j=$((j+1)); done; fi');
+    installed = /hometv-registered/.test(String(r || ''));
+    if (!installed && tries < INSTALL_TRIES) ctx.say('  LG\'s installer didn\'t finish (try ' + tries + ' of ' + INSTALL_TRIES + '); trying again');
+  }
+  return installed;
+}
+
 /** root/'s files for the TV (all but README.md), line ends made Unix ones: from the exe's own copy, or the repo. */
 export function rootFiles() {
   const files = [];
@@ -500,28 +527,9 @@ export const STEPS = [
           if (found.error) return stop('HomeTV isn\'t on the TV any more (deleting the Developer Mode app removes it). ' + found.error, found.fix);
           const ipk = found.file;
           const tmp = P.tmp + '/hometv.ipk';
-          const out = P.tmp + '/hometv-install.out';
           const ipkVersion = found.version;
           await pushFile(sh, tmp, fs.readFileSync(ipk));
-          // As Homebrew Channel's own tools/install.sh and SlopBro's autoroot.sh: LG's installer, as root. As lasharor's
-          // install.sh (MIT, read at 2debe62): an install can be dropped without a word (after a sam restart there), so it
-          // counts only once LG's installer reports the state "installed" and the app is registered, and is tried up to 4 times.
-          const payload = JSON.stringify({ id: 'com.ares.defaultName', ipkUrl: tmp, subscribe: true });
-          const done = '"state": *"installed"';
-          const appInfo = q(JSON.stringify({ id: APP }));
-          let tries = 0;
-          let installed = false;
-          while (!installed && tries < INSTALL_TRIES) {
-            tries++;
-            const r = await sh.run('rm -f ' + q(out) + '; luna-send -w 60000 -i ' + q('luna://com.webos.appInstallService/dev/install') + ' ' + q(payload) +
-              ' > ' + q(out) + ' 2>&1 & p=$!; i=0; while [ $i -lt 90 ] && ! grep -Eq ' + q(done) + ' ' + q(out) + ' && ! grep -Eq ' +
-              q('failed|"returnValue": *false') + ' ' + q(out) + '; do sleep 1; i=$((i+1)); done; kill $p 2>/dev/null; ' +
-              'if grep -Eq ' + q(done) + ' ' + q(out) + '; then j=0; while [ $j -lt 8 ]; do [ -f ' + q(P.app + '/index.html') + ' ] && ' +
-              'luna-send -n 1 -w 5000 -f ' + q('luna://com.webos.applicationManager/getAppInfo') + ' ' + appInfo +
-              ' 2>/dev/null | grep -Eq ' + q('"returnValue": *true') + ' && echo hometv-registered && break; sleep 3; j=$((j+1)); done; fi', { ms: 180000 });
-            installed = /hometv-registered/.test(r.out);
-            if (!installed && tries < INSTALL_TRIES) ctx.say('  LG\'s installer didn\'t finish (try ' + tries + ' of ' + INSTALL_TRIES + '); trying again');
-          }
+          const installed = await lgInstall(async (c) => (await sh.run(c, { ms: 180000 })).out, P, tmp, ctx);
           // kept for Settings › Updates: the copy an in-TV update falls back to (service/update-apply.js)
           if (installed) {
             await sh.run('mkdir -p ' + q(P.dir + '/updates') + ' && cp ' + q(tmp) + ' ' + q(P.dir + '/updates/current.ipk') +

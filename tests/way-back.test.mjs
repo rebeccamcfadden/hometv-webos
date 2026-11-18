@@ -242,10 +242,11 @@ async function rootedTv({ apps = ['netflix', APP, HBC], keyOk = true, replies = 
   for (const c of ['systemctl', 'mount', 'umount', 'pkill', 'pgrep', 'sleep']) fs.writeFileSync(path.join(bin, c), '#!/bin/sh\necho "' + c + ' $*" >> "$STUB_LOG"\nexit 1\n');
   const env = { ...rooted.env, HOMETV_SKIP_ROOT_CHECK: '1', HOMETV_LASTAPP: fwd(path.join(t, 'tv', 'lastapp.json')),
     HOMETV_SBIN: fwd(path.join(t, 'tv', 'sbin')), HOMETV_HOSTS: fwd(path.join(t, 'tv', 'hosts')), HOMETV_DEBLOAT_DELAY: '0' };
-  const tvSh = (cmd) => spawnSync(SH, ['-c', rooted.setup + '\n' + cmd], { env, encoding: 'utf8', timeout: 60000 });
+  const tvSh = (cmd, input) => spawnSync(SH, ['-c', rooted.setup + '\n' + cmd], { env, encoding: 'utf8', timeout: 60000, input });
   // root/ on the TV, as hometv-lg install leaves it
   for (const f of fs.readdirSync('root')) if (f !== 'README.md') fs.copyFileSync(path.join('root', f), path.join(t, 'tv', 'hometv', f));
   fs.writeFileSync(path.join(t, 'tv', 'app', 'index.html'), '<title>HomeTV</title>');
+  fs.writeFileSync(path.join(t, 'tv', 'app', 'appinfo.json'), JSON.stringify({ id: APP, version: '0.2.0' }));
   const inst = tvSh('sh ' + rooted.tvPaths.dir + '/install.sh');
   assert.equal(inst.status, 0, inst.stderr);
   const state = { apps: [...apps], foreground: HOME };
@@ -253,10 +254,14 @@ async function rootedTv({ apps = ['netflix', APP, HBC], keyOk = true, replies = 
   const ws = await listen(tv.server);
   const laptop = path.join(t, 'laptop');
   fs.mkdirSync(laptop);
+  // this program's HomeTV, newer than the TV's (a stand-in .ipk; the stub installer only notes it)
+  const ipkName = 'com.hometv.app_0.2.1_all.ipk';
+  fs.writeFileSync(path.join(laptop, ipkName), 'IPK 0.2.1');
+  const ipkPin = { file: ipkName, sha256: crypto.createHash('sha256').update('IPK 0.2.1').digest('hex') };
   const out = [];
   const asked = [];
   const ctx = {
-    host: '127.0.0.1', dir: laptop, tvPaths: rooted.tvPaths, launchWaitMs: 500,
+    host: '127.0.0.1', dir: laptop, tvPaths: rooted.tvPaths, launchWaitMs: 500, ipkPin, ipkDirs: [laptop],
     ssapPorts: [{ url: 'ws://127.0.0.1:' + ws + '/', insecure: false }],
     say: (s) => out.push(s),
     ask: async (q) => {
@@ -266,9 +271,9 @@ async function rootedTv({ apps = ['netflix', APP, HBC], keyOk = true, replies = 
       return '';
     },
     rootShell: () => ({
-      async run(cmd) {
+      async run(cmd, o = {}) {
         if (!keyOk) return { code: 255, stdout: '', stderr: 'Permission denied (publickey).' };
-        const r = tvSh(cmd);
+        const r = tvSh(cmd, o.input);
         return { code: r.status, stdout: r.stdout, stderr: r.stderr };
       }
     })
@@ -301,6 +306,13 @@ test('hometv-lg root --home-again: after "Use LG\'s Home", the hooks come back a
     assert.ok(!fs.existsSync(s.p('hometv', 'DISABLE')));
     assert.match(s.text(), /Undo: Settings > Use LG's Home/);
     assert.match(s.text(), /HomeTV is Home again/);
+    // call #2's fix reaches the TV: its root scripts this program's (the old ones kept), HomeTV newer installed
+    assert.match(s.text(), /root scripts on the TV are this program's \(SHA-256 checked\)/);
+    assert.ok(fs.existsSync(s.p('hometv', 'heartbeat.js')));
+    assert.ok(fs.existsSync(s.p('hometv', 'backup', 'scripts-before', 'lib.sh')));
+    assert.match(s.text(), /HomeTV 0\.2\.1 installed \(was 0\.2\.0\)/);
+    assert.equal(fs.readFileSync(s.p('hometv', 'updates', 'current.version'), 'utf8').trim(), '0.2.1');
+    assert.ok(s.asked.findIndex((q) => q.includes('Make HomeTV')) >= 0 && /First it brings the TV's copy/.test(s.text()), 'said and asked first');
     assert.ok(!s.text().includes('127.0.0.1'), 'no TV address');
     // run again: nothing to do
     const again = await runWayBack(s.ctx, 'home-again');

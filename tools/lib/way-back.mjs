@@ -6,9 +6,11 @@
 //                                              checks LG's Home is back and Homebrew Channel still opens
 // Each says what it does and how it's undone before it changes anything, checks first and stops at the first failed
 // check. Nothing it prints holds the TV's address. The full unroot is level 3, a factory reset.
+import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { sshShell, isRoot, sq } from './root-shell.mjs';
 import { keyPaths } from './sshkey.mjs';
-import { TV_PATHS, WAY_BACK, RESTART, withTv, foreground, appIds, scrub, homeCameUp, rollBack, runInstallSh } from './install-steps.mjs';
+import { TV_PATHS, WAY_BACK, RESTART, withTv, foreground, appIds, scrub, homeCameUp, rollBack, runInstallSh, rootFiles, findIpk, lgInstall } from './install-steps.mjs';
 
 const HOME = 'com.webos.app.home';
 const HBC = 'org.webosbrew.hbchannel';
@@ -77,7 +79,13 @@ export async function homeAgain(ctx) {
     return { done: true, note: 'already Home' };
   }
   if (s.hooked && !s.chosen && !s.compatStopped) {
-    ctx.say('  HomeTV is already Home from each start: nothing to change; the restart and the watch follow.');
+    ctx.say('  HomeTV is already Home from each start; the restart and the watch follow.');
+    ctx.say(REFRESH_SAYS(p));
+    if (!yes(await ctx.ask('  Bring the TV\'s root scripts and HomeTV up to this program\'s, then restart and watch? [y/N] '))) {
+      return { stop: 'Not asked to; nothing changed.', next: 'Run this again when you want to.' };
+    }
+    const r1 = await refresh(ctx, shell, p);
+    if (r1) return r1;
   } else {
     const r0 = await enableAgain(ctx, shell, p, s);
     if (r0) return r0;
@@ -95,13 +103,80 @@ export async function homeAgain(ctx) {
   return { done: true, note: 'HomeTV is Home again' };
 }
 
+/** What refresh does, and its undo, said before the question. */
+const REFRESH_SAYS = (p) => '  First it brings the TV\'s copy of HomeTV\'s root scripts (' + p.dir + ') up to this program\'s, and HomeTV ' +
+  'itself when this program\'s is newer (LG\'s installer, as root).\n' +
+  '  Undo: the scripts it replaces are kept in ' + p.dir + '/backup/scripts-before, the HomeTV it replaces in ' + p.dir +
+  '/updates/previous.ipk (when the TV kept one).';
+
+/**
+ * The TV's root scripts made this program's (each checked by SHA-256 on the TV, the old ones kept first), and HomeTV
+ * installed from this program's .ipk when it is newer than the TV's (call #2's fix is in both). Returns a stop, or null.
+ */
+async function refresh(ctx, shell, p) {
+  const files = (ctx.rootFiles || rootFiles)();
+  const keep = p.dir + '/backup/scripts-before';
+  await shell.run('mkdir -p ' + sq(keep) + ' && for f in ' + files.map((f) => sq(f.name)).join(' ') + '; do [ -f ' + sq(p.dir) + '/"$f" ] && cp ' + sq(p.dir) + '/"$f" ' + sq(keep) + '/; done; true');
+  for (const f of files) {
+    const dst = p.dir + '/' + f.name;
+    const mode = /\.sh$|^\d\d-/.test(f.name) ? '755' : '644';
+    const r = await shell.run('cat > ' + sq(dst + '.new') + ' && chmod ' + mode + ' ' + sq(dst + '.new') + ' && mv ' + sq(dst + '.new') + ' ' + sq(dst), { input: f.data });
+    if (r.code !== 0) return stop('Couldn\'t copy ' + f.name + ' to the TV.', 'Nothing else changed; the older scripts are in ' + keep + '. Run this again.');
+  }
+  const sums = String((await shell.run('cd ' + sq(p.dir) + ' && sha256sum ' + files.map((f) => sq(f.name)).join(' ') + ' 2>/dev/null; true')).stdout || '');
+  // "<hash>  <name>" (a * before the name in binary mode)
+  const got = new Map(sums.split(/\r?\n/).map((l) => /^([0-9a-f]{64}) [ *](.+)$/.exec(l.trim())).filter(Boolean).map((m) => [m[2], m[1]]));
+  const bad = files.filter((f) => got.get(f.name) !== crypto.createHash('sha256').update(f.data).digest('hex'));
+  if (bad.length) return stop('The root scripts on the TV don\'t match this program\'s: ' + bad.map((f) => f.name).join(', ') + '.', 'Run this again; if it stays, tell the HomeTV team.');
+  ctx.say('  ✓ ' + files.length + ' root scripts on the TV are this program\'s (SHA-256 checked)');
+  const tvVersion = String((await shell.run('node -e ' + sq('try{console.log(require(process.argv[1]).version||"")}catch(e){console.log("")}') + ' ' + sq(p.app + '/appinfo.json') + ' 2>/dev/null; true')).stdout || '').trim();
+  const found = await findIpk(ctx);
+  if (found.error) {
+    return stop('HomeTV ' + (tvVersion || '') + ' is on the TV, and this program\'s HomeTV couldn\'t be read: ' + found.error, found.fix);
+  }
+  if (!newer(found.version, tvVersion)) {
+    ctx.say('  ✓ HomeTV ' + (tvVersion || '?') + ' on the TV is this program\'s or newer');
+    return null;
+  }
+  const tmp = p.tmp + '/hometv.ipk';
+  const put = await shell.run('cat > ' + sq(tmp), { input: fs.readFileSync(found.file) });
+  if (put.code !== 0) return stop('Couldn\'t copy HomeTV ' + found.version + ' to the TV.', 'Nothing was installed. Run this again.');
+  // LG's installer can take minutes (four tries of up to 2): a shell of its own with a longer limit
+  const { key, knownHosts } = keyPaths(ctx.dir);
+  const long = (ctx.rootShell || sshShell)({ host: ctx.host, port: ctx.sshPort || 22, key, knownHosts, timeoutMs: 900000 });
+  const installed = await lgInstall(async (c) => String((await long.run(c)).stdout || ''), p, tmp, ctx);
+  if (installed) {
+    await shell.run('mkdir -p ' + sq(p.dir + '/updates') + ' && { [ -f ' + sq(p.dir + '/updates/current.ipk') + ' ] && mv ' + sq(p.dir + '/updates/current.ipk') + ' ' +
+      sq(p.dir + '/updates/previous.ipk') + '; cp ' + sq(tmp) + ' ' + sq(p.dir + '/updates/current.ipk') + ' && echo ' + sq(found.version) + ' > ' + sq(p.dir + '/updates/current.version') + '; }; true');
+  }
+  await shell.run('rm -f ' + sq(tmp));
+  if (!installed) {
+    return stop('HomeTV ' + found.version + ' couldn\'t be installed over ' + (tvVersion || 'the TV\'s') + ' (LG\'s installer).',
+      'The TV\'s HomeTV stays. If LG\'s installer said FAILED_IPKG_INSTALL, see docs/troubleshooting.md. Otherwise tell the HomeTV team.');
+  }
+  ctx.say('  ✓ HomeTV ' + found.version + ' installed (was ' + (tvVersion || 'unknown') + ')');
+  return null;
+}
+
+/** a newer than b (x.y.z); an unreadable b counts as older. */
+function newer(a, b) {
+  const n = (v) => String(v || '').split('.').map((x) => parseInt(x, 10) || 0);
+  const x = n(a);
+  const y = n(b);
+  for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  return false;
+}
+
 /** install.sh again: the hooks linked, DISABLE gone. Returns a stop, or null when done. */
 async function enableAgain(ctx, shell, p, s) {
   if (s.compatStopped) ctx.say('  HomeTV stepped back at the last start: the TV\'s software changed to one not in root/compat.json.');
   ctx.say('  This runs install.sh on the TV again: HomeTV\'s two start-up hooks linked again, the "Use LG\'s Home" mark ' +
     'removed. HomeTV becomes Home at the next restart.\n' +
     '  Undo: Settings > Use LG\'s Home in HomeTV, or ssh -i ' + KEY_FILE + ' root@<tv ip> sh ' + p.dir + '/undo-home.sh');
+  ctx.say(REFRESH_SAYS(p));
   if (!yes(await ctx.ask('  Make HomeTV the TV\'s Home again? [y/N] '))) return { stop: 'Not asked to; nothing changed.', next: 'Run this again when you want HomeTV as Home.' };
+  const r1 = await refresh(ctx, shell, p);
+  if (r1) return r1;
   const r = await runInstallSh(ctx, (c) => shell.run(c), p.dir);
   const after = await rootState(shell, p);
   if (r.code !== 0 || !after.hooked || after.chosen) {
