@@ -3,7 +3,8 @@
 // the root edition's listener on 127.0.0.1 (root/heartbeat.js), which also notes in the TV's boot log why the call
 // failed. On call #2 (2026-11-18) the heartbeat never came while HomeTV was mounted over LG's Home, though it came
 // when HomeTV was opened from its tile: mounted, the page runs as LG's Home, and the bus may refuse LG's Home's call.
-// After three failed calls in a row the page also keeps what went wrong in its storage, for the Checks screen.
+// After three failed calls in a row the page also keeps what went wrong in its storage, for the Checks screen: written
+// when it changes (not at every beat), and dropped once the service answers the page running as the same id again.
 // Platform-free: the calls and the storage are passed in (platform.ts on the TV, fakes in the tests).
 
 import type { LunaReply } from './luna';
@@ -32,7 +33,7 @@ export interface HeartbeatDeps {
   call(): Promise<LunaReply>;
   /** A GET; the HTTP status, 0 when it failed. */
   get(url: string): Promise<number>;
-  storage: Pick<Storage, 'getItem' | 'setItem'> | null;
+  storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | null;
   as(): string;
   hidden(): boolean;
   now(): number;
@@ -51,6 +52,15 @@ export function createHeartbeat(d: HeartbeatDeps): () => Promise<'service' | 'lo
       const r = await d.call();
       if (r.returnValue === true) {
         fails = 0;
+        const kept = heartbeatTrouble(d.storage);
+        // fixed where it went wrong (HomeTV opened from its tile instead is another case: kept for the Checks screen)
+        if (kept && kept.as === short(d.as(), 60) && d.storage) {
+          try {
+            d.storage.removeItem(HEARTBEAT_KEY);
+          } catch (e) {
+            // left; harmless
+          }
+        }
         return 'service';
       }
       fails++;
@@ -62,8 +72,10 @@ export function createHeartbeat(d: HeartbeatDeps): () => Promise<'service' | 'lo
       const ok = status >= 200 && status < 300;
       if (fails >= KEEP_AFTER && d.storage) {
         const t: HeartbeatTrouble = { at: d.now(), as, luna: err, loopback: ok ? 'ok' : status ? `HTTP ${status}` : 'no answer', hidden };
+        const kept = heartbeatTrouble(d.storage);
+        const same = kept && kept.as === t.as && kept.luna === t.luna && kept.loopback === t.loopback && kept.hidden === t.hidden;
         try {
-          d.storage.setItem(HEARTBEAT_KEY, JSON.stringify(t));
+          if (!same) d.storage.setItem(HEARTBEAT_KEY, JSON.stringify(t));
         } catch (e) {
           // full or refused: the beat still counts
         }

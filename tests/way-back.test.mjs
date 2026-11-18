@@ -165,13 +165,15 @@ test('service: alive takes LG\'s Home with any instance or suffix (HomeTV mounte
 test('page: the heartbeat falls back to 127.0.0.1 when the service refuses, and keeps the trouble after three failed calls', async () => {
   const hb = await loadTs('webos/heartbeat.ts');
   const store = new Map();
-  const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
+  let writes = 0;
+  const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => (writes++, store.set(k, v)), removeItem: (k) => store.delete(k) };
   let reply = { returnValue: false, errorCode: -1, errorText: 'Denied method call "alive" for category "/"' };
   let status = 204;
+  let as = HOME + ' 1234';
   const got = [];
   const beat = hb.createHeartbeat({
     call: async () => reply, get: async (url) => (got.push(url), status), storage,
-    as: () => HOME + ' 1234', hidden: () => false, now: () => Date.UTC(2026, 10, 18, 17, 34),
+    as: () => as, hidden: () => false, now: () => Date.UTC(2026, 10, 18, 17, 34),
   });
   assert.equal(await beat(), 'loopback');
   assert.match(got[0], /^http:\/\/127\.0\.0\.1:8767\/alive\?why=Denied%20method%20call.*&as=com\.webos\.app\.home%201234&hidden=0$/);
@@ -182,11 +184,19 @@ test('page: the heartbeat falls back to 127.0.0.1 when the service refuses, and 
   const t = hb.heartbeatTrouble(storage);
   assert.deepEqual([t.as, t.luna, t.loopback, t.hidden], [HOME + ' 1234', reply.errorText, 'no answer', false]);
   assert.match(hb.heartbeatText(t), /running as com\.webos\.app\.home 1234\): HomeTV’s service said “Denied method call "alive" for category "\/"”; the 127\.0\.0\.1 way: no answer\./);
-  // the service answers again: no fallback, and the trouble stays for the Checks screen
+  await beat();
+  await beat();
+  assert.equal(writes, 1, 'written when it changes, not at every beat');
+  // the service answers HomeTV opened from its tile: the trouble as LG's Home stays for the Checks screen
   reply = { returnValue: true };
+  as = APP + ' 9';
   assert.equal(await beat(), 'service');
-  assert.equal(got.length, 3);
+  assert.equal(got.length, 5, 'no fallback when the service answers');
   assert.ok(hb.heartbeatTrouble(storage));
+  // the service answers the page as LG's Home again: dropped
+  as = HOME + ' 1234';
+  await beat();
+  assert.equal(hb.heartbeatTrouble(storage), null);
   assert.equal(hb.heartbeatText(null), '');
 });
 

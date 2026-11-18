@@ -24,7 +24,13 @@ var APP_ID = 'com.hometv.app';
 var MANIFEST = 'hometv-root.json';
 /** The root scripts an update may replace: the files of root/ that install.sh copies (README.md and package.json aside). */
 var ROOT_FILES = ['10-hometv-home', '15-hometv-debloat', 'after-sam.sh', 'compat.json', 'debloat-stop.sh', 'debloat-undo.sh',
-  'decide.js', 'heartbeat.js', 'install.sh', 'lib.sh', 'stage-home.sh', 'undo-home.sh', 'uninstall.sh', 'watchdog.sh'];
+  'decide.js', 'install.sh', 'lib.sh', 'stage-home.sh', 'undo-home.sh', 'uninstall.sh', 'watchdog.sh'];
+/**
+ * root/ files that install.sh copies (hometv-lg root puts them there) but no update carries yet: a TV checks a release's
+ * manifest with its own, older copy of this list and refuses a name it doesn't know, so a new file joins ROOT_FILES only
+ * in a release after the one that taught the TVs its name. Until then a TV updated in place runs without it.
+ */
+var INSTALL_ONLY = ['heartbeat.js'];
 var MAX_MANIFEST = 64 * 1024;
 var MAX_IPK = 64 * 1024 * 1024;
 var MAX_SCRIPT = 512 * 1024;
@@ -357,7 +363,7 @@ function verifyStage(stage, keys) {
 }
 
 module.exports = {
-  FORMAT: FORMAT, APP: APP, APP_ID: APP_ID, MANIFEST: MANIFEST, ROOT_FILES: ROOT_FILES, SUB: SUB,
+  FORMAT: FORMAT, APP: APP, APP_ID: APP_ID, MANIFEST: MANIFEST, ROOT_FILES: ROOT_FILES, INSTALL_ONLY: INSTALL_ONLY, SUB: SUB,
   cmp: cmp, loadConfig: loadConfig, validate: validate, checkManifest: checkManifest, fileUrl: fileUrl, httpsGet: httpsGet,
   sha512: sha512, installedVersion: installedVersion, failedVersions: failedVersions, lastResult: lastResult,
   writeResult: writeResult, check: check, download: download, verifyStage: verifyStage, rmrf: rmrf
