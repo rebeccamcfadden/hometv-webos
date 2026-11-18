@@ -7,7 +7,7 @@
 import './settings.css';
 import { homeRow } from '../apps';
 import { bridge } from '../bridge';
-import { MOTION_LABELS, prefs, REGION_LABELS, SCREENSAVER_AFTER_LABELS } from '../launcherSettings';
+import { MOTION_LABELS, prefs, REGION_LABELS, SCREENSAVER_AFTER_LABELS, UI_SIZE_LABELS } from '../launcherSettings';
 import { shell, type Screen } from '../shell/app';
 import { h, replace } from '../shell/dom';
 import { focusable } from '../shell/focus';
@@ -17,14 +17,16 @@ import { aboutValue } from '../updates';
 import { PAGE_VERSION } from '../version';
 import { aboutPane } from './panes/about';
 import { appsPane } from './panes/apps';
-import { performancePane, screensaverPane } from './panes/look';
+import { performancePane, screensaverPane, textSizePane } from './panes/look';
 import type { Pane, PaneHost } from './panes/pane';
 import { regionPane } from './panes/region';
 import { weatherPane } from './panes/weather';
 import { showSetup } from './setup';
 import { weather } from '../weather/homeWeather';
+import { theme } from '../theme/theme';
+import { themePane } from './panes/theme';
 
-export type SectionId = 'performance' | 'screensaver' | 'apps' | 'weather' | 'region' | 'setup' | 'about';
+export type SectionId = 'size' | 'theme' | 'performance' | 'screensaver' | 'apps' | 'weather' | 'region' | 'setup' | 'about';
 
 interface Section {
   id: SectionId;
@@ -35,6 +37,8 @@ interface Section {
 }
 
 const SECTIONS: Section[] = [
+  { id: 'size', label: 'Text and UI size', icon: 'textSize', value: () => UI_SIZE_LABELS[prefs.get().uiSize] },
+  { id: 'theme', label: 'Theme', icon: 'sun', value: () => theme.label() },
   { id: 'performance', label: 'Performance', icon: 'gauge', value: () => `Motion ${MOTION_LABELS[prefs.get().motion].toLowerCase()}` },
   // F36: the clock screensaver, off by default.
   { id: 'screensaver', label: 'Screensaver', icon: 'clock', value: () => SCREENSAVER_AFTER_LABELS[prefs.get().screensaverAfter] },
@@ -47,7 +51,7 @@ const SECTIONS: Section[] = [
 
 /** design_preview's groups (F23), with the sections v0 has. */
 const GROUPS: { title: string; items: SectionId[] }[] = [
-  { title: 'Home & look', items: ['performance', 'screensaver', 'apps', 'weather'] },
+  { title: 'Home & look', items: ['size', 'theme', 'performance', 'screensaver', 'apps', 'weather'] },
   { title: 'This TV', items: ['region', 'setup', 'about'] },
 ];
 
@@ -86,6 +90,8 @@ export function settingsScreen(initial: SectionId = 'apps'): Screen {
     setup: false,
   };
   const panes: Record<SectionId, Pane> = {
+    size: textSizePane(host),
+    theme: themePane(),
     performance: performancePane(host),
     screensaver: screensaverPane(host),
     apps: appsPane(host),
@@ -191,7 +197,7 @@ export function settingsScreen(initial: SectionId = 'apps'): Screen {
   };
 
   // Live values: the place, the region, the unit; the weather that arrives for a new place.
-  const offs = [prefs.on(() => rerender()), weather.on(() => current === 'weather' && rerender())];
+  const offs = [prefs.on(() => rerender()), theme.on(() => current === 'theme' && rerender()), weather.on(() => current === 'weather' && rerender())];
   const offStack = shell.onChange(() => {
     if (shell.has(screen)) return;
     offs.forEach((off) => off());

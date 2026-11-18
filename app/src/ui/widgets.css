@@ -356,13 +356,6 @@
   align-items: center;
   z-index: 5;
 }
-.home .nav {
-  position: static;
-  margin-top: 16px;
-}
-.home .nav + .rowtitle {
-  margin-top: 36px;
-}
 .nav-left {
   display: flex;
   align-items: center;

@@ -5,3 +5,8 @@
 declare const __HOMETV_V1__: boolean;
 
 export const V1: boolean = typeof __HOMETV_V1__ !== 'undefined' && __HOMETV_V1__;
+
+/**
+ * The first call's "Call checks" tile among Home's Shortcuts (Blue and Info open Checks either way). It stays until after the second call; take it off by setting this to false.
+ */
+export const CALL_CHECKS_ON_HOME = true;

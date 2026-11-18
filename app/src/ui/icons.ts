@@ -39,6 +39,7 @@ const P = {
   motion: 'M4 12h3M4 7h6M4 17h6M14 7l6 5-6 5',
   alert: 'M12 3.5l9.5 16.5h-19zM12 10v4.5M12 17.5h.01',
   gauge: 'M4.5 17a8 8 0 1 1 15 0M12 14l4-5M12 14h.01',
+  textSize: 'M3 19l5-13 5 13M4.8 14.5h6.4M15 19l3-8 3 8M16.1 16.5h3.8',
   // Not in design_preview: a cable for Ethernet (its nav only knows Wi-Fi), and Move in Home's tile menu.
   ethernet: 'M7 3.5h10v7h-2.5v3h-5v-3H7zM10 6v2M14 6v2M12 13.5v7',
   move: 'M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4',

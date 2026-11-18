@@ -10,15 +10,17 @@
 }
 .perf-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   min-height: 84px;
   padding: 12px 20px 12px 26px;
   border-radius: var(--radius-l);
   background: var(--surface);
 }
+/* A control too wide to sit beside its text drops below it, full row, rather than squeezing the words. */
 .perf-text {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 300px;
+  min-width: 300px;
   margin-right: 16px;
 }
 .perf-row .perf-title {
@@ -32,4 +34,5 @@
 .perf-ctl {
   flex: none;
   display: flex;
+  margin: 4px 0;
 }

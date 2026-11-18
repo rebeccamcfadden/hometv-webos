@@ -1,14 +1,15 @@
-// Home's top bar, as design_preview's Home has it (screens/home.ts at 2bf3c2d: the greeting and date on the left, the
-// clock with the weather under it on the right), in Samsung's Home layout. The weather is the place's conditions now
-// and its temperature, from Open-Meteo (weather/homeWeather.ts); offline it shows the saved answer with how old it is,
-// and nothing when there is none or no place is chosen. Nothing here waits on the network.
+// Home's hero and weather card, as design_preview's Home has them (screens/home.ts at 2bf3c2d, "home-hero" and "weather"):
+// the greeting and date on the left, the clock on the right with the forecast under it (Today · max | Tomorrow · max), and,
+// below the rows, the weather card: the place, its temperature now and the next hours. The weather is Open-Meteo's for
+// the place chosen in Settings (weather/homeWeather.ts); offline it shows the saved answer with how old it is, and
+// nothing when there is none or no place is chosen. Nothing here waits on the network.
 
 import { bridge } from '../bridge';
 import { ago, dateLine, greeting, timeParts, use24 } from '../clockText';
 import { prefs } from '../launcherSettings';
 import { h, replace } from '../shell/dom';
 import { shell } from '../shell/app';
-import { conditionText, nowReading, weatherIcon } from '../weather/openMeteo';
+import { conditionText, dayAt, localMs, nowReading, placeClock, weatherIcon, type Forecast, type Reading } from '../weather/openMeteo';
 import { weather } from '../weather/homeWeather';
 import { icon } from './icons';
 import './homeTop.css';
@@ -26,7 +27,7 @@ interface Painter {
   paintWeather(): void;
 }
 
-/** Every top bar drawn; one timer keeps those on the page current. A bar Home has replaced is dropped. */
+/** Every piece drawn; one timer keeps those on the page current. A piece Home has replaced is dropped. */
 let painters: Painter[] = [];
 let timer = 0;
 
@@ -47,36 +48,38 @@ prefs.on(() => painters.forEach((p) => p.paintWeather()));
 // Home came back into view: the clock at once, and a fresh forecast if the saved one is stale.
 shell.onChange(tick);
 
-/** The weather line: "☁ 12° Partly cloudy · Gothenburg", or empty. */
-function weatherLine(): HTMLElement | null {
-  const p = prefs.get();
-  const shown = weather.current();
-  if (!p.place || !shown) return null;
-  const now = Date.now();
-  const r = nowReading(shown.forecast, now);
-  if (!r) return null;
-  const offline = !bridge.platform.online();
-  return h(
-    'div.ht-weather',
-    h('span.ht-wicon', { html: icon(weatherIcon(r.code, r.day), 30) }),
-    h('span.ht-temp', `${r.temp}°`),
-    h('span.ht-desc', conditionText(r.code)),
-    h('span.ht-place', p.place.name),
-    offline ? h('span.ht-stale', `Offline · updated ${ago(shown.fetchedAt, now)}`) : null,
-  );
+function register(p: Painter) {
+  p.paintClock();
+  p.paintWeather();
+  painters.push(p);
+  if (!timer) timer = window.setInterval(tick, 15000);
 }
 
-export function homeTop(): HTMLElement {
+/** "Today · 11°  |  Tomorrow · 9°", with what is known; null when nothing is. */
+function forecastLine(f: Forecast, now: number): HTMLElement | null {
+  const parts: HTMLElement[] = [];
+  const day = (label: string, ahead: number) => {
+    const d = dayAt(f, now, ahead);
+    if (!d) return;
+    if (parts.length) parts.push(h('span.sep'));
+    parts.push(h('span', { html: icon(weatherIcon(d.code, true), 24) }), h('span.ht-fday', `${label} · ${d.max}°`));
+  };
+  day('Today', 0);
+  day('Tomorrow', 1);
+  return parts.length ? h('div.home-forecast', parts) : null;
+}
+
+/** The greeting and date, and the clock with the forecast, over the picture at the middle of Home. */
+export function homeHero(): HTMLElement {
   const hello = h('div.ht-greeting');
   const date = h('div.ht-date');
   const time = h('span.ht-time');
   const ampm = h('span.ht-ampm');
   const wx = h('div.ht-wx');
-  const right = h('div.topright', h('span.pill.' + bridge.mode(), MODE_TEXT[bridge.mode()]), h('div.ht-clock', h('div', time, ampm), wx));
+  const right = h('div.home-clock', h('span.pill.' + bridge.mode(), MODE_TEXT[bridge.mode()]), h('div', time, ampm), wx);
   // No debug lines on Home (decided for v0); the Checks screen says it in plain words, the TV's own words after.
-  const el = h('div.topbar.home-top', h('div.ht-hello', hello, date), right);
-
-  const painter: Painter = {
+  const el = h('div.home-hero', h('div.home-hello', hello, date), right);
+  register({
     el,
     paintClock() {
       const c = bridge.platform.clock();
@@ -87,12 +90,60 @@ export function homeTop(): HTMLElement {
       ampm.textContent = t.ampm;
     },
     paintWeather() {
-      replace(wx, weatherLine());
+      const shown = weather.current();
+      replace(wx, prefs.get().place && shown ? forecastLine(shown.forecast, Date.now()) : null);
     },
-  };
-  painter.paintClock();
-  painter.paintWeather();
-  painters.push(painter);
-  if (!timer) timer = window.setInterval(tick, 15000);
+  });
   return el;
+}
+
+/** The next hours from this one, at the place, for the card's strip. */
+function nextHours(f: Forecast, now: number, count: number): Reading[] {
+  const start = Math.floor(placeClock(f, now) / 3600000) * 3600000;
+  return f.hours.filter((r) => localMs(r.time) >= start).slice(0, count);
+}
+
+/** "9 PM", or "21:00" on a 24-hour clock. */
+function hourLabel(time: string, hour24: boolean): string {
+  const hr = parseInt(time.slice(11, 13), 10);
+  if (hour24) return `${('0' + hr).slice(-2)}:00`;
+  return `${hr % 12 === 0 ? 12 : hr % 12} ${hr < 12 ? 'AM' : 'PM'}`;
+}
+
+/**
+ * The weather card under Inputs and Shortcuts: hidden until a place is chosen and a forecast has arrived. `card` is the
+ * focusable element Home made for it (OK opens Settings › Weather: HomeTV has no forecast page of its own).
+ */
+export function weatherCard(card: HTMLElement): HTMLElement {
+  const paint = () => {
+    const p = prefs.get().place;
+    const shown = weather.current();
+    const now = Date.now();
+    const r = p && shown ? nowReading(shown.forecast, now) : null;
+    card.style.display = r ? '' : 'none';
+    if (!p || !shown || !r) return;
+    const today = dayAt(shown.forecast, now, 0);
+    const offline = !bridge.platform.online();
+    const c = bridge.platform.clock();
+    const hour24 = use24(c.hour24, prefs.get().region);
+    const hours = nextHours(shown.forecast, now, 6);
+    const high = today ? ` · H:${today.max}° L:${today.min}°` : '';
+    replace(
+      card,
+      h(
+        'div.weather-now',
+        h('div.weather-label', p.name),
+        h('div.weather-temp', `${r.temp}°`),
+        offline ? h('div.weather-desc.weather-stale', `Offline · updated ${ago(shown.fetchedAt, now)}`) : h('div.weather-desc', `${conditionText(r.code)}${high}`),
+      ),
+      hours.length > 1
+        ? h(
+            'div.weather-hours',
+            hours.map((x) => h('div.weather-hour', h('div', hourLabel(x.time, hour24)), h('span', { html: icon(weatherIcon(x.code, x.day), 24) }), h('b', `${x.temp}°`))),
+          )
+        : null,
+    );
+  };
+  register({ el: card, paintClock() {}, paintWeather: paint });
+  return card;
 }

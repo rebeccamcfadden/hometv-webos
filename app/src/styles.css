@@ -6,8 +6,8 @@ body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #0b0f1a;
-  color: #e8ecf5;
+  background: var(--h-bg);
+  color: var(--h-text);
   font-family: 'Segoe UI', 'Samsung One', Roboto, Arial, sans-serif;
 }
 
@@ -54,11 +54,11 @@ body {
   height: 64px;
   margin-right: 24px;
   border-radius: 32px;
-  background: #1c2740;
+  background: var(--h-btn);
 }
 .searchbtn.is-focused {
-  background: #b9d4ff;
-  color: #0b0f1a;
+  background: var(--h-focus);
+  color: var(--h-on-focus);
   transform: scale(1.08);
 }
 .clock {
@@ -69,7 +69,7 @@ body {
   font-size: 20px;
   padding: 8px 16px;
   border-radius: 20px;
-  background: #24324f;
+  background: var(--h-btn-2);
 }
 .pill.preview {
   background: #4f3a24;
@@ -79,14 +79,14 @@ body {
   left: 0;
   top: 80px;
   font-size: 22px;
-  color: #ffb3a7;
+  color: var(--h-bad);
 }
 
 .rowtitle {
   font-size: 28px;
   font-weight: 500;
   margin: 120px 0 20px;
-  color: #aab6cf;
+  color: var(--h-muted);
 }
 
 .approw {
@@ -121,7 +121,7 @@ button {
   right: 0;
   top: 176px;
   font-size: 22px;
-  color: #aab6cf;
+  color: var(--h-muted);
   opacity: 0;
   transition: opacity 140ms;
 }
@@ -142,7 +142,7 @@ button {
 }
 .tile.is-focused {
   transform: scale(1.08);
-  box-shadow: 0 0 0 4px #b9d4ff;
+  box-shadow: 0 0 0 4px var(--h-focus);
 }
 .tile.is-focused .name {
   opacity: 1;
@@ -157,13 +157,13 @@ button {
   font-size: 24px;
   padding: 16px 28px;
   border-radius: 12px;
-  background: #1c2740;
+  background: var(--h-btn);
   margin-right: 24px;
   text-align: left;
 }
 .button.is-focused {
-  background: #b9d4ff;
-  color: #0b0f1a;
+  background: var(--h-focus);
+  color: var(--h-on-focus);
   transform: scale(1.03);
 }
 .button.wide {
@@ -174,13 +174,13 @@ button {
 }
 .hint {
   font-size: 20px;
-  color: #7f8aa3;
+  color: var(--h-dim);
 }
 
 .phonelink {
   font-size: 26px;
   margin: 12px 0 20px;
-  color: #ffd27f;
+  color: var(--h-warn);
 }
 .phonelink.after-problem {
   margin-top: 48px;
@@ -199,28 +199,28 @@ button {
 .log h3 {
   margin: 0 0 12px;
   font-size: 22px;
-  color: #aab6cf;
+  color: var(--h-muted);
 }
 .result {
   padding: 8px 0;
-  border-top: 1px solid #24324f;
+  border-top: 1px solid var(--h-btn-2);
 }
 .result .rcheck {
   display: inline-block;
   width: 340px;
-  color: #aab6cf;
+  color: var(--h-muted);
 }
 .result.ok .rtext {
-  color: #9fe3b0;
+  color: var(--h-good);
 }
 .result.bad .rtext {
-  color: #ffb3a7;
+  color: var(--h-bad);
 }
 
 /* API keys (screens/keys.ts): the QR on the left, the address, code and each key's state on the right. */
 .keyslead {
   font-size: 24px;
-  color: #aab6cf;
+  color: var(--h-muted);
   margin: 16px 0 28px;
   max-width: 1500px;
 }
@@ -234,7 +234,7 @@ button {
   margin-right: 64px;
   border-radius: 16px;
   overflow: hidden;
-  background: #1c2740;
+  background: var(--h-btn);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -247,14 +247,14 @@ button {
 .qrnone {
   padding: 32px;
   font-size: 24px;
-  color: #ffd27f;
+  color: var(--h-warn);
 }
 .keyside {
   flex: 1;
 }
 .keylabel {
   font-size: 20px;
-  color: #7f8aa3;
+  color: var(--h-dim);
 }
 .keyaddr {
   font-size: 34px;
@@ -268,11 +268,11 @@ button {
 }
 .keysvalue {
   font-size: 22px;
-  color: #aab6cf;
+  color: var(--h-muted);
   margin-bottom: 8px;
 }
 .keysvalue.warn {
-  color: #ffd27f;
+  color: var(--h-warn);
 }
 .keyrow {
   display: block;
@@ -281,11 +281,11 @@ button {
   padding: 12px 20px;
   margin-bottom: 8px;
   border-radius: 12px;
-  background: #151e33;
+  background: var(--h-btn-3);
 }
 .keyrow.is-focused {
-  background: #24324f;
-  box-shadow: 0 0 0 3px #b9d4ff;
+  background: var(--h-btn-2);
+  box-shadow: 0 0 0 3px var(--h-focus);
 }
 .keyname {
   font-size: 26px;
@@ -294,7 +294,7 @@ button {
 }
 .keyuse {
   font-size: 20px;
-  color: #7f8aa3;
+  color: var(--h-dim);
 }
 .keystatus {
   display: block;
@@ -302,20 +302,20 @@ button {
   margin-top: 4px;
 }
 .tone-good {
-  color: #9fe3b0;
+  color: var(--h-good);
 }
 .tone-warn {
-  color: #ffd27f;
+  color: var(--h-warn);
 }
 .tone-bad {
-  color: #ffb3a7;
+  color: var(--h-bad);
 }
 .tone-dim {
-  color: #7f8aa3;
+  color: var(--h-dim);
 }
 .keysnote {
   font-size: 22px;
-  color: #ffd27f;
+  color: var(--h-warn);
   margin: 0;
 }
 .keys .lowerrow {
@@ -330,7 +330,7 @@ button {
   max-width: 1400px;
   padding: 18px 32px;
   border-radius: 14px;
-  background: #24324f;
+  background: var(--h-btn-2);
   font-size: 24px;
   opacity: 0;
   transition: opacity 320ms, transform 320ms;
@@ -348,19 +348,19 @@ button {
   left: 96px;
   top: 20px;
   font-size: 18px;
-  color: #7f8aa3;
+  color: var(--h-dim);
 }
 
 /* Home's tile menu › Move (screens/home.ts): the tile lifted, with arrows, while ← → move it. */
 .tile.is-moving {
   z-index: 2;
   transform: translateY(-14px) scale(1.08);
-  box-shadow: 0 0 0 4px #b9d4ff, 0 24px 48px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 0 0 4px var(--h-focus), 0 24px 48px rgba(0, 0, 0, 0.5);
 }
 .tile .move-arrow {
   position: absolute;
   top: 60px;
-  color: #b9d4ff;
+  color: var(--h-focus);
 }
 .tile .move-arrow--l {
   left: -34px;
@@ -370,12 +370,12 @@ button {
 }
 .approw-empty {
   font-size: 24px;
-  color: #aab6cf;
+  color: var(--h-muted);
   padding-top: 40px;
 }
 .movehint {
   font-size: 22px;
-  color: #b9d4ff;
+  color: var(--h-focus);
   margin-top: -24px;
 }
 

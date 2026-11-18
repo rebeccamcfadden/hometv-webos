@@ -39,8 +39,15 @@ export interface Screen {
   lastFocusKey?: string;
 }
 
-export const STAGE_W = 1920;
-export const STAGE_H = 1080;
+/** The design canvas at Text and UI size Normal. */
+export const BASE_W = 1920;
+export const BASE_H = 1080;
+/**
+ * The layout canvas, in the stage's own px. Text and UI size shrinks it (1536×864 at 1.25, 1280×720 at 1.5) and fit()
+ * scales it back up to the screen, so type, tiles, spacing and the safe area grow together.
+ */
+export let STAGE_W = BASE_W;
+export let STAGE_H = BASE_H;
 /** How long OK is held before it opens a hold-OK menu, as Android's long press. */
 const HOLD_MS = 500;
 
@@ -57,6 +64,7 @@ const typed = (e: KeyboardEvent): string =>
 class Shell {
   stage!: HTMLElement;
   scale = 1;
+  private uiScale = 1;
   focused: HTMLElement | null = null;
   private stack: Screen[] = [];
   private tabs: Partial<Record<TabId, Screen>> = {};
@@ -350,10 +358,21 @@ class Shell {
     this.ok();
   }
 
+  /** Text and UI size: 1 is the design, 1.25 and 1.5 lay the screens out on a smaller canvas shown larger. */
+  setUiScale(s: number) {
+    if (s === this.uiScale) return;
+    this.uiScale = s;
+    if (this.stage) this.fit();
+  }
+
   private fit() {
     const viewport = this.stage.parentElement!;
     const w = viewport.clientWidth;
     const hgt = viewport.clientHeight;
+    STAGE_W = Math.round(BASE_W / this.uiScale);
+    STAGE_H = Math.round(BASE_H / this.uiScale);
+    this.stage.style.width = `${STAGE_W}px`;
+    this.stage.style.height = `${STAGE_H}px`;
     this.scale = Math.min(w / STAGE_W, hgt / STAGE_H);
     this.stage.style.transform = `scale(${this.scale})`;
     this.stage.style.left = `${(w - STAGE_W * this.scale) / 2}px`;
