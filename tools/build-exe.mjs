@@ -13,11 +13,12 @@ fs.mkdirSync(dist, { recursive: true });
 const files = ['tools/hometv-lg.mjs', 'tools/tv-check.mjs', 'tools/get.mjs', 'tools/restore.mjs', 'tools/lib/ws.mjs', 'tools/lib/ssap.mjs', 'tools/lib/checks.mjs', 'tools/lib/reach.mjs', 'tools/lib/fetch.mjs', 'tools/lib/backup.mjs', 'tools/lib/restore.mjs', 'tools/lib/root-shell.mjs',
   'tools/install.mjs', 'tools/lib/install-steps.mjs', 'tools/lib/keep-keys.mjs', 'tools/lib/telnet.mjs', 'tools/lib/sshkey.mjs',
   'tools/way-back.mjs', 'tools/lib/way-back.mjs', 'tools/lib/recovery.mjs', 'tools/lib/mask.mjs', 'tools/lib/root-status.mjs',
-  'tools/devmode.mjs', 'tools/lib/devmode.mjs', 'tools/lib/devmode-key.mjs', 'tools/lib/devmode-cdp.mjs'];
-// The root install (hometv-lg install, root and unroot-home) stays out of a released exe until it is reviewed:
+  'tools/devmode.mjs', 'tools/lib/devmode.mjs', 'tools/lib/devmode-key.mjs', 'tools/lib/devmode-cdp.mjs',
+  'tools/prepare.mjs', 'tools/lib/prepare.mjs'];
+// The root install (hometv-lg install, root, unroot-home and prepare) stays out of a released exe until it is reviewed:
 // `npm run exe -- --root` puts it in; without it the exe carries a no-root marker and hometv-lg hides it.
 const withRoot = process.argv.includes('--root');
-const ROOT_ONLY = ['tools/install.mjs', 'tools/way-back.mjs'];
+const ROOT_ONLY = ['tools/install.mjs', 'tools/way-back.mjs', 'tools/prepare.mjs'];
 const assets = {};
 for (const f of files.slice(1)) if (withRoot || !ROOT_ONLY.includes(f)) assets[f.replace(/^tools\//, '')] = path.join(root, f);
 // HomeTV's root scripts, which hometv-lg install copies to a rooted TV (read with node:sea's getAsset)

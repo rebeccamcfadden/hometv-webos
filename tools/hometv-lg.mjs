@@ -6,6 +6,8 @@
 //   hometv-lg root <tv address> [--ipk <file>] [--from <step>]      the rooted path alone, with a checklist and a report
 //   hometv-lg root <tv address> --home-again | unroot-home <tv address>   the light ways back (docs/root-plan.md)
 //   hometv-lg get recovery <stick drive letter>   checks the USB stick for level 5 (docs/recovery.md)
+//   hometv-lg prepare <tv address> [--from <step>] | prepare --undo   getting ready for the call (root exe; docs/root.md)
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -25,20 +27,34 @@ const IPV4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
 
 async function guided() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  // the root exe's menu starts with getting ready for the call; "undo" only once prepare changed the firewall
+  const home = process.env.HOMETV_DIR || path.join(os.homedir(), 'HomeTV');
+  let undo = false;
+  try { undo = ROOT && !!JSON.parse(fs.readFileSync(path.join(home, 'prepare-undo.json'), 'utf8')).firewall; } catch { /* nothing to undo */ }
+  const items = [
+    ...(ROOT ? [['prepare', 'Get ready for the call: the tools, the firewall, the TV\'s checks, the backup, a sign-in list,\n' +
+      '     the photos and the USB stick, one step at a time, and a report (changes nothing on the TV)']] : []),
+    ['check', 'Check the TV: reads it and changes nothing' + (ROOT ? '' : ' (the usual choice)')],
+    ['devmode', 'Install HomeTV v2 and check it (Developer Mode, no root): only if you were asked to'],
+    ...(ROOT ? [['install', 'Install HomeTV, step by step: only if you were asked to (it can root the TV, and asks first)'],
+      ['root', 'Root a TV that passed the install: a checklist first, then root, and a report (asks before root)']] : []),
+    ...(undo ? [['undo', 'After the call: take out the firewall rule "Get ready" added, and put the network back']] : [])
+  ];
   console.log([
     '',
     '  HomeTV for LG TVs (work in progress, not tested on a real TV)',
     '  ------------------------------------------------------------',
-    '  1  Check the TV: reads it and changes nothing (the usual choice)',
-    '  2  Install HomeTV v2 and check it (Developer Mode, no root): only if you were asked to',
-    ...(ROOT ? ['  3  Install HomeTV, step by step: only if you were asked to (it can root the TV, and asks first)',
-      '  4  Root a TV that passed the install: a checklist first, then root, and a report (asks before root)'] : []),
+    ...items.map(([, label], i) => '  ' + (i + 1) + '  ' + label),
     ''
   ].join('\n'));
-  const choice = (await rl.question(ROOT ? '  Type 1, 2, 3 or 4 and press Enter [1]: ' : '  Type 1 or 2 and press Enter [1]: ')).trim();
-  if (choice === '2' || (ROOT && (choice === '3' || choice === '4'))) {
+  const nums = items.map((_, i) => String(i + 1));
+  const typed = (await rl.question('  Type ' + nums.slice(0, -1).join(', ') + ' or ' + nums[nums.length - 1] + ' and press Enter [1]: ')).trim();
+  const choice = (items[Number(typed) - 1] || items[0])[0];
+  if (choice !== 'check') {
     rl.close();
-    return choice === '2' ? guidedDevmode() : guidedInstall(choice === '4' ? 'root' : 'install');
+    if (choice === 'devmode') return guidedDevmode();
+    if (choice === 'undo') return guidedUndo();
+    return guidedInstall(choice);
   }
   console.log([
     '',
@@ -117,9 +133,24 @@ async function guidedInstall(command = 'install') {
   rl.close();
   process.argv = [process.argv[0], command, host];
   try {
-    await import('./install.mjs');
+    await import(command === 'prepare' ? './prepare.mjs' : './install.mjs');
   } catch (e) {
-    console.log('\n  The install stopped: ' + (e && e.message ? e.message : e));
+    console.log('\n  ' + (command === 'prepare' ? 'It' : 'The install') + ' stopped: ' + (e && e.message ? e.message : e));
+  }
+  if (command === 'prepare' && process.platform === 'win32' && !process.env.HOMETV_NO_EXPLORER) {
+    spawn('explorer.exe', [process.env.HOMETV_DIR || path.join(os.homedir(), 'HomeTV')], { detached: true, stdio: 'ignore' }).unref();
+  }
+  const end = readline.createInterface({ input: process.stdin, output: process.stdout });
+  await end.question('\n  Press Enter to close. ');
+  end.close();
+}
+
+async function guidedUndo() {
+  process.argv = [process.argv[0], 'prepare', '--undo'];
+  try {
+    await import('./prepare.mjs');
+  } catch (e) {
+    console.log('\n  It stopped: ' + (e && e.message ? e.message : e));
   }
   const end = readline.createInterface({ input: process.stdin, output: process.stdout });
   await end.question('\n  Press Enter to close. ');
@@ -132,10 +163,13 @@ if (cmd === 'check') {
 } else if (cmd === DEVMODE_CMD) {
   process.argv = [process.argv[0], DEVMODE_CMD, ...rest];
   await import('./devmode.mjs');
-} else if (cmd === 'install' || cmd === 'root' || cmd === 'unroot-home' || (cmd === 'get' && (rest[0] === 'root-kit' || rest[0] === 'recovery'))) {
+} else if (cmd === 'install' || cmd === 'root' || cmd === 'unroot-home' || cmd === 'prepare' || (cmd === 'get' && (rest[0] === 'root-kit' || rest[0] === 'recovery'))) {
   if (!ROOT) {
     console.log(NO_ROOT);
     process.exitCode = 2;
+  } else if (cmd === 'prepare') {
+    process.argv = [process.argv[0], cmd, ...rest];
+    await import('./prepare.mjs');
   } else if (cmd === 'unroot-home' || (cmd === 'root' && rest.includes('--home-again'))) {
     process.argv = [process.argv[0], cmd, ...rest];
     await import('./way-back.mjs');
@@ -158,7 +192,8 @@ if (cmd === 'check') {
   console.log('HomeTV for LG\n\n  hometv-lg                      (double-click) asks: check the TV, or install HomeTV\n' +
     '  hometv-lg check <tv address> [--backup] [--launch] [--reach]\n' +
     '  hometv-lg ' + DEVMODE_CMD + ' <tv address> [--v2 <file>] [--from-v0] [--only v0|v2]\n' +
-    (ROOT ? '  hometv-lg install <tv address> [--ipk <file>] [--from <step>]   (or: install --list)\n' +
+    (ROOT ? '  hometv-lg prepare <tv address> [--from <step>]   (or: prepare --list | prepare --undo)\n' +
+      '  hometv-lg install <tv address> [--ipk <file>] [--from <step>]   (or: install --list)\n' +
       '  hometv-lg root <tv address> [--ipk <file>] [--from <step>]      (or: root --list)\n' +
       '  hometv-lg root <tv address> --home-again   |   hometv-lg unroot-home <tv address>\n' : '') +
     '  hometv-lg get dev-manager' + (ROOT ? ' | root-kit | recovery <stick drive letter>' : '') + '\n' +
@@ -169,7 +204,11 @@ if (cmd === 'check') {
     DEVMODE_CMD + ' installs HomeTV v2 (0.2.0) on a TV in Developer Mode (no root), over the HomeTV already there (its settings\n' +
     '        checked through the update) or on its own (--from-v0: v0 first), and runs every check the laptop can;\n' +
     '        it asks yes or no only for what it cannot see, and writes lg-devmode-<date>.json and .txt (no address or serial).' +
-    (ROOT ? '\ninstall takes the TV from Developer Mode to HomeTV as Home (root edition), one checked step at a time;\n' +
+    (ROOT ? '\nprepare gets this laptop and the TV ready for the call, one checked step at a time, and changes nothing on the TV:\n' +
+    '        the tools (checked), Windows\' OpenSSH client and firewall (asked first; --undo puts the firewall back after the\n' +
+    '        call), Developer Mode, automatic updates off, the software version, the backup, a sign-in list, the photos and\n' +
+    '        the USB stick; it writes prepare-report-<date>.txt (no address or serial) to send to the person helping you.\n' +
+    'install takes the TV from Developer Mode to HomeTV as Home (root edition), one checked step at a time;\n' +
     '        run again, it carries on where it stopped (docs/install.md).\n' +
     'root    the rooted path alone, on a TV that passed the unrooted install: a checklist (backup, photos, sign-in list,\n' +
     '        USB stick, automatic updates off, the owner types root), Clear the way, root, the lock-down, and a report.\n' +

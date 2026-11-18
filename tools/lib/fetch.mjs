@@ -5,6 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 
 export const PINNED = {
   'dev-manager': {
@@ -55,6 +56,14 @@ export const PINNED = {
     file: 'com.hometv.app_0.2.0_all.ipk',
     size: 146124,
     sha256: '4f8fb46d1ab909d04c04292468c01092f8d307a77cd8ccc41518cb3a7315719b'
+  },
+  'hometv-lg-v3': {
+    what: 'hometv-lg.exe from the hometv-lg-v3 release: the check and the Developer Mode install, no root',
+    url: 'https://github.com/rebeccamcfadden/hometv-webos/releases/download/hometv-lg-v3/hometv-lg.exe',
+    file: 'hometv-lg.exe',
+    size: 100487496,
+    // GitHub's published digest for the release asset (read 2026-11-18)
+    sha256: 'd723cfadc7a2513c59a8a2040c2c3e742baa50edc0c74dca5f9932d1baaeefca'
   }
 };
 
@@ -137,4 +146,20 @@ export async function buildSlopbro(item, dir, { fetchImpl = fetch, log = () => {
   fs.renameSync(dest + '.part', dest);
   log('built and checked: ' + item.file + ' (SlopBro ' + item.commit.slice(0, 7) + ', SHA-256 matches)');
   return dest;
+}
+
+/**
+ * The root kit in `dir` (the HomeTV folder's tools): Python's no-install zip (checked, then unpacked; nothing installed in
+ * Windows) and SlopBro (built from its pinned sources, checked). Runs nothing. Returns the folder.
+ */
+export async function getRootKit(dir, { fetchImpl = fetch, log = () => {} } = {}) {
+  const zip = await download(PINNED.python, dir, { fetchImpl, log });
+  const py = path.join(dir, 'python');
+  if (!fs.existsSync(path.join(py, 'python.exe'))) {
+    fs.mkdirSync(py, { recursive: true });
+    execFileSync('tar', ['-xf', zip, '-C', py]);
+    log('Python unpacked (nothing installed in Windows): ' + py);
+  }
+  await buildSlopbro(PINNED.slopbro, dir, { fetchImpl, log });
+  return dir;
 }

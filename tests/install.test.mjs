@@ -746,15 +746,16 @@ test('the command line: --list, usage, and the double-click menu\'s install choi
       });
       p.on('exit', () => { clearTimeout(timer); resolve(text); });
     });
-    const out = await menu('3');
-    assert.match(out, /Type 1, 2, 3 or 4/);
+    const out = await menu('4');
+    assert.match(out, /1  Get ready for the call/);
+    assert.match(out, /Type 1, 2, 3, 4 or 5/);
     assert.match(out, /Step 1 of 8: Back up/);
     assert.match(out, /HomeTV is installed and opens/);
     assert.match(out, /Stopped before root/);
     assert.ok(!out.includes('SECRET123') && !out.includes('aa:bb:cc'));
     assert.ok(!fs.readFileSync(path.join(dir, 'install-log.txt'), 'utf8').includes('127.0.0.1'));
-    // 4: hometv-lg root, from its checklist (here the backup is there; the first question's "no" stops it)
-    const root = await menu('4');
+    // 5: hometv-lg root, from its checklist (here the backup is there; the first question's "no" stops it)
+    const root = await menu('5');
     assert.match(root, /Step 1 of 9: Before root: the checklist/);
     assert.match(root, /photos of the TV's settings aren't taken/);
   } finally {
