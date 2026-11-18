@@ -80,8 +80,10 @@ run again (`prepare --list`, `--from <step>`; its state is `prepare-state.json` 
 At the end, `prepare-report-<date>.txt` (masked: no address, serial, device id or Wi-Fi name) lists each item ready
 or not ready, for the person to send; its last line is "Ready for the call", "Ready for the call: stage 2 only …", or
 "Not ready yet. Missing: …". After the call, `hometv-lg-root.exe prepare --undo` (or the menu's **After the call**)
-takes the rule out and puts the network's profile back, in one Windows prompt, and reads both back. The released
-`hometv-lg.exe` refuses `prepare` like the other root commands.
+takes the rule out and puts the network's profile back, in one Windows prompt, and reads both back. The network is
+put back only while the laptop is on that same network (the undo list keeps it as a salted hash of its name, never the
+name), else it says to connect to it and keeps it on the list; after an undo, `prepare` checks the firewall again. The
+released `hometv-lg.exe` refuses `prepare` like the other root commands.
 
 ## Have these ready
 

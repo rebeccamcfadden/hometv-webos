@@ -5,6 +5,7 @@
 // asked first, one Windows prompt; the firewall is put back by `prepare --undo`), takes the backup and writes a sign-in
 // list. At the end it writes prepare-report-<date>.txt, with no TV address, serial, device id or Wi-Fi name in it.
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import sea from 'node:sea';
 import { execFile, spawn } from 'node:child_process';
@@ -68,18 +69,24 @@ const psq = (s) => "'" + String(s).replace(/'/g, "''") + "'";
 export const adminWrap = (script, errFile) => '$ErrorActionPreference = \'Stop\'\ntry {\n' + script + '\n} catch { $_ | Out-String | Set-Content -LiteralPath ' + psq(errFile) + '; exit 1 }';
 
 /**
- * Runs `script` as administrator: one Windows prompt ("Do you want to allow this app to make changes"). Its errors go
- * to a file in `dir` (the window it runs in is hidden). Returns { ok } or { error } in plain words.
+ * The command that starts \`inner\` as administrator and waits for it: exits with its code, or 1223 (Windows' "the
+ * operation was canceled by the user") when No is chosen at the prompt, or 1 when it couldn't start.
+ */
+export const elevateCommand = (inner) => 'try { $p = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ErrorAction Stop -ArgumentList ' +
+  '\'-NoProfile\',\'-NonInteractive\',\'-ExecutionPolicy\',\'Bypass\',\'-EncodedCommand\',' + psq(Buffer.from(inner, 'utf16le').toString('base64')) +
+  ' } catch { [Console]::Error.WriteLine($_.Exception.Message); if ($_.Exception.Message -match \'cancel\') { exit 1223 }; exit 1 }; ' +
+  'if (-not $p) { exit 1 }; exit $p.ExitCode';
+
+/**
+ * Runs \`script\` as administrator: one Windows prompt ("Do you want to allow this app to make changes"). Its errors go
+ * to a file in \`dir\` (the window it runs in is hidden). Returns { ok } or { error } in plain words.
  */
 async function elevated(script, dir) {
   const errFile = path.join(dir, 'prepare-admin-error.txt');
   try { fs.rmSync(errFile, { force: true }); } catch { /* not there */ }
-  const inner = adminWrap(script, errFile);
-  const enc = Buffer.from(inner, 'utf16le').toString('base64');
-  const r = await powershell('$p = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList ' +
-    '\'-NoProfile\',\'-NonInteractive\',\'-ExecutionPolicy\',\'Bypass\',\'-EncodedCommand\',' + psq(enc) + '; exit $p.ExitCode', 15 * 60000);
+  const r = await powershell(elevateCommand(adminWrap(script, errFile)), 15 * 60000);
   if (r.code === 0) return { ok: true };
-  if (/cancel/i.test(r.stderr)) return { error: 'No was chosen at Windows\' prompt' };
+  if (r.code === 1223 || /cancel/i.test(r.stderr)) return { error: 'No was chosen at Windows\' prompt' };
   let why = '';
   try { why = fs.readFileSync(errFile, 'utf8').split(/\r?\n/).map((l) => l.trim()).filter(Boolean)[0] || ''; } catch { /* none written */ }
   return { error: why ? 'Windows said: ' + why.replace(/\.$/, '') : 'it didn\'t finish (code ' + r.code + ')' };
@@ -93,14 +100,17 @@ export const ADMIN = {
     'Remove-NetFirewallRule -DisplayName ' + psq(rule) + ' -ErrorAction SilentlyContinue',
     ...programs.map((p) => 'New-NetFirewallRule -DisplayName ' + psq(rule) + ' -Direction Inbound -Action Allow -Profile Private -Program ' + psq(p) + ' | Out-Null')
   ].join('\n'),
-  /** Takes the rule out and, when `was` isn't Private, puts the network named `alias` back to it. */
-  undo: ({ rule, alias, was }) => [
+  /** Takes the rule out (when \`rule\`), and puts each network in \`restore\` (on its adapter, \`alias\`) back to \`was\`. */
+  undo: ({ rule, restore = [] }) => [
     ...(rule ? ['Remove-NetFirewallRule -DisplayName ' + psq(rule) + ' -ErrorAction SilentlyContinue'] : []),
-    ...(was && was !== 'Private' ? ['Set-NetConnectionProfile -InterfaceAlias ' + psq(alias) + ' -NetworkCategory ' + (was === 'Public' ? 'Public' : 'Private')] : [])
+    ...restore.map((n) => 'Set-NetConnectionProfile -InterfaceAlias ' + psq(n.alias) + ' -NetworkCategory ' + (n.was === 'Public' ? 'Public' : 'Private'))
   ].join('\n')
 };
 
-/** The real Windows side. */
+/** A network's name, as a salted hash (it tells the same network again; the name itself is never kept or shown). */
+const netId = (name, salt) => (name ? crypto.createHash('sha256').update(String(salt) + '\n' + name).digest('hex').slice(0, 16) : '');
+
+/** The real Windows side. \`salt\`: the undo list's, for the networks' ids. */
 export function windowsOps() {
   return {
     /** ssh.exe's path, or ''. */
@@ -111,23 +121,29 @@ export function windowsOps() {
       return r.stdout.trim();
     },
     addSsh: (dir) => elevated(ADMIN.addSsh(), dir),
-    /** The network this laptop reaches the TV through: { index, alias, category } (category Public, Private or DomainAuthenticated), or { error }. */
-    async network(host) {
+    /**
+     * The network this laptop reaches the TV through: { index, alias, category, id } (category Public, Private or
+     * DomainAuthenticated; id the network's name hashed with \`salt\`), or { error }.
+     */
+    async network(host, salt) {
       const r = await powershell('$ErrorActionPreference = \'Stop\'; $r = Find-NetRoute -RemoteIPAddress ' + psq(host) +
         ' | Where-Object InterfaceIndex | Select-Object -First 1; $p = Get-NetConnectionProfile -InterfaceIndex $r.InterfaceIndex; ' +
-        '[pscustomobject]@{ index = $p.InterfaceIndex; alias = $p.InterfaceAlias; category = $p.NetworkCategory.ToString() } | ConvertTo-Json -Compress');
+        '[pscustomobject]@{ index = $p.InterfaceIndex; alias = $p.InterfaceAlias; category = $p.NetworkCategory.ToString(); name = $p.Name } | ConvertTo-Json -Compress');
       try {
         const n = JSON.parse(r.stdout);
-        if (n && n.index && n.category) return { index: Number(n.index), alias: String(n.alias || ''), category: String(n.category) };
+        if (n && n.index && n.category) return { index: Number(n.index), alias: String(n.alias || ''), category: String(n.category), id: netId(n.name, salt) };
       } catch { /* below */ }
       return { error: 'Windows didn\'t say which network reaches the TV' };
     },
-    /** The category of the network on the adapter `alias` ({ category }), or { error } when it isn't connected. */
-    async profile(alias) {
+    /** The network on the adapter \`alias\` now: { category, id }, or { error } when it isn't connected. */
+    async profile(alias, salt) {
       const r = await powershell('$p = Get-NetConnectionProfile -InterfaceAlias ' + psq(alias) + ' -ErrorAction SilentlyContinue | Select-Object -First 1; ' +
-        'if ($p) { $p.NetworkCategory.ToString() }');
-      const category = r.stdout.trim();
-      return category ? { category } : { error: 'not connected' };
+        'if ($p) { [pscustomobject]@{ category = $p.NetworkCategory.ToString(); name = $p.Name } | ConvertTo-Json -Compress }');
+      try {
+        const p = JSON.parse(r.stdout);
+        if (p && p.category) return { category: String(p.category), id: netId(p.name, salt) };
+      } catch { /* below */ }
+      return { error: 'not connected' };
     },
     /** The programs our rule lets in (enabled, inbound, allow, on Private networks). */
     async rulePrograms(rule) {
@@ -135,6 +151,11 @@ export function windowsOps() {
         '$_.Enabled -eq \'True\' -and $_.Direction -eq \'Inbound\' -and $_.Action -eq \'Allow\' -and $_.Profile.ToString() -match \'Private\' }; ' +
         'ConvertTo-Json -Compress @(@($r | Get-NetFirewallApplicationFilter | ForEach-Object { $_.Program }))');
       try { return JSON.parse(r.stdout || '[]').map(String); } catch { return []; }
+    },
+    /** Whether any firewall rule of that name is there at all (enabled or not). */
+    async ruleThere(rule) {
+      const r = await powershell('if (Get-NetFirewallRule -DisplayName ' + psq(rule) + ' -ErrorAction SilentlyContinue) { \'yes\' }');
+      return r.stdout.trim() === 'yes';
     },
     allow: (o, dir) => elevated(ADMIN.allow(o), dir),
     undo: (o, dir) => elevated(ADMIN.undo(o), dir),
@@ -146,20 +167,29 @@ export function windowsOps() {
   };
 }
 
-// --- The undo list: what prepare changed on this laptop that the call is over with (prepare-undo.json).
+// --- The undo list: what prepare changed on this laptop that the call is over with (prepare-undo.json):
+// { salt, openssh: { added }, firewall: { rule (null once it's gone), programs, networks: [{ alias, index, id, was }] } }.
 
 const undoFile = (dir) => path.join(dir, 'prepare-undo.json');
 export function loadUndo(dir) {
   try { return JSON.parse(fs.readFileSync(undoFile(dir), 'utf8')); } catch { return {}; }
 }
 function saveUndo(dir, u) {
-  if (Object.keys(u).length) fs.writeFileSync(undoFile(dir), JSON.stringify(u, null, 2));
+  if (Object.keys(u).some((k) => k !== 'salt')) fs.writeFileSync(undoFile(dir), JSON.stringify(u, null, 2));
   else fs.rmSync(undoFile(dir), { force: true });
+}
+/** The undo list with its salt (made once, kept with it). */
+function undoWithSalt(dir) {
+  const u = loadUndo(dir);
+  if (!u.salt) u.salt = crypto.randomBytes(16).toString('hex');
+  return u;
 }
 
 /**
- * hometv-lg-root prepare --undo: the firewall rule out and the network's profile back as it was, in one Windows prompt,
- * then read back. Returns { done } or { stopped }; the undo list keeps what's still to undo.
+ * hometv-lg-root prepare --undo: the firewall rule out and each network prepare set to Private back as it was, in one
+ * Windows prompt, then read back. A network is put back only while the laptop is on that same network (else another
+ * network on the same adapter would change): otherwise it says to connect to it, and keeps it in the undo list.
+ * Afterwards the firewall step isn't "done" any more, so prepare checks it again. Returns { done } or { stopped }.
  */
 export async function undoPrepare(ctx) {
   const w = ctx.windows || windowsOps();
@@ -169,21 +199,50 @@ export async function undoPrepare(ctx) {
     ctx.say('  Nothing to undo: prepare changed nothing on this laptop\'s firewall' + (u.openssh ? ' (Windows\' OpenSSH client stays: it\'s Windows\' own)' : '') + '.');
     return { done: true };
   }
-  ctx.say('  This takes out the firewall rule "' + RULE + '"' + (fw.was !== 'Private' ? ' and puts the Wi-Fi network (' + fw.alias + ') back to ' + fw.was : '') + '.\n' +
-    '  Windows asks once whether to allow it ("Do you want to allow this app to make changes"): choose Yes.');
-  const r = await w.undo({ rule: fw.rule, alias: fw.alias, was: fw.was }, ctx.dir);
-  const left = (await w.rulePrograms(fw.rule)).length;
-  const net = fw.was !== 'Private' ? await w.profile(fw.alias) : null;
-  const backTo = !net || net.error || net.category === fw.was;
-  if (r.error || left || !backTo) {
-    ctx.say('  STOPPED: ' + (r.error ? 'Windows didn\'t do it (' + r.error + ').' : left ? 'the rule is still there.' : 'the network is still ' + net.category + '.') + '\n' +
-      '  Next: run this again, or by hand: Windows Security > Firewall & network protection > Advanced settings > Inbound Rules > "' + RULE + '" > Delete' +
-      (fw.was !== 'Private' ? '; Settings > Network & internet > Wi-Fi > your network > Network profile type: ' + fw.was : '') + '.');
+  const hadRule = !!fw.rule;
+  const nets = (fw.networks || []).filter((n) => n.was !== 'Private');
+  const here = [];
+  const away = [];
+  for (const n of nets) {
+    const p = await w.profile(n.alias, u.salt);
+    (!p.error && p.id === n.id ? here : away).push(n);
+  }
+  if (fw.rule || here.length) {
+    ctx.say('  This ' + [fw.rule && 'takes out the firewall rule "' + fw.rule + '"', here.length && 'puts the network the call used (' +
+      here.map((n) => n.alias).join(', ') + ') back to ' + here.map((n) => n.was).join(', ')].filter(Boolean).join(' and ') + '.\n' +
+      '  Windows asks once whether to allow it ("Do you want to allow this app to make changes"): choose Yes.');
+    const r = await w.undo({ rule: fw.rule, restore: here.map((n) => ({ alias: n.alias, was: n.was })) }, ctx.dir);
+    if (r.error) {
+      ctx.say('  STOPPED: Windows didn\'t do it (' + r.error + ').\n  Next: run this again and choose Yes at Windows\' prompt.');
+      return { stopped: true };
+    }
+  }
+  const ruleLeft = fw.rule ? await w.ruleThere(fw.rule) : false;
+  const notBack = [];
+  for (const n of here) {
+    const p = await w.profile(n.alias, u.salt);
+    if (p.error || p.id !== n.id || p.category !== n.was) notBack.push(n);
+  }
+  // what's done comes off the list; the firewall step is checked again next time
+  fw.rule = ruleLeft ? fw.rule : null;
+  fw.networks = [...away, ...notBack];
+  if (!fw.rule && !fw.networks.length) delete u.firewall;
+  saveUndo(ctx.dir, u);
+  if (!ruleLeft) {
+    const st = loadState(ctx.dir);
+    if (st.steps && st.steps.firewall) { delete st.steps.firewall; saveState(ctx.dir, st); }
+  }
+  const done = [hadRule && !ruleLeft && 'the rule is gone', here.length > notBack.length && 'the network the call used is ' + here.filter((n) => !notBack.includes(n)).map((n) => n.was).join(', ') + ' again'].filter(Boolean);
+  if (done.length) ctx.say('  ✓ ' + done.join('; ') + '.');
+  if (ruleLeft || notBack.length || away.length) {
+    ctx.say('  STOPPED: ' + [ruleLeft && 'the rule "' + RULE + '" is still there',
+      notBack.length && 'the network the call used isn\'t back to ' + notBack.map((n) => n.was).join(', '),
+      away.length && 'the laptop isn\'t on the network the call used now (' + away.map((n) => n.alias).join(', ') + '), so it wasn\'t changed back'].filter(Boolean).join('; ') + '.\n' +
+      '  Next: ' + (away.length ? 'connect the laptop to the Wi-Fi it used for the call, then ' : '') + 'run this again. Or by hand: ' +
+      'Windows Security > Firewall & network protection > Advanced settings > Inbound Rules > "' + RULE + '" > Delete; ' +
+      'Settings > Network & internet > Wi-Fi > that network > Network profile type: Public.');
     return { stopped: true };
   }
-  delete u.firewall;
-  saveUndo(ctx.dir, u);
-  ctx.say('  ✓ the rule is gone' + (fw.was !== 'Private' ? '; the network is ' + fw.was + ' again' + (net && net.error ? ' (or not connected now: Windows keeps the setting for next time)' : '') : '') + '.');
   return { done: true };
 }
 
@@ -313,7 +372,9 @@ export const PREPARE_STEPS = [
     undo: 'After the call: hometv-lg-root.exe prepare --undo (the rule out, the network back as it was).',
     async run(ctx) {
       const w = ctx.windows || windowsOps();
-      let net = await w.network(ctx.host);
+      const u = undoWithSalt(ctx.dir);
+      const salt = u.salt;
+      let net = await w.network(ctx.host, salt);
       if (net.error) return stop('This laptop can\'t tell which network reaches the TV (' + net.error + ').', 'Check the laptop is on the same Wi-Fi as the TV, then run this again.');
       ctx.say('  The laptop reaches the TV through ' + (net.alias || 'its network') + '; Windows treats that network as ' + net.category + '.');
       if (net.category === 'DomainAuthenticated') {
@@ -333,13 +394,16 @@ export const PREPARE_STEPS = [
           return stop('Windows\' firewall isn\'t set for the call.',
             'By hand: Settings > Network & internet > Wi-Fi > your network > Network profile type: Private; and when Windows asks about this program on private networks, choose Allow. Then run this again.');
         }
-        const u = loadUndo(ctx.dir);
-        // kept before the change, so an undo can follow even a change cut short; the network's first state is the one put back
-        u.firewall = { rule: RULE, alias: net.alias, index: net.index, was: (u.firewall && u.firewall.alias === net.alias && u.firewall.was) || net.category, programs };
+        // kept before the change, so an undo can follow even a change cut short; each network keeps its first state
+        const fw = u.firewall || { networks: [] };
+        fw.rule = RULE;
+        fw.programs = programs;
+        if (!fw.networks.some((n) => n.id === net.id)) fw.networks.push({ alias: net.alias, index: net.index, id: net.id, was: net.category });
+        u.firewall = fw;
         saveUndo(ctx.dir, u);
         const r = await w.allow({ index: net.index, programs, rule: RULE, setPrivate: net.category !== 'Private' }, ctx.dir);
         if (r.error) return stop('Windows didn\'t change the firewall (' + r.error + ').', 'Run this again and choose Yes at Windows\' prompt, or set it by hand (Settings > Network & internet > Wi-Fi > your network > Private).');
-        net = await w.network(ctx.host);
+        net = await w.network(ctx.host, salt);
         const now = (await w.rulePrograms(RULE)).map((p) => p.toLowerCase());
         if (net.error || net.category !== 'Private' || programs.some((p) => !now.includes(p.toLowerCase()))) {
           return stop('Windows said yes, but the network or the rule isn\'t as set when read back.', 'Run this again; if it stops here again, tell the person helping you.');

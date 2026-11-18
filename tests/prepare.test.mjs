@@ -8,9 +8,9 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fakeTv, tvWithState } from './fake-ssap.mjs';
-import { runPrepare, undoPrepare, loadUndo, loadState, compatEntry, compatList, signInList, PREPARE_STEPS, RULE, ADMIN, adminWrap } from '../tools/lib/prepare.mjs';
+import { runPrepare, undoPrepare, loadUndo, loadState, compatEntry, compatList, signInList, PREPARE_STEPS, RULE, ADMIN, adminWrap, elevateCommand } from '../tools/lib/prepare.mjs';
 
 const APP = 'com.hometv.app';
 const HOME = 'com.webos.app.home';
@@ -29,29 +29,34 @@ async function closedPort() { const s = net.createServer(); const p = await list
 
 /** A pretend Windows: OpenSSH, the network's profile and the firewall rule, changed only in this object. */
 function fakeWindows({ ssh = true, category = 'Public', refuse = false } = {}) {
+  // net: the network the Wi-Fi adapter is on now (its id stands for its name, salted); categories: each network's setting
   const w = {
-    ssh, category, programs: [], calls: [], opened: [],
+    ssh, programs: [], calls: [], opened: [], net: 'HomeWifiSSID', categories: { HomeWifiSSID: category, CafeWifiSSID: 'Public' },
+    get category() { return w.categories[w.net]; },
+    set category(v) { w.categories[w.net] = v; },
     async sshPath() { return w.ssh ? 'C:\\Windows\\System32\\OpenSSH\\ssh.exe' : ''; },
-    async addSsh() { w.calls.push('addSsh'); if (refuse) return { error: 'No was chosen at Windows\' prompt' }; w.ssh = true; return { ok: true }; },
-    async network() { return { index: 7, alias: 'Wi-Fi', category: w.category }; },
-    async profile() { return { category: w.category }; },
+    async addSsh() { w.calls.push('addSsh'); if (w.refuse) return { error: 'No was chosen at Windows\' prompt' }; w.ssh = true; return { ok: true }; },
+    async network(host, salt) { return { index: 7, alias: 'Wi-Fi', category: w.category, id: sha(salt + w.net).slice(0, 16) }; },
+    async profile(alias, salt) { return w.net ? { category: w.category, id: sha(salt + w.net).slice(0, 16) } : { error: 'not connected' }; },
     async rulePrograms(rule) { return rule === RULE ? [...w.programs] : []; },
+    async ruleThere(rule) { return rule === RULE && w.programs.length > 0; },
     async allow({ programs, setPrivate }) {
       w.calls.push('allow');
-      if (refuse) return { error: 'No was chosen at Windows\' prompt' };
+      if (w.refuse) return { error: 'No was chosen at Windows\' prompt' };
       if (setPrivate) w.category = 'Private';
       w.programs = [...programs];
       return { ok: true };
     },
-    async undo({ was }) {
+    async undo({ rule, restore }) {
       w.calls.push('undo');
-      if (refuse) return { error: 'No was chosen at Windows\' prompt' };
-      w.programs = [];
-      if (was && was !== 'Private') w.category = was;
+      if (w.refuse) return { error: 'No was chosen at Windows\' prompt' };
+      if (rule) w.programs = [];
+      for (const n of restore) w.category = n.was;
       return { ok: true };
     },
     open(target) { w.opened.push(target); }
   };
+  w.refuse = refuse;
   return w;
 }
 
@@ -129,7 +134,7 @@ test('prepare the whole way: tools, OpenSSH added, firewall set and undoable, th
     assert.deepEqual(s.w.programs, [s.ctx.exePath, path.join(s.laptop, 'tools', 'python', 'python.exe')]);
     assert.ok(s.asked.some((q) => q.includes('Add it now')) && s.asked.some((q) => q.includes('Do it now')));
     const undo = loadUndo(s.laptop);
-    assert.equal(undo.firewall.was, 'Public');
+    assert.deepEqual(undo.firewall.networks.map((n) => [n.alias, n.was]), [['Wi-Fi', 'Public']]);
     assert.equal(undo.firewall.rule, RULE);
     assert.ok(undo.openssh);
     // the TV: nothing but reads, and its browser opened once for the reach check
@@ -241,27 +246,57 @@ test('the tools: a hometv-lg.exe that isn\'t v3 is replaced only when agreed; a 
   }
 });
 
-test('prepare --undo: the rule out and the network back in one prompt; a "no" keeps the undo list; nothing to undo says so', { timeout: 60000 }, async () => {
+test('prepare --undo: the rule out and the network back in one prompt; a "no" keeps the list; another network is left alone', { timeout: 60000 }, async () => {
   const s = await setup();
   try {
     await runPrepare(s.ctx);
-    assert.equal(s.w.category, 'Private');
+    const w = s.w;
+    assert.equal(w.category, 'Private');
+    assert.ok(!JSON.stringify(loadUndo(s.laptop)).includes('HomeWifiSSID'), 'the network\'s name isn\'t kept');
     const say = (x) => s.out.push(x);
-    s.w.refuse = true;
-    const no = fakeWindows({ category: 'Private', refuse: true });
-    no.programs = [...s.w.programs];
-    assert.equal((await undoPrepare({ dir: s.laptop, say, windows: no })).stopped, true);
-    assert.ok(loadUndo(s.laptop).firewall, 'still to undo');
-    const w = fakeWindows({ category: 'Private' });
-    w.programs = [...s.w.programs];
-    const r = await undoPrepare({ dir: s.laptop, say, windows: w });
-    assert.equal(r.done, true, s.out.join('\n'));
-    assert.equal(w.category, 'Public');
+    const undo = () => undoPrepare({ dir: s.laptop, say, windows: w });
+    // "No" at Windows' prompt: nothing changes, the list stays
+    w.refuse = true;
+    assert.equal((await undo()).stopped, true);
+    assert.ok(loadUndo(s.laptop).firewall.rule);
+    assert.equal(w.category, 'Private');
+    // on another Wi-Fi (same adapter): the rule goes, that network isn't touched, the call's network stays on the list
+    w.refuse = false;
+    w.net = 'CafeWifiSSID';
+    w.categories.CafeWifiSSID = 'Private';
+    assert.equal((await undo()).stopped, true);
     assert.deepEqual(w.programs, []);
+    assert.equal(w.categories.CafeWifiSSID, 'Private');
+    assert.equal(w.categories.HomeWifiSSID, 'Private');
+    assert.match(s.out.join('\n'), /isn't on the network the call used now/);
+    assert.equal(loadUndo(s.laptop).firewall.rule, null);
+    assert.equal(loadUndo(s.laptop).firewall.networks.length, 1);
+    // back home: put back, and the list is empty
+    w.net = 'HomeWifiSSID';
+    const before = w.calls.length;
+    assert.equal((await undo()).done, true, s.out.join('\n'));
+    assert.equal(w.calls.length, before + 1);
+    assert.equal(w.categories.HomeWifiSSID, 'Public');
     assert.equal(loadUndo(s.laptop).firewall, undefined);
-    assert.match(s.out.join('\n'), /the rule is gone; the network is Public again/);
-    assert.equal((await undoPrepare({ dir: s.laptop, say, windows: w })).done, true);
+    assert.match(s.out.join('\n'), /the network the call used is Public again/);
+    assert.equal((await undo()).done, true);
     assert.match(s.out.at(-1), /Nothing to undo/);
+  } finally {
+    await s.done();
+  }
+});
+
+test('after --undo, prepare checks the firewall again: never "Ready" with the rule gone', { timeout: 60000 }, async () => {
+  const s = await setup();
+  try {
+    await runPrepare(s.ctx);
+    assert.equal((await undoPrepare({ dir: s.laptop, say: () => {}, windows: s.w })).done, true);
+    assert.equal(loadState(s.laptop).steps.firewall, undefined);
+    for (const f of fs.readdirSync(s.laptop).filter((f) => f.startsWith('prepare-report-'))) fs.rmSync(path.join(s.laptop, f));
+    s.ctx.ask = async () => 'n';
+    const r = await runPrepare(s.ctx);
+    assert.equal(r.stopped, 'firewall');
+    assert.match(noSecrets(s).trim().split(/\r?\n/).pop(), /^Not ready yet\. Missing: The firewall/);
   } finally {
     await s.done();
   }
@@ -284,7 +319,8 @@ test('what runs as administrator parses as PowerShell (parsed only, nothing run)
   const scripts = [
     adminWrap(ADMIN.addSsh(), 'C:\\x\\err.txt'),
     adminWrap(ADMIN.allow({ index: 7, programs: ['C:\\Users\\o\'brien\\Downloads\\hometv-lg-root.exe', 'C:\\py\\python.exe'], rule: RULE, setPrivate: true }), 'C:\\x\\err.txt'),
-    adminWrap(ADMIN.undo({ rule: RULE, alias: 'Wi-Fi \'2\'', was: 'Public' }), 'C:\\x\\err.txt')
+    adminWrap(ADMIN.undo({ rule: RULE, restore: [{ alias: 'Wi-Fi \'2\'', was: 'Public' }] }), 'C:\\x\\err.txt'),
+    elevateCommand(adminWrap(ADMIN.addSsh(), 'C:\\x\\err.txt'))
   ];
   const check = '$e = $null; $t = $null; [void][System.Management.Automation.Language.Parser]::ParseInput([Console]::In.ReadToEnd(), [ref]$t, [ref]$e); ' +
     'if ($e.Count) { $e | ForEach-Object { $_.Message }; exit 1 }; ($t | Where-Object { $_.Kind -eq \'StringLiteral\' } | ForEach-Object { $_.Value }) -join \'|\'';
@@ -293,7 +329,18 @@ test('what runs as administrator parses as PowerShell (parsed only, nothing run)
     if (s.includes('o\'brien')) assert.ok(out.includes('C:\\Users\\o\'brien\\Downloads\\hometv-lg-root.exe'), out);
     if (s.includes('Wi-Fi')) assert.ok(out.includes('Wi-Fi \'2\''), out);
   }
-  assert.ok(!ADMIN.undo({ rule: RULE, alias: 'Wi-Fi', was: 'Private' }).includes('Set-NetConnectionProfile'), 'a network that was Private is left alone');
+  assert.ok(!ADMIN.undo({ rule: RULE, restore: [] }).includes('Set-NetConnectionProfile'), 'no network to put back: none changed');
+  assert.ok(!ADMIN.undo({ rule: null, restore: [{ alias: 'Wi-Fi', was: 'Public' }] }).includes('Remove-NetFirewallRule'));
+});
+
+test('the admin prompt\'s command: "No" is 1223, a start that fails is 1, never 0; else the script\'s own code (run without the prompt)', { skip: process.platform !== 'win32', timeout: 60000 }, () => {
+  const cmd = elevateCommand('exit 0');
+  assert.match(cmd, /Start-Process powershell\.exe -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ErrorAction Stop /);
+  const start = /\$p = Start-Process .*? \} catch/;
+  const run = (c) => spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', c], { encoding: 'utf8' }).status;
+  assert.equal(run(cmd.replace(start, "throw 'The operation was canceled by the user.' } catch")), 1223);
+  assert.equal(run(cmd.replace(start, '$p = Start-Process doesnotexist_hometv.exe -Wait -PassThru -ErrorAction Stop } catch')), 1);
+  assert.equal(run(cmd.replace(start, "$p = Start-Process cmd.exe -Wait -PassThru -WindowStyle Hidden -ErrorAction Stop -ArgumentList '/c','exit 3' } catch")), 3);
 });
 
 test('the command line: prepare --list and usage (the root build); the steps are in the .exe build, root only', () => {
