@@ -13,7 +13,7 @@ import { open } from './ssap.mjs';
 import { backup, describe, WARNING, FORMAT } from './backup.mjs';
 import { sshShell, isRoot, luna, sq } from './root-shell.mjs';
 import { reach } from './reach.mjs';
-import { PINNED, sha256 } from './fetch.mjs';
+import { PINNED, sha256, download } from './fetch.mjs';
 import { telnetShell, pushFile, portOpen, q } from './telnet.mjs';
 import { laptopKey, keyPaths } from './sshkey.mjs';
 import { checkStick } from './recovery.mjs';
@@ -180,17 +180,36 @@ const doneNow = (ctx, id) => !!(ctx.thisRun && ctx.thisRun.has(id));
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** HomeTV's .ipk: --ipk, else the newest com.hometv.app_*.ipk next to the tool, in the HomeTV folder or in dist/. */
-export function findIpk(ctx) {
-  if (ctx.ipk) return fs.existsSync(ctx.ipk) ? ctx.ipk : null;
+/**
+ * HomeTV's .ipk, only ever the pinned one (PINNED['hometv-v2'], app-v0.2.0; tests pass ctx.ipkPin): --ipk, else a
+ * file of the pinned name next to the tool, in the HomeTV folder or in dist/, else downloaded into the HomeTV folder.
+ * Any file whose SHA-256 isn't the pin's is refused, never installed. Returns { file, version } or { error, fix }.
+ */
+export async function findIpk(ctx) {
+  const pin = ctx.ipkPin || PINNED['hometv-v2'];
+  const version = (/_(\d+\.\d+\.\d+)_all\.ipk$/.exec(pin.file) || [])[1] || '';
+  const checked = async (file) => {
+    if ((await sha256(file)) === pin.sha256) return { file, version };
+    return { error: path.basename(file) + ' (in ' + path.dirname(file) + ') isn\'t the published HomeTV ' + version + ': its SHA-256 differs, so it wasn\'t used.',
+      fix: 'Delete that file, then run this again: the program downloads the right one itself (or download ' + pin.file + ' again from the install page).' };
+  };
+  if (ctx.ipk) {
+    if (!fs.existsSync(ctx.ipk)) return { error: 'The .ipk named with --ipk isn\'t there: ' + path.basename(ctx.ipk) + '.', fix: 'Leave out --ipk (the program downloads HomeTV itself), then run this again.' };
+    return checked(ctx.ipk);
+  }
   const here = path.dirname(fileURLToPath(import.meta.url));
   const dirs = [process.cwd(), path.dirname(process.execPath), ctx.dir, path.resolve(here, '..', '..', 'dist')];
   for (const d of dirs) {
-    let names = [];
-    try { names = fs.readdirSync(d).filter((f) => /^com\.hometv\.app_.*\.ipk$/.test(f)).sort(); } catch { continue; }
-    if (names.length) return path.join(d, names[names.length - 1]);
+    const f = path.join(d, pin.file);
+    if (fs.existsSync(f)) return checked(f);
   }
-  return null;
+  if (!pin.url) return { error: 'HomeTV\'s .ipk (' + pin.file + ') isn\'t here.', fix: 'Put it in the HomeTV folder, then run this again.' };
+  try {
+    return { file: await download(pin, ctx.dir, { fetchImpl: ctx.fetchImpl || fetch, log: (s) => ctx.say('  ' + s) }), version };
+  } catch (e) {
+    return { error: 'HomeTV ' + version + ' couldn\'t be downloaded and checked (' + String((e && e.message) || e) + ').',
+      fix: 'Check the laptop is online, then run this again. Nothing was installed.' };
+  }
 }
 
 /** root/'s files for the TV (all but README.md), line ends made Unix ones: from the exe's own copy, or the repo. */
@@ -257,8 +276,9 @@ export const STEPS = [
       let apps = await withTv(ctx, appIds);
       if (apps.has(HBC)) return { note: 'skipped: the TV is already rooted (Homebrew Channel is installed)' };
       if (!apps.has(APP)) {
-        const ipk = findIpk(ctx);
-        if (!ipk) return stop('HomeTV\'s .ipk file isn\'t here.', 'Put the com.hometv.app_….ipk file you were sent in the HomeTV folder (or name it with --ipk), then run this again.');
+        const found = await findIpk(ctx);
+        if (found.error) return stop(found.error, found.fix);
+        const ipk = found.file;
         ctx.say([
           '  1. On the TV: open the Developer Mode app, sign in, switch Dev Mode Status on (the TV restarts), open it',
           '     again and switch Key Server on. It shows a six-letter passphrase.',
@@ -475,11 +495,12 @@ export const STEPS = [
         ctx.say('  ✓ ' + files.length + ' root scripts copied and checked (SHA-256)');
 
         if ((await sh.run('[ -f ' + q(P.app + '/index.html') + ' ]')).code !== 0) {
-          const ipk = findIpk(ctx);
-          if (!ipk) return stop('HomeTV isn\'t on the TV any more (deleting the Developer Mode app removes it), and its .ipk file isn\'t here.', 'Put the com.hometv.app_….ipk file in the HomeTV folder (or name it with --ipk), then run this again.');
+          const found = await findIpk(ctx);
+          if (found.error) return stop('HomeTV isn\'t on the TV any more (deleting the Developer Mode app removes it), and ' + found.error.charAt(0).toLowerCase() + found.error.slice(1), found.fix);
+          const ipk = found.file;
           const tmp = P.tmp + '/hometv.ipk';
           const out = P.tmp + '/hometv-install.out';
-          const ipkVersion = (/^com\.hometv\.app_(\d+\.\d+\.\d+)_/.exec(path.basename(ipk)) || [])[1] || '';
+          const ipkVersion = found.version;
           await pushFile(sh, tmp, fs.readFileSync(ipk));
           // As Homebrew Channel's own tools/install.sh and SlopBro's autoroot.sh: LG's installer, as root. As lasharor's
           // install.sh (MIT, read at 2debe62): an install can be dropped without a word (after a sam restart there), so it

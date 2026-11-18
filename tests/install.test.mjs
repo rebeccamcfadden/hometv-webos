@@ -12,7 +12,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fakeTv, tvWithState } from './fake-ssap.mjs';
 import { fakeTelnet, fakeRootedTv, SH } from './fake-telnet.mjs';
-import { runInstall, STEPS, ROOT_STEPS, loadState, scrub, rootFiles } from '../tools/lib/install-steps.mjs';
+import { runInstall, STEPS, ROOT_STEPS, loadState, scrub, rootFiles, findIpk } from '../tools/lib/install-steps.mjs';
+import { PINNED } from '../tools/lib/fetch.mjs';
 import { telnetParser, telnetShell, pushFile } from '../tools/lib/telnet.mjs';
 import { keepKeys, keptKeys, fingerprint, windowsVault, KEPT_FILE } from '../tools/lib/keep-keys.mjs';
 import { createRequire } from 'node:module';
@@ -56,6 +57,8 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
     sha256: crypto.createHash('sha256').update('# a pretend SlopBro\n').digest('hex') };
   const ipk = path.join(t, 'com.hometv.app_0.0.1_all.ipk');
   fs.writeFileSync(ipk, crypto.randomBytes(40000));
+  // the pretend .ipk stands in for the pinned one (tools/lib/install-steps.mjs, findIpk)
+  const ipkPin = { file: path.basename(ipk), sha256: crypto.createHash('sha256').update(fs.readFileSync(ipk)).digest('hex') };
   const rooted = fakeRootedTv(path.join(t, 'tv'), telnetEnv);
   let tn = null;
   let telnetPort = await closedPort();
@@ -73,7 +76,7 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
   const flags = { defaultPassword: false, lost: [], homeUp: 'mounted\nalive\n', rollBacks: 0, rollBackCut: false, devKeys: null, devLogin: true, keysSaved: 'ok' };
   const keysDir = path.join(t, 'tv', 'private');
   const ctx = {
-    host: '127.0.0.1', dir: laptop, ipk, kit, verifyWaitMs: 0,
+    host: '127.0.0.1', dir: laptop, ipk, ipkPin, kit, verifyWaitMs: 0,
     ssapPorts: [{ url: 'ws://127.0.0.1:' + ws + '/', insecure: false }],
     reachAddress: '127.0.0.1', reachWaitMs: 5000, launchWaitMs: 2000,
     telnetPort, sshPort, tvPaths: rooted.tvPaths, telnetTimeoutMs: 60000,
@@ -535,6 +538,95 @@ test('stop: HomeTV can\'t be put back on the rooted TV (LG\'s installer tried 4 
   } finally {
     await s.done();
   }
+});
+
+test('stop: an .ipk that isn\'t the pinned one is never installed, neither for Developer Mode nor on the rooted TV', { skip: !SH }, async () => {
+  const dev = await happySetup();
+  const good = dev.ctx.ipkPin;
+  dev.ctx.ipkPin = { ...good, sha256: 'b'.repeat(64) };
+  try {
+    assert.deepEqual(await runInstall(dev.ctx), { stopped: 'dev-install' });
+    assert.match(dev.text(), /com\.hometv\.app_0\.0\.1_all\.ipk \(in .*\) isn't the published HomeTV 0\.0\.1: its SHA-256 differs, so it wasn't used/);
+    assert.doesNotMatch(dev.text(), /Install > choose/, 'Dev Manager is never pointed at it');
+  } finally {
+    await dev.done();
+  }
+  const s = await happySetup();
+  // the right file for Developer Mode; after root it no longer matches (changed on the laptop meanwhile, say)
+  const slop = s.ctx.runSlopbro;
+  s.ctx.runSlopbro = async (...a) => { const r = await slop(...a); fs.writeFileSync(s.ctx.ipk, 'changed since'); return r; };
+  try {
+    assert.deepEqual(await runInstall(s.ctx), { stopped: 'root-install' });
+    assert.match(s.text(), /HomeTV isn't on the TV any more .*and com\.hometv\.app_0\.0\.1_all\.ipk \(in .*\) isn't the published HomeTV 0\.0\.1: its SHA-256 differs, so it wasn't used/);
+    assert.match(s.text(), /Delete that file, then run this again/);
+    assert.doesNotMatch(fs.readFileSync(path.join(s.t, 'tv', 'stub.log'), 'utf8'), /appInstallService\/dev\/install/, 'LG\'s installer never called');
+    assert.ok(!fs.existsSync(path.join(s.t, 'tv', 'tmp', 'hometv.ipk')), 'nothing copied');
+  } finally {
+    await s.done();
+  }
+});
+
+// ---- HomeTV's .ipk: only the pinned one (findIpk) ----
+
+const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
+/** Runs fn with the current folder (where the exe is started: Downloads) set to `dir`. */
+async function inFolder(dir, fn) {
+  const was = process.cwd();
+  process.chdir(dir);
+  try { return await fn(); } finally { process.chdir(was); }
+}
+function ipkScratch() {
+  const t = path.resolve('dist', 'test-ipk-' + crypto.randomBytes(4).toString('hex'));
+  const downloads = path.join(t, 'Downloads');
+  const home = path.join(t, 'HomeTV');
+  fs.mkdirSync(downloads, { recursive: true });
+  fs.mkdirSync(home);
+  // a name of its own, so no real file next to the tool or in dist/ is found instead
+  const good = Buffer.from('the pinned HomeTV ' + t);
+  const pin = { url: 'https://example.invalid/app-v9.9.9/x.ipk', file: 'com.hometv.app_9.9.9_all.ipk', size: good.length, sha256: sha(good) };
+  return { downloads, home, good, pin };
+}
+
+test('findIpk: the pinned file in Downloads is used only when its SHA-256 matches; a mismatch stops in plain words', async () => {
+  const k = ipkScratch();
+  const f = path.join(k.downloads, k.pin.file);
+  const fetchImpl = async () => { throw new Error('must not download'); };
+  fs.writeFileSync(f, k.good);
+  assert.deepEqual(await inFolder(k.downloads, () => findIpk({ dir: k.home, ipkPin: k.pin, fetchImpl, say() {} })), { file: f, version: '9.9.9' });
+  fs.writeFileSync(f, 'a damaged or different HomeTV');
+  const bad = await inFolder(k.downloads, () => findIpk({ dir: k.home, ipkPin: k.pin, fetchImpl, say() {} }));
+  assert.equal(bad.file, undefined);
+  assert.match(bad.error, /^com\.hometv\.app_9\.9\.9_all\.ipk \(in .*Downloads\) isn't the published HomeTV 9\.9\.9: its SHA-256 differs, so it wasn't used\.$/);
+  assert.match(bad.fix, /Delete that file, then run this again/);
+});
+
+test('findIpk: another HomeTV .ipk in Downloads (0.1.1, say) is not taken; the pinned one is downloaded and checked', async () => {
+  const k = ipkScratch();
+  fs.writeFileSync(path.join(k.downloads, 'com.hometv.app_0.1.1_all.ipk'), 'the old v1');
+  const urls = [];
+  const fetchImpl = async (url) => { urls.push(url); return { ok: true, status: 200, arrayBuffer: async () => k.good }; };
+  const got = await inFolder(k.downloads, () => findIpk({ dir: k.home, ipkPin: k.pin, fetchImpl, say() {} }));
+  assert.deepEqual(got, { file: path.join(k.home, k.pin.file), version: '9.9.9' });
+  assert.deepEqual(urls, [k.pin.url]);
+  const wrong = async () => ({ ok: true, status: 200, arrayBuffer: async () => Buffer.from('not it') });
+  fs.rmSync(got.file);
+  const bad = await inFolder(k.downloads, () => findIpk({ dir: k.home, ipkPin: k.pin, fetchImpl: wrong, say() {} }));
+  assert.match(bad.error, /^HomeTV 9\.9\.9 couldn't be downloaded and checked \(/);
+  assert.match(bad.fix, /Nothing was installed/);
+  assert.ok(!fs.existsSync(path.join(k.home, k.pin.file)), 'a download that fails the check isn\'t kept');
+});
+
+test('findIpk: --ipk is held to the pin too; without a test pin it is the published 0.2.0', async () => {
+  const k = ipkScratch();
+  const mine = path.join(k.downloads, 'mine.ipk');
+  fs.writeFileSync(mine, 'a dev build');
+  assert.match((await findIpk({ dir: k.home, ipk: mine, ipkPin: k.pin, say() {} })).error, /^mine\.ipk .*SHA-256 differs/);
+  assert.match((await findIpk({ dir: k.home, ipk: path.join(k.downloads, 'gone.ipk'), say() {} })).error, /isn't there: gone\.ipk/);
+  const urls = [];
+  const fetchImpl = async (url) => { urls.push(url); return { ok: true, status: 200, arrayBuffer: async () => Buffer.from('x') }; };
+  const r = await inFolder(k.downloads, () => findIpk({ dir: k.home, fetchImpl, say() {} }));
+  assert.match(r.error, /HomeTV 0\.2\.0 couldn't be downloaded and checked/);
+  assert.deepEqual(urls, [PINNED['hometv-v2'].url]);
 });
 
 test('an install LG\'s installer drops is tried again (lasharor\'s install.sh): the third try counts', { skip: !SH }, async () => {

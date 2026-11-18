@@ -128,8 +128,10 @@ How it behaves:
   the TV's address, serial number, device id, MAC or the Windows user name: `tools/lib/mask.mjs` masks every line (IPv4 and
   IPv6 addresses, MACs, URL paths, the values of token, key, password and secret fields; the rules of lasharor's Share log,
   MIT), and the error report to come uses the same rules. SlopBro's own messages (step 5) do show the TV's address: they're on screen only.
-- `--ipk <file>` names HomeTV's `.ipk`; otherwise it takes the newest `com.hometv.app_*.ipk` in the current folder,
-  next to the exe, in the HomeTV folder or in `dist/` (`npm run package:app`).
+- HomeTV's `.ipk` is only ever the published v2, `com.hometv.app_0.2.0_all.ipk`, held to its pinned SHA-256
+  (`tools/lib/fetch.mjs`, `hometv-v2`): `--ipk <file>`, else that file name in the current folder, next to the exe, in
+  the HomeTV folder or in `dist/`, else downloaded into the HomeTV folder. A file whose SHA-256 differs stops the step
+  with what to do (delete it and run again); nothing else is installed.
 
 Why it works this way:
 
