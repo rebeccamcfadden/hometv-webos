@@ -617,7 +617,7 @@ test('findIpk: another HomeTV .ipk in Downloads (0.1.1, say) is not taken; the p
   assert.ok(!fs.existsSync(path.join(k.home, k.pin.file)), 'a download that fails the check isn\'t kept');
 });
 
-test('findIpk: --ipk is held to the pin too; without a test pin it is the published 0.2.0', async (t) => {
+test('findIpk: --ipk is held to the pin too; without a test pin it is the published 0.2.1', async (t) => {
   const k = ipkScratch(t);
   const mine = path.join(k.downloads, 'mine.ipk');
   fs.writeFileSync(mine, 'a dev build');
@@ -625,10 +625,10 @@ test('findIpk: --ipk is held to the pin too; without a test pin it is the publis
   assert.match((await findIpk({ dir: k.home, ipk: path.join(k.downloads, 'gone.ipk'), say() {} })).error, /isn't there: gone\.ipk/);
   const urls = [];
   const fetchImpl = async (url) => { urls.push(url); return { ok: true, status: 200, arrayBuffer: async () => Buffer.from('x') }; };
-  // only the scratch folders: a packaged dist/com.hometv.app_0.2.0_all.ipk in this checkout must not count
+  // only the scratch folders: a packaged dist/com.hometv.app_0.2.1_all.ipk in this checkout must not count
   const r = await findIpk({ dir: k.home, ipkDirs: [k.downloads, k.home], fetchImpl, say() {} });
-  assert.match(r.error, /HomeTV 0\.2\.0 couldn't be downloaded and checked/);
-  assert.deepEqual(urls, [PINNED['hometv-v2'].url]);
+  assert.match(r.error, /HomeTV 0\.2\.1 couldn't be downloaded and checked/);
+  assert.deepEqual(urls, [PINNED['hometv-root'].url]);
 });
 
 test('an install LG\'s installer drops is tried again (lasharor\'s install.sh): the third try counts', { skip: !SH }, async () => {

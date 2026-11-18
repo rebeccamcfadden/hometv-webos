@@ -181,12 +181,12 @@ const doneNow = (ctx, id) => !!(ctx.thisRun && ctx.thisRun.has(id));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * HomeTV's .ipk, only ever the pinned one (PINNED['hometv-v2'], app-v0.2.0; tests pass ctx.ipkPin): --ipk, else a
+ * HomeTV's .ipk, only ever the pinned one (PINNED['hometv-root'], app-v0.2.1; tests pass ctx.ipkPin): --ipk, else a
  * file of the pinned name next to the tool, in the HomeTV folder or in dist/, else downloaded into the HomeTV folder.
  * Any file whose SHA-256 isn't the pin's is refused, never installed. Returns { file, version } or { error, fix }.
  */
 export async function findIpk(ctx) {
-  const pin = ctx.ipkPin || PINNED['hometv-v2'];
+  const pin = ctx.ipkPin || PINNED['hometv-root'];
   const version = (/_(\d+\.\d+\.\d+)_all\.ipk$/.exec(pin.file) || [])[1] || '';
   const checked = async (file) => {
     if ((await sha256(file)) === pin.sha256) return { file, version };

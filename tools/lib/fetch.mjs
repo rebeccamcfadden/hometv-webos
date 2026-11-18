@@ -57,6 +57,15 @@ export const PINNED = {
     size: 146124,
     sha256: '4f8fb46d1ab909d04c04292468c01092f8d307a77cd8ccc41518cb3a7315719b'
   },
+  // The root edition's HomeTV (hometv-lg install / root, prepare, root --home-again): app-v0.2.1, the heartbeat over 127.0.0.1
+  // while HomeTV is LG's Home (call #2). The Developer Mode install (devmode) stays on hometv-v2.
+  'hometv-root': {
+    what: 'HomeTV for LG, root edition (app-v0.2.1)',
+    url: 'https://github.com/rebeccamcfadden/hometv-webos/releases/download/app-v0.2.1/com.hometv.app_0.2.1_all.ipk',
+    file: 'com.hometv.app_0.2.1_all.ipk',
+    size: 147134,
+    sha256: 'a4cab3b01ecd39a8a24d5caf443bde557feb12b1ad5e12baa2ebf7cc561324c1'
+  },
   'hometv-lg-v3': {
     what: 'hometv-lg.exe from the hometv-lg-v3 release: the check and the Developer Mode install, no root',
     url: 'https://github.com/rebeccamcfadden/hometv-webos/releases/download/hometv-lg-v3/hometv-lg.exe',

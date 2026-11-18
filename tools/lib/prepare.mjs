@@ -313,9 +313,9 @@ export const PREPARE_STEPS = [
     id: 'tools',
     title: 'The tools on this laptop',
     what: 'Puts what the call needs on this laptop, each checked against its published SHA-256: hometv-lg.exe (release ' +
-      'hometv-lg-v3) beside this program; HomeTV 0.2.0\'s .ipk, Python and SlopBro (the root kit; nothing is run) in the ' +
+      'hometv-lg-v3) beside this program; HomeTV 0.2.1\'s .ipk, Python and SlopBro (the root kit; nothing is run) in the ' +
       'HomeTV folder. Then the call doesn\'t need the internet for them.',
-    undo: 'Delete them: hometv-lg.exe beside this program; com.hometv.app_0.2.0_all.ipk and the tools folder in the HomeTV folder.',
+    undo: 'Delete them: hometv-lg.exe beside this program; com.hometv.app_0.2.1_all.ipk and the tools folder in the HomeTV folder.',
     async run(ctx) {
       const pins = { ...PINNED, ...ctx.pins };
       const opts = { fetchImpl: ctx.fetchImpl || fetch, log: (s) => ctx.say('  ' + s) };
@@ -334,9 +334,9 @@ export const PREPARE_STEPS = [
         }
       };
       return (await fetched('hometv-lg.exe (hometv-lg-v3)', () => download(lg, exeDir, opts))) ||
-        (await fetched('HomeTV 0.2.0', () => download(pins['hometv-v2'], ctx.dir, opts))) ||
+        (await fetched('HomeTV 0.2.1', () => download(pins['hometv-root'], ctx.dir, opts))) ||
         (await fetched('The root kit', () => (ctx.getRootKit || getRootKit)(path.join(ctx.dir, 'tools'), opts))) ||
-        { note: 'hometv-lg.exe (hometv-lg-v3), HomeTV 0.2.0 and the root kit are here and checked' };
+        { note: 'hometv-lg.exe (hometv-lg-v3), HomeTV 0.2.1 and the root kit are here and checked' };
     }
   },
   {

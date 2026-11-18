@@ -49,7 +49,7 @@ time, each saying what it does and how it's undone, stopping at the first that i
 run again (`prepare --list`, `--from <step>`; its state is `prepare-state.json` in the HomeTV folder):
 
 1. **The tools** (`tools`): `hometv-lg.exe` beside it (release `hometv-lg-v3`, downloaded if missing, held to its
-   SHA-256; another `hometv-lg.exe` there is replaced only if agreed), HomeTV 0.2.0's .ipk in the HomeTV folder (so
+   SHA-256; another `hometv-lg.exe` there is replaced only if agreed), HomeTV 0.2.1's .ipk in the HomeTV folder (so
    `root-install` needs no internet), and the root kit (`get root-kit`: Python and SlopBro, checked; nothing run).
 2. **Windows' OpenSSH client** (`openssh`): present, or offered (`Add-WindowsCapability -Online -Name
    OpenSSH.Client~~~~0.0.1.0`, one Windows prompt, said first); on "no" it says how to add it by hand.

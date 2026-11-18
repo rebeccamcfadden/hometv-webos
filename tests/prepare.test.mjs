@@ -73,10 +73,10 @@ async function setup({ apps = ['netflix', 'youtube.leanback.v4', DEVMODE, APP], 
   const exeDir = path.join(t, 'downloads');
   fs.mkdirSync(exeDir, { recursive: true });
   // the downloads: tiny files standing for the pinned ones
-  const files = { 'hometv-lg.exe': Buffer.from('pretend hometv-lg v3'), 'com.hometv.app_0.2.0_all.ipk': crypto.randomBytes(3000) };
+  const files = { 'hometv-lg.exe': Buffer.from('pretend hometv-lg v3'), 'com.hometv.app_0.2.1_all.ipk': crypto.randomBytes(3000) };
   const pins = {
     'hometv-lg-v3': { url: 'https://github.com/x/hometv-lg.exe', file: 'hometv-lg.exe', sha256: sha(files['hometv-lg.exe']) },
-    'hometv-v2': { url: 'https://github.com/x/com.hometv.app_0.2.0_all.ipk', file: 'com.hometv.app_0.2.0_all.ipk', sha256: sha(files['com.hometv.app_0.2.0_all.ipk']) }
+    'hometv-root': { url: 'https://github.com/x/com.hometv.app_0.2.1_all.ipk', file: 'com.hometv.app_0.2.1_all.ipk', sha256: sha(files['com.hometv.app_0.2.1_all.ipk']) }
   };
   const fetched = [];
   const box = { badDownload: false };
@@ -127,7 +127,7 @@ test('prepare the whole way: tools, OpenSSH added, firewall set and undoable, th
     assert.deepEqual({ done: r.done }, { done: true }, s.out.join('\n'));
     // the tools, checked, where they belong
     assert.ok(fs.existsSync(path.join(s.exeDir, 'hometv-lg.exe')));
-    assert.ok(fs.existsSync(path.join(s.laptop, 'com.hometv.app_0.2.0_all.ipk')));
+    assert.ok(fs.existsSync(path.join(s.laptop, 'com.hometv.app_0.2.1_all.ipk')));
     // OpenSSH: asked, then added; the firewall: asked, one change, Private, the rule for this program and Python
     assert.deepEqual(s.w.calls, ['addSsh', 'allow']);
     assert.equal(s.w.category, 'Private');
