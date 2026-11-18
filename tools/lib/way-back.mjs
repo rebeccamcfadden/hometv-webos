@@ -92,7 +92,13 @@ export async function homeAgain(ctx) {
   }
   const fg0 = await restartToHome(ctx);
   // --watch: what the heartbeat and the boot notes say, for up to 3 minutes, before deciding (call #2)
-  if (ctx.watch) await watchHome(ctx, shell, p);
+  if (ctx.watch) {
+    const seen = await watchHome(ctx, shell, p);
+    if (seen !== 'answers') {
+      const g = await offerBusGrant(ctx, shell, p);
+      if (g) return g;
+    }
+  }
   const fg = ctx.watch ? await withTv(ctx, foreground) : fg0;
   // as the install's restart check: a takeover that didn't come up is rolled back (hooks out, LG's Home back)
   if (fg !== HOME) return rollBack(ctx, 'no Home on screen after the restart', shell);
@@ -256,6 +262,49 @@ function newer(a, b) {
   const y = n(b);
   for (let i = 0; i < 3; i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
   return false;
+}
+
+/**
+ * The boot notes say the bus refused LG's Home's call to HomeTV's service: the page told 127.0.0.1 a denial, or it
+ * reached 127.0.0.1 while the service saw no call from it at all and LG's Home shares no group with the service.
+ */
+export function busRefused(notes) {
+  const n = String(notes || '');
+  if (/heartbeat: the page's call to HomeTV's service failed: .*(denied|permission|not allowed)/i.test(n)) return true;
+  return /home: bus groups: .*shared: none/.test(n) && /heartbeat: first beat/.test(n) && !/service: (first heartbeat|refused alive)/.test(n);
+}
+
+/**
+ * --watch, when the page didn't answer: if the boot notes show the bus refused LG's Home's call, offers root/bus-grant.sh
+ * (OFF by default; only a typed yes), then a restart and another watch. Returns a stop, or null to go on deciding.
+ */
+async function offerBusGrant(ctx, shell, p) {
+  const notes = String((await shell.run('cat ' + sq(p.log) + ' 2>/dev/null; true')).stdout || '');
+  if (!busRefused(notes)) return null;
+  if (String((await shell.run('sh ' + sq(p.dir + '/bus-grant.sh') + ' status 2>/dev/null; true')).stdout || '').trim() === 'granted') {
+    ctx.say('  The bus still refused LG\'s Home\'s call, though the grant for it is on the TV: it didn\'t help.');
+    return null;
+  }
+  ctx.say('  The TV\'s notes say the bus refused LG\'s Home\'s call to HomeTV\'s service: mounted, HomeTV runs as LG\'s Home, and\n' +
+    '  LG\'s Home holds no permission group HomeTV\'s service is in. A fix nobody has tried on a TV yet: three small files in\n' +
+    '  /var/luna-service2-dev (the folder for installed apps\' permissions; Homebrew Channel writes there too) giving LG\'s Home\n' +
+    '  a group of HomeTV\'s own, so it may call HomeTV\'s service and nothing else. They stay across restarts.\n' +
+    '  Undo: removed with the takeover (Settings > Use LG\'s Home, HomeTV\'s roll back, unroot-home), or ssh -i ' + KEY_FILE +
+    ' root@<tv ip> sh ' + p.dir + '/bus-grant.sh revoke');
+  const a = await ctx.ask('  Type yes to add them (anything else leaves the TV as it is): ');
+  if (String(a || '').trim().toLowerCase() !== 'yes') {
+    ctx.say('  Not added.');
+    return null;
+  }
+  const r = await shell.run('sh ' + sq(p.dir + '/bus-grant.sh') + ' grant 2>&1');
+  if (r.code !== 0 || !/granted/.test(String(r.stdout || ''))) {
+    ctx.say('  bus-grant.sh: ' + scrub(String(r.stdout || '').trim().split('\n').pop() || 'exit ' + r.code, ctx.host));
+    return null;
+  }
+  ctx.say('  ✓ LG\'s Home may call HomeTV\'s service (recorded in ' + p.dir + '/bus-granted)');
+  await restartToHome(ctx);
+  await watchHome(ctx, shell, p);
+  return null;
 }
 
 /** install.sh again: the hooks linked, DISABLE gone. Returns a stop, or null when done. */

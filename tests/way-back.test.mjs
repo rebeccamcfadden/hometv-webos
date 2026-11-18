@@ -12,7 +12,7 @@ import { createRequire } from 'node:module';
 import { fakeTv, tvWithState } from './fake-ssap.mjs';
 import { fakeRootedTv, SH, fwd } from './fake-telnet.mjs';
 import { loadTs } from './ts-module.mjs';
-import { runWayBack } from '../tools/lib/way-back.mjs';
+import { runWayBack, busRefused } from '../tools/lib/way-back.mjs';
 
 const require = createRequire(import.meta.url);
 const svc = require('../service/service.js');
@@ -507,6 +507,62 @@ test('hometv-lg root --home-again: HomeTV\'s saved keys and settings are kept fi
     assert.equal(fs.readFileSync(priv(w.t, 'hometv-settings-v1.json'), 'utf8'), SETTINGS);
   } finally {
     w.done();
+  }
+});
+
+test('busRefused: a denial the page reported, or a page that reached 127.0.0.1 while the service saw nothing and no group is shared', () => {
+  assert.equal(busRefused('70 heartbeat: the page\'s call to HomeTV\'s service failed: Denied method call "alive" for category "/"'), true);
+  const quiet = '61 home: bus groups: files read 3; com.webos.app.home: applications; com.hometv.app.service: public; shared: none\n75 heartbeat: first beat from the page';
+  assert.equal(busRefused(quiet), true);
+  assert.equal(busRefused(quiet + '\n80 service: first heartbeat, from \'com.webos.app.home\''), false, 'the service got it');
+  assert.equal(busRefused(quiet + '\n80 service: refused alive from \'x\''), false, 'refused by the service, not the bus');
+  assert.equal(busRefused(quiet.replace('shared: none', 'shared: public')), false);
+  assert.equal(busRefused('70 heartbeat: the page\'s call to HomeTV\'s service failed: no answer in 5 s'), false);
+});
+
+test('hometv-lg root --home-again --watch: the bus grant is offered only when the bus refused, written on a typed yes, gone with the takeover', { skip: !SH, timeout: 180000 }, async () => {
+  const run = async (answer) => {
+    const box = { n: 0 };
+    const ls2 = (t) => path.join(t, 'tv', 'ls2dev');
+    const s = await rootedTv({ replies: { 'Make HomeTV': 'y', 'HomeTV on screen': 'y', 'Type yes': answer }, hooks: { 'back on': () => {
+      box.n++;
+      if (box.n === 1) {
+        fs.appendFileSync(path.join(box.t, 'tv', 'mounts'), 'overlay /usr/palm/applications/com.webos.app.home none bind 0 0\n');
+        fs.appendFileSync(path.join(box.t, 'tv', 'boot.log'), '70 heartbeat: the page\'s call to HomeTV\'s service failed: Denied method call "alive" for category "/"\n');
+      } else fs.writeFileSync(path.join(box.t, 'tv', 'alive'), '');
+    } } });
+    box.t = s.t;
+    for (const d of ['client-permissions.d', 'api-permissions.d', 'manifests.d']) fs.mkdirSync(path.join(ls2(s.t), d), { recursive: true });
+    s.setEnv({ HOMETV_LS2DEV: fwd(ls2(s.t)) });
+    Object.assign(s.ctx, { watch: true, watchEveryMs: 0, watchMs: 50, verifyWaitMs: 0 });
+    s.tvSh('sh ' + s.ctx.tvPaths.dir + '/undo-home.sh at-restart');
+    const r = await runWayBack(s.ctx, 'home-again');
+    const files = () => ['client-permissions.d', 'api-permissions.d', 'manifests.d'].flatMap((d) => fs.readdirSync(path.join(ls2(s.t), d)));
+    return { s, r, files, ls2: ls2(s.t) };
+  };
+  const yes = await run('yes');
+  try {
+    assert.ok(yes.r.done, yes.s.text());
+    assert.match(yes.s.text(), /bus refused LG's Home's call[\s\S]*Undo: removed with the takeover/);
+    assert.match(yes.s.text(), /LG's Home may call HomeTV's service \(recorded/);
+    assert.deepEqual(yes.files().sort(), ['hometv-home-grant.api.json', 'hometv-home-grant.json', 'hometv-home-grant.json']);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(yes.ls2, 'client-permissions.d', 'hometv-home-grant.json'), 'utf8')), { 'com.webos.app.home*': ['hometv.home'] });
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(yes.ls2, 'api-permissions.d', 'hometv-home-grant.api.json'), 'utf8')), { 'hometv.home': ['com.hometv.app.service/*'] });
+    assert.ok(fs.existsSync(yes.s.p('hometv', 'bus-granted')));
+    // "Use LG's Home" for good (the roll back and unroot-home too): the grant goes with the takeover
+    assert.equal(yes.s.tvSh('sh ' + yes.s.ctx.tvPaths.dir + '/undo-home.sh at-restart').status, 0);
+    assert.deepEqual(yes.files(), []);
+    assert.ok(!fs.existsSync(yes.s.p('hometv', 'bus-granted')));
+  } finally {
+    yes.s.done();
+  }
+  const no = await run('y');
+  try {
+    assert.match(no.s.text(), /Not added\./);
+    assert.deepEqual(no.files(), [], 'only a typed yes');
+    assert.match(no.r.why, /rolled back/);
+  } finally {
+    no.s.done();
   }
 });
 

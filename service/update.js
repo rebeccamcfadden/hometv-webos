@@ -23,7 +23,7 @@ var APP = 'hometv-webos-root';
 var APP_ID = 'com.hometv.app';
 var MANIFEST = 'hometv-root.json';
 /** The root scripts an update may replace: the files of root/ that install.sh copies (README.md and package.json aside). */
-var ROOT_FILES = ['10-hometv-home', '15-hometv-debloat', 'after-sam.sh', 'compat.json', 'debloat-stop.sh', 'debloat-undo.sh',
+var ROOT_FILES = ['10-hometv-home', '15-hometv-debloat', 'after-sam.sh', 'bus-grant.sh', 'compat.json', 'debloat-stop.sh', 'debloat-undo.sh',
   'decide.js', 'heartbeat.js', 'install.sh', 'lib.sh', 'stage-home.sh', 'undo-home.sh', 'uninstall.sh', 'watchdog.sh'];
 /**
  * root/ files that install.sh copies (hometv-lg root puts them there) but no update carries yet: a TV checks a release's

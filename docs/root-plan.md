@@ -230,8 +230,11 @@ SlopBro's bug, and may stop the start-up scripts. Then:
   Home still comes back then. The page keeps the error after three failed calls for the Checks screen. The restart check
   waits up to 2.5 minutes for the first heartbeat and shows those notes when it doesn't come;
   `hometv-lg root <tv address> --home-again --watch` shows them for up to 3 minutes after the restart before deciding.
-  No permission file is written: giving LG's Home a group through `/var/luna-service2-dev` waits for the next try's
-  notes and the project lead.
+  The permission file is **off by default** (2026-11-19, to be confirmed by the project lead before any release): `--home-again --watch` offers
+  `root/bus-grant.sh` only when the boot notes show the bus refused LG's Home's call, and writes it only on a typed yes:
+  three files of HomeTV's in `/var/luna-service2-dev` giving `com.webos.app.home*` a group of HomeTV's own (`hometv.home`),
+  recorded in `bus-granted`, removed by `undo-home.sh` for good and `uninstall.sh`. Untested: whether luna-service2 adds
+  this group to LG's Home's own or replaces them is unknown (the undo is the answer if Home misbehaves).
 - **The household's settings survive the takeover and a reinstall** (the project lead, 2026-11-19): HomeTV's service
   keeps a copy of the page's own settings (`settingsSave`/`settingsLoad`: region, weather place, Text and UI size,
   theme, Home row, first run, TMDB sign-in, lists; beside the keys, 0600), and a page whose store is empty (mounted over

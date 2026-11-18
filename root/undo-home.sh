@@ -20,6 +20,8 @@ esac
 if [ "$1" != temp ]; then
   touch "$D/DISABLE"
   rm -f "$INITD/10-hometv-home" "$INITD/15-hometv-debloat"
+  # the bus grant for LG's Home, if the owner agreed to one (bus-grant.sh): gone with the takeover
+  [ -f "$D/bus-grant.sh" ] && sh "$D/bus-grant.sh" revoke </dev/null >/dev/null 2>&1
   say "undo-home: LG's Home for good: HomeTV's start-up hooks removed, DISABLE written"
 fi
 LASTAPP=${HOMETV_LASTAPP:-/var/luna/preferences/bootd_last_foreground_app_id.json}

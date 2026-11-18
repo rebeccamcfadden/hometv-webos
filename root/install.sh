@@ -43,7 +43,7 @@ case "$listed" in
 esac
 rm -f "$D/compat-stopped"
 if [ "$SRC" != "$(cd "$D" && pwd)" ]; then
-  for f in lib.sh decide.js compat.json stage-home.sh after-sam.sh undo-home.sh watchdog.sh heartbeat.js debloat-stop.sh debloat-undo.sh \
+  for f in lib.sh decide.js compat.json stage-home.sh after-sam.sh undo-home.sh watchdog.sh heartbeat.js bus-grant.sh debloat-stop.sh debloat-undo.sh \
            10-hometv-home 15-hometv-debloat uninstall.sh; do
     cp "$SRC/$f" "$D/$f" || fail "copy $f"
   done
