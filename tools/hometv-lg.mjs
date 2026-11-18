@@ -1,7 +1,7 @@
 // hometv-lg: the laptop tool for HomeTV on LG, one Windows file (built with `npm run exe`).
 //   hometv-lg                    double-clicked: check the TV (asks for its address, then the full check), or install
 //   hometv-lg check <tv address> [--backup] [--launch] [--reach]
-//   hometv-lg devmode <tv address> [--v0 <file>] [--v1 <file>] [--only v0|v1]   HomeTV v0 then v1 on a TV in Developer Mode, checked
+//   hometv-lg devmode <tv address> [--v2 <file>] [--from-v0] [--only v0|v2]   HomeTV v2 on a TV in Developer Mode, checked
 //   hometv-lg install <tv address> [--ipk <file>] [--from <step>]   (docs/install.md)
 //   hometv-lg root <tv address> [--ipk <file>] [--from <step>]      the rooted path alone, with a checklist and a report
 //   hometv-lg root <tv address> --home-again | unroot-home <tv address>   the light ways back (docs/root-plan.md)
@@ -30,7 +30,7 @@ async function guided() {
     '  HomeTV for LG TVs (work in progress, not tested on a real TV)',
     '  ------------------------------------------------------------',
     '  1  Check the TV: reads it and changes nothing (the usual choice)',
-    '  2  Install HomeTV v0 then v1 and check them (Developer Mode, no root): only if you were asked to',
+    '  2  Install HomeTV v2 and check it (Developer Mode, no root): only if you were asked to',
     ...(ROOT ? ['  3  Install HomeTV, step by step: only if you were asked to (it can root the TV, and asks first)',
       '  4  Root a TV that passed the install: a checklist first, then root, and a report (asks before root)'] : []),
     ''
@@ -157,7 +157,7 @@ if (cmd === 'check') {
 } else {
   console.log('HomeTV for LG\n\n  hometv-lg                      (double-click) asks: check the TV, or install HomeTV\n' +
     '  hometv-lg check <tv address> [--backup] [--launch] [--reach]\n' +
-    '  hometv-lg ' + DEVMODE_CMD + ' <tv address> [--v0 <file>] [--v1 <file>] [--only v0|v1]\n' +
+    '  hometv-lg ' + DEVMODE_CMD + ' <tv address> [--v2 <file>] [--from-v0] [--only v0|v2]\n' +
     (ROOT ? '  hometv-lg install <tv address> [--ipk <file>] [--from <step>]   (or: install --list)\n' +
       '  hometv-lg root <tv address> [--ipk <file>] [--from <step>]      (or: root --list)\n' +
       '  hometv-lg root <tv address> --home-again   |   hometv-lg unroot-home <tv address>\n' : '') +
@@ -166,7 +166,8 @@ if (cmd === 'check') {
     'check   reads the TV (model, apps, inputs, what v0 needs) after its "Allow" prompt;\n' +
     '        --backup also saves the settings it can read; --launch opens Netflix and YouTube, asking first;\n' +
     '        --reach checks the TV can reach this laptop (the TV\'s browser opens for a moment).\n' +
-    DEVMODE_CMD + ' installs HomeTV v0, then v1 over it, on a TV in Developer Mode (no root) and runs every check the laptop can;\n' +
+    DEVMODE_CMD + ' installs HomeTV v2 (0.2.0) on a TV in Developer Mode (no root), over the HomeTV already there (its settings\n' +
+    '        checked through the update) or on its own (--from-v0: v0 first), and runs every check the laptop can;\n' +
     '        it asks yes or no only for what it cannot see, and writes lg-devmode-<date>.json and .txt (no address or serial).' +
     (ROOT ? '\ninstall takes the TV from Developer Mode to HomeTV as Home (root edition), one checked step at a time;\n' +
     '        run again, it carries on where it stopped (docs/install.md).\n' +

@@ -51,8 +51,8 @@ function withEnv(env, fn) {
 }
 
 /** The pretend HomeTV page: first run, settings kept in "localStorage", Checks and API keys screens, a problem line. */
-function pageModel({ problem = '', firstRunAfterUpdate = false, wipeOnUpdate = false, keyPort, stateFile, aboutText }) {
-  const p = { storage: {}, stack: ['screen home'], results: [], seenVersion: '', problem };
+function pageModel({ problem = '', firstRunAfterUpdate = false, wipeOnUpdate = false, keyPort, stateFile, aboutText, storage = {} }) {
+  const p = { storage: { ...storage }, stack: ['screen home'], results: [], seenVersion: '', problem };
   const state = () => JSON.parse(fs.readFileSync(stateFile, 'utf8'));
   const push = (check, ok, text) => p.results.unshift({ ok, check: new Date().toTimeString().slice(0, 8) + ' ' + check, text });
   p.onKey = (code) => {
@@ -107,12 +107,15 @@ function pageModel({ problem = '', firstRunAfterUpdate = false, wipeOnUpdate = f
 }
 
 /** A whole pretend set-up for one run of runDevmode. */
-async function setup({ install = 'ok', replies = {}, keyPem = ENCRYPTED, noKeyServer = false, noInspector = false, page = {}, noKeyPage = false, only, handlers = {} } = {}) {
+async function setup({ install = 'ok', replies = {}, keyPem = ENCRYPTED, noKeyServer = false, noInspector = false, page = {}, noKeyPage = false, only, fromV0 = !only, earlier, handlers = {} } = {}) {
   const t = scratch('devmode');
   const laptop = path.join(t, 'laptop');
   fs.mkdirSync(laptop);
   const stateFile = path.join(t, 'state.json');
-  fs.writeFileSync(stateFile, JSON.stringify({ apps: ['netflix', 'youtube.leanback.v4'], foreground: 'com.webos.app.home' }));
+  // `earlier`: the HomeTV version already on the TV (with its settings), as on the first call's TV (0.1.1)
+  fs.writeFileSync(stateFile, JSON.stringify(earlier
+    ? { apps: ['netflix', 'youtube.leanback.v4', APP], foreground: 'com.webos.app.home', version: earlier }
+    : { apps: ['netflix', 'youtube.leanback.v4'], foreground: 'com.webos.app.home' }));
   const read = () => JSON.parse(fs.readFileSync(stateFile, 'utf8'));
   const tv = fakeTv({
     ...HANDLERS,
@@ -139,9 +142,9 @@ async function setup({ install = 'ok', replies = {}, keyPem = ENCRYPTED, noKeySe
   const cdp = fakeCdp(model);
   const cdpPort = await listen(cdp.server);
   const v0 = path.join(t, 'com.hometv.app_0.0.1_all.ipk');
-  const v1 = path.join(t, 'com.hometv.app_0.1.1_all.ipk');
+  const v2 = path.join(t, 'com.hometv.app_0.2.0_all.ipk');
   fs.writeFileSync(v0, crypto.randomBytes(30000));
-  fs.writeFileSync(v1, crypto.randomBytes(31000));
+  fs.writeFileSync(v2, crypto.randomBytes(31000));
   const logFile = path.join(t, 'ssh.log');
   fs.writeFileSync(logFile, '');
   const out = [];
@@ -151,7 +154,7 @@ async function setup({ install = 'ok', replies = {}, keyPem = ENCRYPTED, noKeySe
     FAKE_INSTALL: install, FAKE_NO_FORWARD: noInspector ? '1' : ''
   };
   const ctx = {
-    host: HOST, dir: laptop, v0, v1, anyIpk: true, only,
+    host: HOST, dir: laptop, v0, v2, anyIpk: true, only, fromV0,
     ssapPorts: [{ url: 'ws://' + HOST + ':' + ws + '/', insecure: false }], keyPort,
     stayMs: 300, settleMs: 0, keyWaitMs: 300, keyStepMs: 100, installMs: 4000, listWaitMs: 5000, openWaitMs: 5000, inspectorWaitMs: noInspector ? 600 : 5000, pageWaitMs: 5000,
     say: (s) => out.push(String(s)),
@@ -163,7 +166,7 @@ async function setup({ install = 'ok', replies = {}, keyPem = ENCRYPTED, noKeySe
   };
   const lines = () => fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
   return {
-    t, ctx, out, asked, env, model, lines, stateFile, cdp, tv, v0, v1,
+    t, ctx, out, asked, env, model, lines, stateFile, cdp, tv, v0, v2,
     run: () => withEnv(env, () => runDevmode(ctx)),
     done: () => closeAll(tv.server, keys, keyPageServer, cdp.server)
   };
@@ -247,11 +250,12 @@ test('a key server that stays silent: the person is asked to switch Key Server o
 
 // ---- the downloads ----
 
-test('the pins are the published v0 and v1 files', () => {
+test('the pins are the published v0 and v2 files', () => {
   assert.equal(PINNED['hometv-v0'].sha256, '945d9c0d00a6258b4d7ba4d558be9c1264950c53d5f3d5c40ea87afae9f003d8');
-  assert.equal(PINNED['hometv-v1'].sha256, '07d2fdf8abca55b30749abf7b527a46185cc6f15f50a88a877a4d989c991955c');
+  assert.equal(PINNED['hometv-v2'].sha256, '4f8fb46d1ab909d04c04292468c01092f8d307a77cd8ccc41518cb3a7315719b');
+  assert.equal(PINNED['hometv-v2'].size, 146124);
   assert.match(PINNED['hometv-v0'].url, /app-v0\.0\.1\/com\.hometv\.app_0\.0\.1_all\.ipk$/);
-  assert.match(PINNED['hometv-v1'].url, /app-v0\.1\.1\/com\.hometv\.app_0\.1\.1_all\.ipk$/);
+  assert.match(PINNED['hometv-v2'].url, /app-v0\.2\.0\/com\.hometv\.app_0\.2\.0_all\.ipk$/);
 });
 
 test('a download that does not match the pin is refused and not kept; a matching cached file skips the download', async () => {
@@ -278,8 +282,8 @@ test('--v0 / --v1 files are held to the pin unless --any-ipk', async () => {
   const dir = scratch('pin');
   const f = path.join(dir, 'mine.ipk');
   fs.writeFileSync(f, 'a dev build');
-  await assert.rejects(() => getIpk('v1', { dir, say() {}, v1: f }), /isn't the published v1/);
-  assert.equal(await getIpk('v1', { dir, say() {}, v1: f, anyIpk: true }), f);
+  await assert.rejects(() => getIpk('v2', { dir, say() {}, v2: f }), /isn't the published v2/);
+  assert.equal(await getIpk('v2', { dir, say() {}, v2: f, anyIpk: true }), f);
   await assert.rejects(() => getIpk('v0', { dir, say() {}, v0: path.join(dir, 'missing.ipk'), anyIpk: true }), /isn't there/);
 });
 
@@ -309,7 +313,7 @@ test('install: a refusal from the TV is a failure with its reason; no answer is 
   for (const mode of ['fail', 'silent']) {
     const s = await setup({ install: mode });
     try {
-      const r = await withEnv(s.env, () => installIpk(sshShell({ host: HOST, key: path.join(s.t, 'k'), knownHosts: path.join(s.t, 'kh'), port: 9922, user: 'prisoner', timeoutMs: 20000 }), s.v1, { installMs: 800 }));
+      const r = await withEnv(s.env, () => installIpk(sshShell({ host: HOST, key: path.join(s.t, 'k'), knownHosts: path.join(s.t, 'kh'), port: 9922, user: 'prisoner', timeoutMs: 20000 }), s.v2, { installMs: 800 }));
       assert.equal(r.ok, false);
       if (mode === 'fail') assert.match(r.note, /refused it: FAILED_IPK_SIGNATURE/);
       else assert.match(r.note, /no "installed" answer/);
@@ -328,27 +332,27 @@ function noLeaks(s, r) {
   return everything;
 }
 
-test('devmode: v0, then v1 over it: every check passes, the person is asked only the two yes/no questions per version', async () => {
+test('devmode: v0, then v2 over it: every check passes, the person is asked only the two yes/no questions per version', async () => {
   const s = await setup();
   try {
     const r = await s.run();
     assert.equal(r.stopped, false);
     assert.equal(r.failed, 0, s.out.join('\n'));
-    const [v0, v1] = r.report.versions;
-    assert.deepEqual([v0.version, v1.version], ['v0', 'v1']);
+    const [v0, v2] = r.report.versions;
+    assert.deepEqual([v0.version, v2.version], ['v0', 'v2']);
     for (const id of ['installed', 'listed', 'version', 'opens', 'screen', 'launchpoints', 'about', 'stays', 'applaunch', 'contentid']) {
       assert.equal(checkOf(v0, id).status, 'ok', 'v0 ' + id);
-      assert.equal(checkOf(v1, id).status, 'ok', 'v1 ' + id);
+      assert.equal(checkOf(v2, id).status, 'ok', 'v2 ' + id);
     }
     assert.equal(checkOf(v0, 'firstrun').status, 'ok');
     assert.match(checkOf(v0, 'firstrun').note, /^region United States \(the TV's country\); weather city left for the person/);
-    assert.equal(checkOf(v0, 'settings'), undefined, 'settings kept is a v1 check');
-    assert.equal(checkOf(v1, 'settings').status, 'ok');
-    assert.equal(checkOf(v1, 'keypage').status, 'ok');
-    assert.match(checkOf(v1, 'keypage').note, /HTTP 200/);
-    assert.equal(checkOf(v1, 'keyqr').status, 'ok');
-    assert.equal(v1.firstRunShownAfterUpdate, false);
-    assert.equal(checkOf(v1, 'firstrun').note, 'no (not shown)');
+    assert.equal(checkOf(v0, 'settings'), undefined, 'settings kept is a v2 check');
+    assert.equal(checkOf(v2, 'settings').status, 'ok');
+    assert.equal(checkOf(v2, 'keypage').status, 'ok');
+    assert.match(checkOf(v2, 'keypage').note, /HTTP 200/);
+    assert.equal(checkOf(v2, 'keyqr').status, 'ok');
+    assert.equal(v2.firstRunShownAfterUpdate, false);
+    assert.equal(checkOf(v2, 'firstrun').note, 'no (not shown)');
     assert.equal(checkOf(v0, 'keypage'), undefined, 'v0 has no API keys screen');
     assert.deepEqual(v0.settings, { region: 'us', weatherCity: null, setupDone: true });
     assert.match(r.report.tv.model, /43UT8000AUA/);
@@ -360,7 +364,7 @@ test('devmode: v0, then v1 over it: every check passes, the person is asked only
     assert.ok(yn.filter((q) => /Is HomeTV on the TV screen now\?/.test(q)).length === 2);
     assert.ok(yn.filter((q) => /Is a YouTube video playing/.test(q)).length === 2);
     assert.equal(s.asked.filter((q) => /passphrase/.test(q)).length, 1);
-    assert.equal(s.asked.filter((q) => /press Enter here to install v1 over it/.test(q)).length, 1, 'one pause between v0 and v1');
+    assert.equal(s.asked.filter((q) => /press Enter here to install v2 over it/.test(q)).length, 1, 'one pause between v0 and v2');
     assert.equal(r.report.answers.length, 6);
     // the TV ends with HomeTV in front, the inspector forwards went to the TV's 9998 on its own side
     assert.equal(JSON.parse(fs.readFileSync(s.stateFile, 'utf8')).foreground, APP);
@@ -398,9 +402,50 @@ test('devmode: only the Developer Mode account, port 9922, the rsa options, the 
     }
     assert.equal(run.filter((c) => c.command.includes('/dev/install')).length, 2);
     assert.deepEqual(log.filter((l) => l.removed).map((l) => l.removed), [
-      '/media/developer/temp/com.hometv.app_0.0.1_all.ipk', '/media/developer/temp/com.hometv.app_0.1.1_all.ipk']);
+      '/media/developer/temp/com.hometv.app_0.0.1_all.ipk', '/media/developer/temp/com.hometv.app_0.2.0_all.ipk']);
     // the decrypted key is only in the HomeTV folder, with the known_hosts file
     assert.ok(fs.existsSync(path.join(s.ctx.dir, 'devmode_rsa')));
+  } finally { await s.done(); }
+});
+
+test('devmode: on a TV with v1 0.1.1, v2 alone goes over it: its settings are read first and kept, nothing older is installed', async () => {
+  const kept = { 'hometv-settings-v1': JSON.stringify({ region: 'us', place: { name: 'Springfield' } }), 'hometv-setup-done': '1' };
+  const s = await setup({ fromV0: false, earlier: '0.1.1', page: { storage: kept } });
+  try {
+    const r = await s.run();
+    assert.equal(r.stopped, false);
+    assert.equal(r.failed, 0, s.out.join('\n'));
+    assert.deepEqual(r.report.versions.map((v) => v.version), ['v2']);
+    assert.deepEqual(r.report.earlier, { version: '0.1.1' });
+    const v2 = r.report.versions[0];
+    assert.equal(v2.expectedVersion, '0.2.0');
+    assert.equal(checkOf(v2, 'settings').status, 'ok');
+    assert.equal(checkOf(v2, 'firstrun').note, 'no (not shown)');
+    assert.equal(checkOf(v2, 'keypage').status, 'ok');
+    assert.deepEqual(v2.settings, { region: 'us', weatherCity: 'Springfield', setupDone: true });
+    const installs = s.lines().filter((l) => l.command && l.command.includes('/dev/install'));
+    assert.equal(installs.length, 1);
+    assert.match(installs[0].command, /com\.hometv\.app_0\.2\.0_all\.ipk/);
+    assert.equal(s.asked.filter((q) => /install v2 over it/.test(q)).length, 0, 'no pause: there is no v0 in this run');
+    assert.match(fs.readFileSync(r.files[1], 'utf8'), /HomeTV on the TV before: 0\.1\.1/);
+    noLeaks(s, r);
+  } finally { await s.done(); }
+});
+
+test('devmode: on a TV without HomeTV, v2 alone is a first install: the TV\'s region, the TMDB steps, no settings check', async () => {
+  const s = await setup({ fromV0: false });
+  try {
+    const r = await s.run();
+    assert.equal(r.failed, 0, s.out.join('\n'));
+    assert.deepEqual(r.report.versions.map((v) => v.version), ['v2']);
+    assert.deepEqual(r.report.earlier, { version: '' });
+    const v2 = r.report.versions[0];
+    assert.equal(checkOf(v2, 'settings'), undefined, 'nothing to keep on a first install');
+    assert.equal(checkOf(v2, 'firstrun').label, 'first run done with defaults');
+    assert.match(checkOf(v2, 'firstrun').note, /^region United States \(the TV's country\); weather city left for the person; TMDB steps: key listed, sign-in listed; Start using Home$/);
+    assert.equal(v2.firstRunShownAfterUpdate, undefined);
+    assert.equal(s.lines().filter((l) => l.command && l.command.includes('/dev/install')).length, 1);
+    assert.match(fs.readFileSync(r.files[1], 'utf8'), /HomeTV on the TV before: none/);
   } finally { await s.done(); }
 });
 
@@ -427,25 +472,25 @@ test('devmode: settings lost in the update are a failed check, with which ones d
   } finally { await s.done(); }
 });
 
-test('devmode: v1\'s first run after the update lists the TMDB steps, is passed (Start) and recorded, not a failure', async () => {
+test('devmode: v2\'s first run after the update lists the TMDB steps, is passed (Start) and recorded, not a failure', async () => {
   const s = await setup({ page: { firstRunAfterUpdate: true } });
   try {
     const r = await s.run();
-    const v1 = r.report.versions[1];
-    assert.equal(v1.firstRunShownAfterUpdate, true);
-    const c = checkOf(v1, 'firstrun');
+    const v2 = r.report.versions[1];
+    assert.equal(v2.firstRunShownAfterUpdate, true);
+    const c = checkOf(v2, 'firstrun');
     assert.equal(c.status, 'ok');
     assert.equal(c.label, 'first run shown after the update');
     assert.match(c.note, /TMDB steps: key listed, sign-in listed; Start using Home/);
-    assert.equal(checkOf(v1, 'settings').status, 'ok');
-    assert.equal(checkOf(v1, 'launchpoints').status, 'ok');
+    assert.equal(checkOf(v2, 'settings').status, 'ok');
+    assert.equal(checkOf(v2, 'launchpoints').status, 'ok');
     assert.equal(r.failed, 0, s.out.join('\n'));
     assert.match(fs.readFileSync(r.files[1], 'utf8'), /first run shown after the update: TMDB steps: key listed, sign-in listed; Start using Home/);
   } finally { await s.done(); }
 });
 
 test('devmode: when the inspector can not be reached, it says so and asks the person yes or no instead', async () => {
-  const s = await setup({ noInspector: true, only: 'v1' });
+  const s = await setup({ noInspector: true, only: 'v2' });
   try {
     const r = await s.run();
     const v = r.report.versions[0];
@@ -523,10 +568,10 @@ test('devmode: key server off stops with the plain message; no report holds the 
   } finally { await s.done(); }
 });
 
-test('devmode: a foreground read that misses HomeTV at first is retried; v1\'s checks still run', async () => {
+test('devmode: a foreground read that misses HomeTV at first is retried; v2\'s checks still run', async () => {
   let misses = 3;
   const s = await setup({
-    only: 'v1',
+    only: 'v2',
     handlers: (read) => ({
       'com.webos.applicationManager/getForegroundAppInfo': () => (read().foreground === APP && misses-- > 0
         ? { returnValue: false, errorText: 'busy' }
@@ -542,9 +587,9 @@ test('devmode: a foreground read that misses HomeTV at first is retried; v1\'s c
   } finally { await s.done(); }
 });
 
-test('devmode: when the TV never reports HomeTV in front, the person is asked; a yes runs v1\'s checks instead of skipping them', async () => {
+test('devmode: when the TV never reports HomeTV in front, the person is asked; a yes runs v2\'s checks instead of skipping them', async () => {
   const s = await setup({
-    only: 'v1',
+    only: 'v2',
     handlers: { 'com.webos.applicationManager/getForegroundAppInfo': () => ({ returnValue: true, appId: 'com.webos.app.home', windowId: 'x' }) }
   });
   s.ctx.openWaitMs = 1500;

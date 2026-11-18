@@ -25,24 +25,30 @@ doesn't change LG's software.
    sign in with an LG Developer account, press **Dev Mode Status** (the TV restarts), then open the app again and
    press **Key Server**. The app now shows a 6-letter **passphrase**.
 2. **Run the laptop tool:** `hometv-lg devmode <tv address>` (or double-click `hometv-lg.exe` and choose 2). It
-   downloads HomeTV v0 and v1 and checks each against its pinned SHA-256, gets the Developer Mode key from the TV
+   downloads HomeTV v2,
+   [`com.hometv.app_0.2.0_all.ipk`](https://github.com/rebeccamcfadden/hometv-webos/releases/download/app-v0.2.0/com.hometv.app_0.2.0_all.ipk)
+   (release `app-v0.2.0`, 146,124 bytes), and uses it only if its SHA-256 is
+   `4f8fb46d1ab909d04c04292468c01092f8d307a77cd8ccc41518cb3a7315719b`. It gets the Developer Mode key from the TV
    (you type the passphrase; if the key server doesn't answer within 15 s it asks you to switch Key Server off and on
    again, which fixed it on a real TV), and then:
    - **First, automatic updates off.** It asks you to switch off *Settings › Support › Software Update › Allow
      Automatic Updates*, so the TV doesn't update itself during the checks. It reads the setting if the TV says,
      otherwise it asks two yes/no questions (was it on, is it off now). It never changes the setting itself.
-   - **v0:** installs it the way LG's own `ares-install` does (SSH to the Developer Mode account `prisoner` on port
+   - **The HomeTV already there, if any** (v1 0.1.1 on a TV from the first call): it opens it once and reads its
+     settings, so the update can be checked against them.
+   - **v2:** installs it the way LG's own `ares-install` does (SSH to the Developer Mode account `prisoner` on port
      9922, the `.ipk` copied to `/media/developer/temp` and installed with `luna-send-pub`, the copy deleted after),
-     opens it and checks: the TV lists it, it comes to the front, the app list is read or denied, it is still open
-     after 30 s, and an app launch (YouTube by contentId).
-   - **v1 over v0:** the same checks, plus the settings kept through the update and the key page reachable.
+     opens it and checks: the TV lists it, the installed version, it comes to the front, the app list is read or
+     denied, it is still open after 30 s, an app launch (YouTube by contentId) and the key page. Over an earlier
+     HomeTV, also that its settings were kept; on a TV without one, first run gets the TV's region.
    - It drives the app through the TV's Web Inspector (an SSH tunnel to the TV's port 9998). Where the script can't
      see something it asks a plain yes/no question ("Is HomeTV on the TV screen now?"). If the inspector isn't
      reachable, more of the checks become questions.
    - It writes `lg-devmode-<date>.txt` and `.json` in the HomeTV folder, with no IP address, serial number or device
      id. Code: [tools/lib/devmode.mjs](../tools/lib/devmode.mjs); tests against a pretend TV:
-     [tests/devmode.test.mjs](../tests/devmode.test.mjs). `--only v0` or `--only v1` installs one; `--v0 <file>` and
-     `--v1 <file>` use files you have (held to the same SHA-256).
+     [tests/devmode.test.mjs](../tests/devmode.test.mjs). `--from-v0` installs v0 (0.0.1) first and v2 over it, to
+     check the whole update path on a TV without HomeTV; `--only v0` or `--only v2` installs one; `--v0 <file>` and
+     `--v2 <file>` use files you have (held to the same SHA-256).
    (Step-by-step, for someone who isn't technical: [docs/install/index.html](install/index.html).)
 3. **If the tool can't install (fallback): Dev Manager.** `hometv-lg get dev-manager` downloads webosbrew's free
    [Dev Manager](https://github.com/webosbrew/dev-manager-desktop), checked against a pinned SHA-256, and starts its

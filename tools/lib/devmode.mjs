@@ -1,5 +1,6 @@
-// hometv-lg devmode <tv address>: HomeTV v0, then v1 over it, on a TV in Developer Mode, with every check the laptop can
-// make itself (no Dev Manager, no root). It does what ares-install does: the Developer Mode key (devmode-key.mjs),
+// hometv-lg devmode <tv address>: HomeTV v2 (0.2.0) on a TV in Developer Mode, over the HomeTV already there or as a
+// first install (--from-v0: v0 first, then v2 over it), with every check the laptop can make itself (no Dev Manager,
+// no root). It does what ares-install does: the Developer Mode key (devmode-key.mjs),
 // SSH as `prisoner` on port 9922, the .ipk copied to /media/developer/temp and installed through luna-send-pub; then
 // the Web Inspector (devmode-cdp.mjs) drives the app like the remote would, and the TV's own remote-control connection
 // (SSAP) says what is on screen. The person is asked yes or no only for what a script can't see.
@@ -21,7 +22,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const UPDATES_BACK = 'To let the TV update itself again: Settings › Support › Software Update › Allow Automatic Updates on';
 // The versions each pinned .ipk installs, from its file name (com.hometv.app_<version>_all.ipk)
 const pinnedVersion = (k) => (PINNED[k].file.match(/_(\d+\.\d+\.\d+)_all\.ipk$/) || [])[1];
-const VERSIONS = { v0: pinnedVersion('hometv-v0'), v1: pinnedVersion('hometv-v1') };
+const VERSIONS = { v0: pinnedVersion('hometv-v0'), v2: pinnedVersion('hometv-v2') };
 
 /** Waits until `fn` gives something other than false, undefined or '' (up to `ms`); returns it, or null. */
 async function until(fn, ms, step = 500) {
@@ -40,7 +41,7 @@ const parseLine = (line) => {
   try { return JSON.parse(line.slice(a)); } catch { return null; }
 };
 
-/** The .ipk for `which` ('v0' or 'v1'): the pinned download, or --v0/--v1's file (held to the pin unless --any-ipk). */
+/** The .ipk for `which` ('v0' or 'v2'): the pinned download, or --v0/--v2's file (held to the pin unless --any-ipk). */
 export async function getIpk(which, ctx) {
   const pin = PINNED['hometv-' + which];
   const own = ctx[which];
@@ -113,7 +114,7 @@ export async function runDevmode(ctx) {
 
   try {
     fs.mkdirSync(ctx.dir, { recursive: true });
-    const wanted = ctx.only ? [ctx.only] : ['v0', 'v1'];
+    const wanted = ctx.only ? [ctx.only] : ctx.fromV0 ? ['v0', 'v2'] : ['v2'];
     const ipks = {};
     for (const v of wanted) ipks[v] = await getIpk(v, ctx);
 
@@ -152,15 +153,17 @@ export async function runDevmode(ctx) {
     report.tv = await tvInfo(ctx);
 
     report.setup = [await autoUpdates(ctx, shell, yes, report)];
-    let before = null;
+    // v2 first in this run: the HomeTV already on the TV (v1 0.1.1 on the first call's TV) has its settings read, so the
+    // update is checked against them; on a TV without HomeTV, v2 is a first install
+    let prior = wanted[0] === 'v2' ? await readEarlier(ctx, shell, report) : null;
     for (const v of wanted) {
-      if (v === 'v1' && before) {
+      if (v === 'v2' && prior && prior.from === 'v0') {
         await ctx.ask('\n  HomeTV v0 is installed and checked. Do any other v0 checks the person helping you asks for (HomeTV\'s\n' +
-          '  Checks screen), then press Enter here to install v1 over it. ');
+          '  Checks screen), then press Enter here to install v2 over it. ');
       }
-      const R = await runVersion({ ...ctx, report }, shell, v, ipks[v], VERSIONS[v], before, yes);
+      const R = await runVersion({ ...ctx, report }, shell, v, ipks[v], VERSIONS[v], prior, yes);
       report.versions.push(R);
-      if (R.snapshot) before = R.snapshot;
+      prior = { from: v, snapshot: R.snapshot || null };
       delete R.snapshot;
     }
   } catch (e) {
@@ -257,7 +260,44 @@ async function tvInfo(ctx) {
   } catch { return {}; }
 }
 
-async function runVersion(ctx, shell, v, ipk, expected, before, yes) {
+/**
+ * The HomeTV already on the TV, before v2 goes over it: its version, and its settings read through the Web Inspector
+ * (it is opened for that). Returns null when HomeTV isn't on the TV (a first install), else { from, version, snapshot }
+ * (snapshot null when the settings couldn't be read; the settings check is then skipped, not failed).
+ */
+async function readEarlier(ctx, shell, report) {
+  let listed = null;
+  try { listed = (await withTv(ctx, appIds)).has(APP); } catch { /* read below from the TV's own answer */ }
+  const info = await shell.run(LUNA_PUB + ' -n 1 ' + sq('luna://com.webos.applicationManager/getAppInfo') + ' ' + sq(JSON.stringify({ id: APP })));
+  const seen = (parseLine(String(info.stdout)) || {}).appInfo;
+  const version = seen && seen.version ? String(seen.version) : '';
+  if (!version && listed !== true) { report.earlier = { version: '' }; return null; }
+  report.earlier = { version: version || 'unknown' };
+  ctx.say('\n  HomeTV ' + (version || '') + ' is on the TV: reading its settings first, so the update can be checked against them.');
+  if (!(await launchApp(shell, ctx)) || !(await waitForeground(ctx, (id) => id === APP, ctx.openWaitMs || 30000))) {
+    ctx.say('  It didn\'t come to the front, so its settings weren\'t read.');
+    return { from: 'earlier', version, snapshot: null };
+  }
+  const inspector = await openInspector(shell, { remotePort: ctx.inspectorPort || 9998, waitMs: ctx.inspectorWaitMs });
+  let page = null;
+  try {
+    if (!inspector.error) {
+      const found = await findPage(inspector.port, { waitMs: ctx.pageWaitMs || 20000 });
+      if (found) page = await openPage(inspector.port, found.ws).catch(() => null);
+    }
+    if (!page) { ctx.say('  The Web Inspector didn\'t answer, so its settings weren\'t read.'); return { from: 'earlier', version, snapshot: null }; }
+    await until(async () => page.eval(q('ready')), 30000);
+    return { from: 'earlier', version, snapshot: await snapshot(page) };
+  } finally {
+    if (page) page.close();
+    if (inspector && inspector.close) inspector.close();
+  }
+}
+
+async function runVersion(ctx, shell, v, ipk, expected, prior, yes) {
+  // An update (over v0 in this run, or over the HomeTV that was on the TV), or a first install
+  const update = !!prior;
+  const before = prior && prior.snapshot;
   const say = ctx.say;
   const R = { version: v, expectedVersion: expected, ipk: path.basename(ipk), seconds: {}, checks: [] };
   const t0 = Date.now();
@@ -327,26 +367,26 @@ async function runVersion(ctx, shell, v, ipk, expected, before, yes) {
       const ready = await until(async () => page.eval(q('ready')), 30000);
       if (!ready) { rec('screens', 'HomeTV\'s screens drew', 'failed', 'no screen appeared in 30 s'); }
       R.snapshot = await snapshot(page);
-      if (v === 'v1') {
+      if (update) {
         if (before && R.snapshot) {
           const same = JSON.stringify(before) === JSON.stringify(R.snapshot);
           rec('settings', 'settings kept through the update', same ? 'ok' : 'failed', same ? 'the same region, weather city and first-run state' : 'they differ: ' + diffKeys(before, R.snapshot).join(', '));
-        } else rec('settings', 'settings kept through the update', 'skipped', before ? 'could not read the page' : 'v0 was not read');
+        } else rec('settings', 'settings kept through the update', 'skipped', before ? 'could not read the page' : 'the earlier HomeTV\'s settings were not read');
       }
-      R.firstRun = await firstRun(page, v, { country: ctx.report && ctx.report.tv && ctx.report.tv.country });
-      if (R.firstRun.shown) rec('firstrun', v === 'v0' ? 'first run done with defaults' : 'first run shown after the update', R.firstRun.ok ? 'ok' : 'failed', R.firstRun.note);
-      else if (v === 'v1') rec('firstrun', 'first run shown after the update', 'ok', 'no (not shown)');
-      if (v === 'v0') R.snapshot = await snapshot(page);
-      R.firstRunShownAfterUpdate = v === 'v1' ? !!R.firstRun.shown : undefined;
+      R.firstRun = await firstRun(page, { fresh: !update, tmdb: v !== 'v0', country: ctx.report && ctx.report.tv && ctx.report.tv.country });
+      if (R.firstRun.shown) rec('firstrun', update ? 'first run shown after the update' : 'first run done with defaults', R.firstRun.ok ? 'ok' : 'failed', R.firstRun.note);
+      else if (update) rec('firstrun', 'first run shown after the update', 'ok', 'no (not shown)');
+      if (!update) R.snapshot = await snapshot(page);
+      R.firstRunShownAfterUpdate = update ? !!R.firstRun.shown : undefined;
       R.settings = describeSettings(R.snapshot);
 
       await launchPoints(page, ctx, rec);
       await about(page, ctx, R, rec);
       await stayOpen(page, ctx, launchedAt, rec, v);
       await youtube(page, shell, ctx, rec, yes, v);
-      if (v === 'v1') await keyPage(page, ctx, rec);
+      if (v !== 'v0') await keyPage(page, ctx, rec);
     } else {
-      await withoutInspector(shell, ctx, R, rec, yes, v, open, launchedAt, before);
+      await withoutInspector(shell, ctx, R, rec, yes, v, open, launchedAt, update);
     }
   } finally {
     if (page) page.close();
@@ -400,32 +440,34 @@ export function regionFor(country) {
 }
 
 /**
- * First run on top: v0 gets the TV's own region (from its country setting); the weather city is left for the person to
- * choose (the 2026-11-17 call: a US TV got Sweden and Stockholm, °C). Either way Start leaves it.
+ * First run on top. A first install gets the TV's own region (from its country setting); the weather city is left for
+ * the person to choose (the 2026-11-17 call: a US TV got Sweden and Stockholm, °C). From v1 on it lists the TMDB
+ * steps. Either way Start leaves it.
  */
-async function firstRun(page, v, ctx = {}) {
+async function firstRun(page, { fresh, tmdb, country } = {}) {
   const out = { shown: false, ok: true, note: '' };
   if (!/screen--setup/.test(await top(page))) return out;
   out.shown = true;
   const notes = [];
-  if (v === 'v0') {
-    const region = regionFor(ctx.country);
+  if (fresh) {
+    const region = regionFor(country);
     if (region) {
       await click(page, 'step-region');
       await sleep(500);
       const name = region === 'us' ? 'United States' : 'Sweden';
       notes.push((await click(page, 'seg-region-' + region)) ? 'region ' + name + ' (the TV\'s country)' : 'region: could not choose');
-    } else notes.push('region left for the person (the TV\'s country ' + (ctx.country ? ctx.country + ' isn\'t one HomeTV has' : 'wasn\'t read') + ')');
+    } else notes.push('region left for the person (the TV\'s country ' + (country ? country + ' isn\'t one HomeTV has' : 'wasn\'t read') + ')');
     notes.push('weather city left for the person');
-  } else {
-    // v1's First run lists the TMDB key (only while no key is saved) and Sign in to TMDB; the person walks
+  }
+  if (tmdb) {
+    // v1's and v2's First run lists the TMDB key (only while no key is saved) and Sign in to TMDB; the person walks
     // through them after the checks, from Settings › Open first run
     const key = await page.eval(q('has', 'step-tmdbKey'));
     const account = await page.eval(q('has', 'step-account'));
     notes.push(`TMDB steps: key ${key ? 'listed' : 'not listed'}, sign-in ${account ? 'listed' : 'not listed'}`);
     if (!account) out.ok = false;
-    notes.push('Start using Home');
   }
+  if (tmdb || !fresh) notes.push('Start using Home');
   await click(page, 'start');
   let gone = await until(async () => !/screen--setup/.test(await top(page)), 4000);
   // Back on the remote ends first run too
@@ -537,7 +579,7 @@ async function httpGet(url) {
 }
 
 /** The inspector didn't answer: the checks that needed it go back to the person as yes or no. */
-async function withoutInspector(shell, ctx, R, rec, yes, v, open, launchedAt, before) {
+async function withoutInspector(shell, ctx, R, rec, yes, v, open, launchedAt, update) {
   const why = R.inspector;
   if (!open) return skip2(rec, 'HomeTV did not open');
   const home = await yes('If HomeTV shows its first-run page, press Back on the remote until Home shows. Is HomeTV\'s Home screen showing?', v);
@@ -555,11 +597,11 @@ async function withoutInspector(shell, ctx, R, rec, yes, v, open, launchedAt, be
     rec('applaunch', 'an app launch (YouTube by contentId)', playing ? 'ok' : 'failed', 'asked, not read (' + why + ')');
     await launchApp(shell, ctx);
   } else rec('applaunch', 'an app launch (YouTube by contentId)', yt === false ? 'failed' : 'skipped', 'asked, not read (' + why + ')');
-  if (v === 'v1') {
-    const kept = await yes('Are the region and weather city you set in the first version still set (Settings on Home, then Region and Weather)?', v);
+  if (update) {
+    const kept = await yes('Are the region and weather city set before this update still set (Settings on Home, then Region and Weather)?', v);
     rec('settings', 'settings kept through the update', kept ? 'ok' : 'failed', 'asked, not read (' + why + ')');
-    rec('keypage', 'key page reachable', 'skipped', 'needs the inspector to read the address');
   }
+  if (v !== 'v0') rec('keypage', 'key page reachable', 'skipped', 'needs the inspector to read the address');
 }
 const skip2 = (rec, why) => CHECK_IDS.slice(3).forEach(([id, label]) => rec(id, label, 'skipped', why));
 
@@ -571,6 +613,7 @@ function writeReport(ctx, report) {
   const json = JSON.stringify(report, null, 2);
   const lines = ['HomeTV on LG: Developer Mode install and checks, ' + report.date, '',
     'TV: ' + (report.tv.model || 'model unknown') + ', firmware ' + (report.tv.firmware || 'unknown')];
+  if (report.earlier) lines.push('HomeTV on the TV before: ' + (report.earlier.version || 'none'));
   if (report.stopped) lines.push('', 'STOPPED: ' + report.stopped);
   if (report.setup && report.setup.length) {
     lines.push('', 'Before installing:');
