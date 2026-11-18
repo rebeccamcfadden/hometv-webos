@@ -182,6 +182,10 @@ Two cases that look alike:
   `root/compat.json`, so HomeTV's start-up hook stepped back. `hometv-lg-root.exe root <tv address> --home-again` explains it
   and asks before putting HomeTV back ([troubleshooting.md](troubleshooting.md)).
 - ***Use LG's Home* was chosen** (level 1): a choice, not an update; HomeTV says nothing then.
+- **HomeTV came up but was rolled back after the restart** (its page didn't answer the laptop's check): LG's Home is
+  back and nothing is broken. Once the HomeTV team has looked, `hometv-lg-root.exe root <tv address> --home-again --watch`
+  tries again and shows, for up to 3 minutes after the restart, what the TV notes about HomeTV's heartbeat (masked),
+  before it decides.
 
 On the laptop, `hometv-lg.exe check <tv address>` says *Root: still on*, or what's wrong and what to do next
 ([root-plan.md › When an LG update ends root](root-plan.md#when-an-lg-update-ends-root)):
