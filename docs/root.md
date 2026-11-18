@@ -91,7 +91,7 @@ released `hometv-lg.exe` refuses `prepare` like the other root commands.
 
 - **The rooting program.** The released `hometv-lg.exe` (on the [check page](https://rebeccamcfadden.github.io/hometv-webos/check/))
   leaves the root install out; the rooting program is its own release, `hometv-lg-root.exe` in
-  [`hometv-lg-root-v1`](https://github.com/rebeccamcfadden/hometv-webos/releases/tag/hometv-lg-root-v1) (built with
+  [`hometv-lg-root-v2`](https://github.com/rebeccamcfadden/hometv-webos/releases/tag/hometv-lg-root-v2) (built with
   `npm run exe -- --root`), linked with its SHA-256 from the [root page](https://rebeccamcfadden.github.io/hometv-webos/root/).
 - **The backup file** of this TV on the laptop: `lg-backup-….json` in `%USERPROFILE%\HomeTV`. The install made one;
   if not, `hometv-lg check <tv address> --backup` ([backup.md](backup.md)).
