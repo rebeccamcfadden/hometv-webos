@@ -376,6 +376,33 @@ test('a manifest naming a newer app: the page installs, Settings says the app ne
   const app = await start(tv, 11000, { install: false });
   assert.equal(app.status().available, '1.1.0');
   assert.equal(app.status().appNewer, '1.2.0');
+  // the laptop then puts app 1.2.0 on, with its own page 1.2.0: neither offer is shown again
+  app.stop();
+  srv.online = false;
+  tv.shellConfig = shellConfig({ shell: '1.2.0' });
+  tv.shellConfig.page.version = '1.2.0';
+  const after = await start(tv);
+  assert.equal(after.status().available, null);
+  assert.equal(after.status().appNewer, null);
+});
+
+test('a failed look is still said after a restart, until the next look', async () => {
+  const { tv, srv } = makeTv({ checkHours: 24 });
+  srv.online = false;
+  const one = await start(tv, 11000, { install: false });
+  assert.match(one.status().lastCheck.result, /^failed/);
+  assert.equal(one.status().lastLookFailed, true);
+  one.stop();
+  const two = await start(tv, 2 * 3600000, { install: false });
+  assert.equal(two.status().lastCheck, null, 'no look in this start');
+  assert.equal(two.status().lastLookFailed, true, 'kept with the look\'s time');
+  srv.online = true;
+  srv.offer = release('1.1.0');
+  let r;
+  two.win.HomeTVBoot.checkNow((e, x) => (r = x));
+  await two.tick(0);
+  assert.equal(r, 'available 1.1.0');
+  assert.equal(two.status().lastLookFailed, false);
 });
 
 test('a page that never reaches Home: reload after 20 s, a second try, then back to the previous good page', async () => {

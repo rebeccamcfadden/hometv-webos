@@ -120,7 +120,10 @@
     }
   }
 
-  /** Settings › Updates: { check: look by itself (default true), at: the last look, epoch ms (0: never) }. */
+  /**
+   * Settings › Updates: { check: look by itself (default true), at: the last look, epoch ms (0: never), failed: that
+   * look failed }.
+   */
   function loadPrefs() {
     var p = null;
     try {
@@ -128,7 +131,11 @@
     } catch (e) {
       p = null;
     }
-    return { check: !(isObject(p) && p.check === false), at: isObject(p) && typeof p.at === "number" ? p.at : 0 };
+    return {
+      check: !(isObject(p) && p.check === false),
+      at: isObject(p) && typeof p.at === "number" ? p.at : 0,
+      failed: isObject(p) && p.failed === true,
+    };
   }
 
   function savePrefs(p) {
@@ -783,6 +790,12 @@
     function finish(err, result) {
       updating = false;
       info.lastCheck = { at: new Date().toISOString(), result: err ? "failed: " + (err.message || err) : result };
+      if (step === "look") {
+        // kept across starts, with the look's time, so Settings never says "Up to date" after a failed look
+        var lp = loadPrefs();
+        lp.failed = !!err || /^failed/.test(String(result || ""));
+        savePrefs(lp);
+      }
       if (done) {
         done(err, result);
       }
@@ -790,6 +803,7 @@
     if (step === "look") {
       var p = loadPrefs();
       p.at = Date.now();
+      p.failed = false;
       savePrefs(p);
     }
     if (win.HomeTVUpdate && win.HomeTVUpdate[step]) {
@@ -849,6 +863,18 @@
     status: function () {
       var s = loadState();
       var p = loadPrefs();
+      // an offer the TV already has (a laptop re-install, the root edition's app update) is no offer any more
+      var newer = function (v, than) {
+        for (var i = 0; i < than.length; i++) {
+          var c = than[i] ? compareVersions(v, than[i]) : null;
+          if (c === 0 || c === -1) {
+            return false;
+          }
+        }
+        return true;
+      };
+      var available = s.available && newer(s.available, [shell.pageVersion, current, s.good, s.next]) ? s.available : null;
+      var appNewer = s.appNewer && newer(s.appNewer, [shell.version]) ? s.appNewer : null;
       return {
         page: info.page,
         source: info.source,
@@ -861,10 +887,11 @@
         skipped: s.skip.slice(0),
         note: info.note,
         lastCheck: info.lastCheck,
+        lastLookFailed: p.failed,
         checkOn: p.check,
         checkedAt: p.at || null,
-        available: s.available,
-        appNewer: s.appNewer,
+        available: available,
+        appNewer: appNewer,
         busy: updating || null,
       };
     },

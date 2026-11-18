@@ -197,6 +197,29 @@ test('root update: a bad checksum is refused and the download deleted; a stage c
   assert.ok(!fs.existsSync(stage));
 });
 
+test('root update: a disk error while downloading (a full disk) ends it as failed, deletes the stage and frees the next try', async () => {
+  const tv = makeTv();
+  tv.offer = release('0.2.0');
+  const get = tv.get;
+  // the first file can't be written: a folder stands where it goes (as ENOSPC would, it throws in the write)
+  tv.get = (url, max, cb) => get(url, max, (err, body) => {
+    if (/watchdog\.sh$/.test(url)) fs.mkdirSync(path.join(tv.D, 'updates', 'stage', 'watchdog.sh'), { recursive: true });
+    cb(err, body);
+  });
+  tv.methods = svc.createMethods({
+    rootDir: tv.D, appDir: tv.app, uid: () => 0, updateGet: tv.get,
+    updateConfig: { url: URL_, keys: [keys.publicKey], on: true },
+    spawn: (cmd, args, opts) => (tv.spawned.push({ cmd, args, opts }), { on() {}, unref() {} }),
+  });
+  await tv.install('0.2.0');
+  assert.equal(tv.last().state, 'failed');
+  assert.match(tv.last().note, /^E[A-Z]+/);
+  assert.equal(tv.spawned.length, 0);
+  assert.ok(!fs.existsSync(path.join(tv.D, 'updates', 'stage')));
+  assert.ok(!fs.existsSync(path.join(tv.D, 'updates', 'busy')), 'not left busy');
+  tv.get = get;
+});
+
 test('root update: a new version that doesn\'t answer in 40 s is swapped back and never offered again', async () => {
   const tv = makeTv();
   tv.offer = release('0.2.0', { behaves: 'dead' });

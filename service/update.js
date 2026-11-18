@@ -296,10 +296,19 @@ function rmrf(p) {
 function download(opts, found, stage, cb) {
   var get = opts.get || httpsGet;
   var m = found.manifest;
-  rmrf(stage);
-  fs.mkdirSync(stage);
-  fs.writeFileSync(path.join(stage, MANIFEST), found.bytes);
-  fs.writeFileSync(path.join(stage, MANIFEST + '.sig'), found.sig);
+  // a write that fails (a full disk) ends the download with the stage deleted, never a crashed service
+  function fail(e) {
+    rmrf(stage);
+    cb(e);
+  }
+  try {
+    rmrf(stage);
+    fs.mkdirSync(stage);
+    fs.writeFileSync(path.join(stage, MANIFEST), found.bytes);
+    fs.writeFileSync(path.join(stage, MANIFEST + '.sig'), found.sig);
+  } catch (e) {
+    return fail(e);
+  }
   var i = 0;
   (function next() {
     if (i === m.files.length) return cb(null);
@@ -308,11 +317,12 @@ function download(opts, found, stage, cb) {
       var why = err ? f.name + ': ' + err.message
         : body.length !== f.size ? f.name + ': ' + body.length + ' bytes, the manifest says ' + f.size
         : sha512(body) !== f.sha512 ? f.name + ': SHA-512 doesn\'t match' : '';
-      if (why) {
-        rmrf(stage);
-        return cb(new Error(why));
+      if (why) return fail(new Error(why));
+      try {
+        fs.writeFileSync(path.join(stage, f.name), body);
+      } catch (e) {
+        return fail(e);
       }
-      fs.writeFileSync(path.join(stage, f.name), body);
       next();
     });
   })();

@@ -361,7 +361,7 @@ function createMethods(deps) {
         }
         var stage = path.join(rootDir, updates.SUB, 'stage');
         updates.download(opts, found, stage, function (e) {
-          if (e) return stop(/HTTP|connection|timed out|redirect/.test(e.message) ? 'failed' : 'refused', e.message);
+          if (e) return stop(/HTTP|connection|timed out|redirect|^E[A-Z]{2,}\b/.test(e.message) ? 'failed' : 'refused', e.message);
           try {
             var child = spawn(process.execPath, [path.join(__dirname, 'update-apply.js'), stage], { detached: true, stdio: 'ignore' });
             if (child && child.on) child.on('error', function () {});

@@ -366,6 +366,7 @@ export const platform = {
   pageUpdates(): PageUpdates | null {
     type BootStatus = {
       shell?: string; page?: string; updates?: string; next?: string | null; lastCheck?: { at: string; result?: string } | null;
+      lastLookFailed?: boolean;
       checkOn?: boolean; checkedAt?: number | null; available?: string | null; appNewer?: string | null; busy?: string | null;
     };
     const boot = bootApi();
@@ -379,7 +380,8 @@ export const platform = {
         on: !!s.updates && s.updates !== 'off',
         next: s.next || null,
         checkedAt: typeof s.checkedAt === 'number' ? s.checkedAt : last,
-        failed: !!s.lastCheck && /^failed/.test(s.lastCheck.result || ''),
+        // the last look's result, kept with its time (checkedAt) across starts; this start's install, if it failed
+        failed: s.lastLookFailed === true || (!!s.lastCheck && /^failed/.test(s.lastCheck.result || '')),
         checkOn: s.checkOn !== false,
         available: s.available || null,
         appNewer: s.appNewer || null,
