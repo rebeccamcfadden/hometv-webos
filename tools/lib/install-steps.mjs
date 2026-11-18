@@ -198,7 +198,8 @@ export async function findIpk(ctx) {
     return checked(ctx.ipk);
   }
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const dirs = [process.cwd(), path.dirname(process.execPath), ctx.dir, path.resolve(here, '..', '..', 'dist')];
+  // where to look: the folder it's started from (Downloads), next to the exe, the HomeTV folder, dist/ (tests: ctx.ipkDirs)
+  const dirs = ctx.ipkDirs || [process.cwd(), path.dirname(process.execPath), ctx.dir, path.resolve(here, '..', '..', 'dist')];
   for (const d of dirs) {
     const f = path.join(d, pin.file);
     if (fs.existsSync(f)) return checked(f);
@@ -496,7 +497,7 @@ export const STEPS = [
 
         if ((await sh.run('[ -f ' + q(P.app + '/index.html') + ' ]')).code !== 0) {
           const found = await findIpk(ctx);
-          if (found.error) return stop('HomeTV isn\'t on the TV any more (deleting the Developer Mode app removes it), and ' + found.error.charAt(0).toLowerCase() + found.error.slice(1), found.fix);
+          if (found.error) return stop('HomeTV isn\'t on the TV any more (deleting the Developer Mode app removes it). ' + found.error, found.fix);
           const ipk = found.file;
           const tmp = P.tmp + '/hometv.ipk';
           const out = P.tmp + '/hometv-install.out';

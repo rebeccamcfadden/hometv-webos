@@ -557,7 +557,7 @@ test('stop: an .ipk that isn\'t the pinned one is never installed, neither for D
   s.ctx.runSlopbro = async (...a) => { const r = await slop(...a); fs.writeFileSync(s.ctx.ipk, 'changed since'); return r; };
   try {
     assert.deepEqual(await runInstall(s.ctx), { stopped: 'root-install' });
-    assert.match(s.text(), /HomeTV isn't on the TV any more .*and com\.hometv\.app_0\.0\.1_all\.ipk \(in .*\) isn't the published HomeTV 0\.0\.1: its SHA-256 differs, so it wasn't used/);
+    assert.match(s.text(), /HomeTV isn't on the TV any more \(deleting the Developer Mode app removes it\)\. com\.hometv\.app_0\.0\.1_all\.ipk \(in .*\) isn't the published HomeTV 0\.0\.1: its SHA-256 differs, so it wasn't used/);
     assert.match(s.text(), /Delete that file, then run this again/);
     assert.doesNotMatch(fs.readFileSync(path.join(s.t, 'tv', 'stub.log'), 'utf8'), /appInstallService\/dev\/install/, 'LG\'s installer never called');
     assert.ok(!fs.existsSync(path.join(s.t, 'tv', 'tmp', 'hometv.ipk')), 'nothing copied');
@@ -575,8 +575,9 @@ async function inFolder(dir, fn) {
   process.chdir(dir);
   try { return await fn(); } finally { process.chdir(was); }
 }
-function ipkScratch() {
+function ipkScratch(ctx) {
   const t = path.resolve('dist', 'test-ipk-' + crypto.randomBytes(4).toString('hex'));
+  ctx.after(() => fs.rmSync(t, { recursive: true, force: true }));
   const downloads = path.join(t, 'Downloads');
   const home = path.join(t, 'HomeTV');
   fs.mkdirSync(downloads, { recursive: true });
@@ -587,8 +588,8 @@ function ipkScratch() {
   return { downloads, home, good, pin };
 }
 
-test('findIpk: the pinned file in Downloads is used only when its SHA-256 matches; a mismatch stops in plain words', async () => {
-  const k = ipkScratch();
+test('findIpk: the pinned file in Downloads is used only when its SHA-256 matches; a mismatch stops in plain words', async (t) => {
+  const k = ipkScratch(t);
   const f = path.join(k.downloads, k.pin.file);
   const fetchImpl = async () => { throw new Error('must not download'); };
   fs.writeFileSync(f, k.good);
@@ -600,8 +601,8 @@ test('findIpk: the pinned file in Downloads is used only when its SHA-256 matche
   assert.match(bad.fix, /Delete that file, then run this again/);
 });
 
-test('findIpk: another HomeTV .ipk in Downloads (0.1.1, say) is not taken; the pinned one is downloaded and checked', async () => {
-  const k = ipkScratch();
+test('findIpk: another HomeTV .ipk in Downloads (0.1.1, say) is not taken; the pinned one is downloaded and checked', async (t) => {
+  const k = ipkScratch(t);
   fs.writeFileSync(path.join(k.downloads, 'com.hometv.app_0.1.1_all.ipk'), 'the old v1');
   const urls = [];
   const fetchImpl = async (url) => { urls.push(url); return { ok: true, status: 200, arrayBuffer: async () => k.good }; };
@@ -616,15 +617,16 @@ test('findIpk: another HomeTV .ipk in Downloads (0.1.1, say) is not taken; the p
   assert.ok(!fs.existsSync(path.join(k.home, k.pin.file)), 'a download that fails the check isn\'t kept');
 });
 
-test('findIpk: --ipk is held to the pin too; without a test pin it is the published 0.2.0', async () => {
-  const k = ipkScratch();
+test('findIpk: --ipk is held to the pin too; without a test pin it is the published 0.2.0', async (t) => {
+  const k = ipkScratch(t);
   const mine = path.join(k.downloads, 'mine.ipk');
   fs.writeFileSync(mine, 'a dev build');
   assert.match((await findIpk({ dir: k.home, ipk: mine, ipkPin: k.pin, say() {} })).error, /^mine\.ipk .*SHA-256 differs/);
   assert.match((await findIpk({ dir: k.home, ipk: path.join(k.downloads, 'gone.ipk'), say() {} })).error, /isn't there: gone\.ipk/);
   const urls = [];
   const fetchImpl = async (url) => { urls.push(url); return { ok: true, status: 200, arrayBuffer: async () => Buffer.from('x') }; };
-  const r = await inFolder(k.downloads, () => findIpk({ dir: k.home, fetchImpl, say() {} }));
+  // only the scratch folders: a packaged dist/com.hometv.app_0.2.0_all.ipk in this checkout must not count
+  const r = await findIpk({ dir: k.home, ipkDirs: [k.downloads, k.home], fetchImpl, say() {} });
   assert.match(r.error, /HomeTV 0\.2\.0 couldn't be downloaded and checked/);
   assert.deepEqual(urls, [PINNED['hometv-v2'].url]);
 });
