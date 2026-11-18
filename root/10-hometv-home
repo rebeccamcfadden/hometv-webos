@@ -17,9 +17,11 @@ fi
 # The firmware list (compat.json): after the software changed to one not listed (nor agreed at install), LG's Home stays
 # and compat-stopped says why; hometv-lg root <tv ip> --home-again asks and runs install.sh again
 fw=$(info firmwareVersion)
-if [ -z "$fw" ]; then
-  say "home: couldn't read the software version; going on (install.sh checked it)"
-elif [ "$(node "$D/decide.js" compat "$D/compat.json" "$(info modelName)" "$fw")" = unlisted ] && [ "$fw" != "$(cat "$D/compat-ok" 2>/dev/null)" ]; then
+listed=$([ -n "$fw" ] && node "$D/decide.js" compat "$D/compat.json" "$(info modelName)" "$fw")
+if [ -z "$fw" ] || [ "$listed" = nolist ]; then
+  # an unread version, or no readable compat.json (an in-TV update from a version without it): install.sh checked it
+  say "home: couldn't check the software version against compat.json (${fw:-unread}, ${listed:-no answer}); going on"
+elif [ "$listed" = unlisted ] && [ "$fw" != "$(cat "$D/compat-ok" 2>/dev/null)" ]; then
   echo "$fw" > "$D/compat-stopped"
   say "home: software $fw isn't in compat.json and wasn't agreed to at install; LG's Home stays (hometv-lg root <tv ip> --home-again asks)"
   exit 0

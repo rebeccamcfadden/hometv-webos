@@ -6,7 +6,7 @@
 //   decide.js aftersam <sdk version> <home kind>  -> the services to restart after sam (may be empty)
 //   decide.js stage <stock home appinfo.json> <out>  writes the appinfo.json for HomeTV over LG's Home
 //   decide.js family <model name>                 -> the model family (43UT8000AUA -> UT80), or nothing
-//   decide.js compat <compat.json> <model> <firmware>  -> "listed <status>: <note>" or "unlisted"
+//   decide.js compat <compat.json> <model> <firmware>  -> "listed <status>: <note>", "unlisted", or "nolist" (no list)
 var fs = require('fs');
 
 function rj(f, d) {
@@ -96,8 +96,9 @@ if (require.main === module) {
   else if (a[0] === 'stage') stage(a[1], a[2]);
   else if (a[0] === 'family') console.log(family(a[1]));
   else if (a[0] === 'compat') {
+    var l = rj(a[1], null);
     var e = compat(a[1], a[2], a[3]);
-    console.log(e ? 'listed ' + (e.status || '') + ': ' + (e.note || '') : 'unlisted');
+    console.log(!l || !Array.isArray(l.entries) ? 'nolist' : e ? 'listed ' + (e.status || '') + ': ' + (e.note || '') : 'unlisted');
   } else {
     console.error('usage: decide.js kind|takeover|aftersam|stage|family|compat');
     process.exit(2);

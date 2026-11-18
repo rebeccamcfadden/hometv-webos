@@ -16,13 +16,14 @@ const SECRET_ARG = new RegExp('\\b((?:' + SECRET_NAMES + ')=)[^\\s&"\']+', 'gi')
 
 /** Masks `text`. `host`: the TV's address or name as the person typed it; `home`: a folder shown as %USERPROFILE%. */
 export function mask(text, { host, home } = {}) {
-  let s = String(text);
+  // URLs and secrets first: once the host is <tv ip>, a URL to the TV would no longer look like one
+  let s = String(text)
+    .replace(URL_PATH, '$1/…')
+    .replace(SECRET_JSON, '$1…"')
+    .replace(SECRET_ARG, '$1…');
   if (host) s = s.split(host).join('<tv ip>');
   if (home) s = s.split(home).join('%USERPROFILE%');
   return s
-    .replace(URL_PATH, '$1/…')
-    .replace(SECRET_JSON, '$1…"')
-    .replace(SECRET_ARG, '$1…')
     .replace(MAC, '<mac>')
     .replace(IPV6, '<ip6>')
     .replace(IPV4, '<ip>');

@@ -32,6 +32,7 @@ fw=$(info firmwareVersion)
 fam=$(node "$SRC/decide.js" family "$model")
 listed=$(node "$SRC/decide.js" compat "$SRC/compat.json" "$model" "$fw")
 case "$listed" in
+  nolist) fail "compat.json is missing or unreadable in $SRC" ;;
   listed*) rm -f "$D/compat-ok"; say "install: software $fw ($fam): $listed" ;;
   *)
     [ "$1" = --unlisted-ok ] || fail "unlisted: software ${fw:-unknown} on a ${fam:-model of unknown family} isn't in compat.json (nobody has checked HomeTV's takeover there)"

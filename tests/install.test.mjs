@@ -153,6 +153,7 @@ test('scrub takes out addresses, MACs, URL paths, secrets and the home folder, k
   // lasharor's sharelog.js rules (tools/lib/mask.mjs): URL paths, secret values; and IPv6; times and versions stay
   assert.equal(scrub('http://192.168.1.50:8766/report?code=1 https://example.com/u/someone/list'),
     'http://<ip>:8766/… https://example.com/…');
+  assert.equal(scrub('GET http://tv.local:3000/api/secret/abc', 'tv.local'), 'GET http://<tv ip>:3000/…', 'a URL to the TV itself');
   assert.equal(scrub('{"token": "abc", "apiKey": "z", "password":"p"} token=abc123secret&x=1 secret=s'),
     '{"token": "…", "apiKey": "…", "password":"…"} token=…&x=1 secret=…');
   assert.equal(scrub('fe80::1 2001:db8::8a2e:370:7334 at 12:30:45 on 2026-11-18, luna://com.webos.service.tv.systemproperty/getSystemInfo'),

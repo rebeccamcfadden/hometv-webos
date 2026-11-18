@@ -404,6 +404,21 @@ test('undo-home leaves a mount over LG\'s Home that isn\'t HomeTV\'s alone: no u
   }
 });
 
+test('a foreign mount stacked over HomeTV\'s is left alone (only the top mount counts)', { skip: !SH }, async () => {
+  const s = setup();
+  try {
+    s.run('10-hometv-home');
+    await s.waitFor(/launch/);
+    fs.rmSync(path.join(s.D, 'home-overlay', '.hometv-overlay'));
+    fs.appendFileSync(path.join(s.t, 'mounts'), 'other ' + HOME_APP + ' none bind 0 0\n');
+    fs.appendFileSync(path.join(s.t, 'mountinfo'), '41 20 0:9 /someone-else/home ' + HOME_APP + ' rw - none none\n');
+    assert.throws(() => s.run('undo-home.sh', 'temp'), (e) => /isn't HomeTV's; left alone/.test(String(e.stderr)));
+    assert.doesNotMatch(s.read('stub.log'), /umount/);
+  } finally {
+    s.done();
+  }
+});
+
 test('HomeTV\'s mount still busy: undo-home says so, uninstall keeps the folder; after the restart it finishes', { skip: !SH }, async () => {
   const s = setup();
   try {
@@ -482,7 +497,15 @@ test('install refuses firmware not in compat.json unless agreed; the hook steps 
     s.env.STUB_FW = '';
     s.run('10-hometv-home');
     assert.ok(s.mounted());
-    assert.match(s.read('boot.log'), /couldn't read the software version; going on/);
+    assert.match(s.read('boot.log'), /couldn't check the software version against compat\.json \(unread, no answer\); going on/);
+    // no compat.json (an in-TV update from a version without it): the hook goes on too
+    s.run('undo-home.sh', 'temp');
+    s.env.STUB_FW = '33.31.90';
+    fs.rmSync(path.join(s.D, 'compat.json'));
+    s.run('10-hometv-home');
+    assert.ok(s.mounted());
+    assert.match(s.read('boot.log'), /\(33\.31\.90, nolist\); going on/);
+    assert.throws(() => s.run('install.sh'), (e) => /compat\.json is missing/.test(String(e.stderr)));
   } finally {
     s.done();
   }
