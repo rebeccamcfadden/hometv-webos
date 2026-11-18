@@ -116,18 +116,35 @@ const REFRESH_SAYS = (p) => '  First it brings the TV\'s copy of HomeTV\'s root 
 async function refresh(ctx, shell, p) {
   const files = (ctx.rootFiles || rootFiles)();
   const keep = p.dir + '/backup/scripts-before';
-  await shell.run('mkdir -p ' + sq(keep) + ' && for f in ' + files.map((f) => sq(f.name)).join(' ') + '; do [ -f ' + sq(p.dir) + '/"$f" ] && cp ' + sq(p.dir) + '/"$f" ' + sq(keep) + '/; done; true');
+  const names = files.map((f) => sq(f.name)).join(' ');
+  const drop = () => shell.run('cd ' + sq(p.dir) + ' && for f in ' + names + '; do rm -f "$f.new"; done; true');
+  // the TV's own scripts, kept once: a later run never writes over the first "before"
+  const kept = await shell.run('[ -d ' + sq(keep) + ' ] || { mkdir -p ' + sq(keep + '.part') + ' && cd ' + sq(p.dir) + ' && for f in ' + names +
+    '; do [ ! -f "$f" ] || cp "$f" ' + sq(keep + '.part') + '/ || exit 1; done && mv ' + sq(keep + '.part') + ' ' + sq(keep) + '; }');
+  if (kept.code !== 0) return stop('Couldn\'t keep a copy of the TV\'s root scripts first (' + keep + ').', 'Nothing changed. Check the TV\'s storage isn\'t full, then run this again.');
+  // every new file written and checked beside the old one first; then all swapped in one command
   for (const f of files) {
-    const dst = p.dir + '/' + f.name;
-    const mode = /\.sh$|^\d\d-/.test(f.name) ? '755' : '644';
-    const r = await shell.run('cat > ' + sq(dst + '.new') + ' && chmod ' + mode + ' ' + sq(dst + '.new') + ' && mv ' + sq(dst + '.new') + ' ' + sq(dst), { input: f.data });
-    if (r.code !== 0) return stop('Couldn\'t copy ' + f.name + ' to the TV.', 'Nothing else changed; the older scripts are in ' + keep + '. Run this again.');
+    const r = await shell.run('cat > ' + sq(p.dir + '/' + f.name + '.new'), { input: f.data });
+    if (r.code !== 0) {
+      await drop();
+      return stop('Couldn\'t copy ' + f.name + ' to the TV.', 'Nothing changed. Run this again.');
+    }
   }
-  const sums = String((await shell.run('cd ' + sq(p.dir) + ' && sha256sum ' + files.map((f) => sq(f.name)).join(' ') + ' 2>/dev/null; true')).stdout || '');
+  const sums = String((await shell.run('cd ' + sq(p.dir) + ' && for f in ' + names + '; do sha256sum "$f.new"; done 2>/dev/null; true')).stdout || '');
   // "<hash>  <name>" (a * before the name in binary mode)
-  const got = new Map(sums.split(/\r?\n/).map((l) => /^([0-9a-f]{64}) [ *](.+)$/.exec(l.trim())).filter(Boolean).map((m) => [m[2], m[1]]));
+  const got = new Map(sums.split(/\r?\n/).map((l) => /^([0-9a-f]{64}) [ *](.+)\.new$/.exec(l.trim())).filter(Boolean).map((m) => [m[2], m[1]]));
   const bad = files.filter((f) => got.get(f.name) !== crypto.createHash('sha256').update(f.data).digest('hex'));
-  if (bad.length) return stop('The root scripts on the TV don\'t match this program\'s: ' + bad.map((f) => f.name).join(', ') + '.', 'Run this again; if it stays, tell the HomeTV team.');
+  if (bad.length) {
+    await drop();
+    return stop('The root scripts copied to the TV don\'t match this program\'s: ' + bad.map((f) => f.name).join(', ') + '.', 'Nothing changed. Run this again; if it stays, tell the HomeTV team.');
+  }
+  const swap = await shell.run('cd ' + sq(p.dir) + ' && for f in ' + files.map((f) => sq(f.name + ':' + (/\.sh$|^\d\d-/.test(f.name) ? '755' : '644'))).join(' ') +
+    '; do n=${f%:*}; chmod "${f##*:}" "$n.new" && mv "$n.new" "$n" || exit 1; done');
+  if (swap.code !== 0) {
+    await shell.run('cp ' + sq(keep) + '/* ' + sq(p.dir) + '/ 2>/dev/null; true');
+    await drop();
+    return stop('Swapping in the new root scripts failed part-way; the TV\'s own were put back from ' + keep + '.', 'Run this again; if it stays, tell the HomeTV team.');
+  }
   ctx.say('  ✓ ' + files.length + ' root scripts on the TV are this program\'s (SHA-256 checked)');
   const tvVersion = String((await shell.run('node -e ' + sq('try{console.log(require(process.argv[1]).version||"")}catch(e){console.log("")}') + ' ' + sq(p.app + '/appinfo.json') + ' 2>/dev/null; true')).stdout || '').trim();
   const found = await findIpk(ctx);

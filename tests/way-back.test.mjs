@@ -300,7 +300,11 @@ test('hometv-lg root --home-again: after "Use LG\'s Home", the hooks come back a
   try {
     assert.equal(s.tvSh('sh ' + s.ctx.tvPaths.dir + '/undo-home.sh at-restart').status, 0);
     assert.deepEqual(s.hooks(), []);
+    fs.appendFileSync(s.p('hometv', 'watchdog.sh'), '# the TV\'s own copy\n');
     const r = await runWayBack(s.ctx, 'home-again');
+    assert.match(fs.readFileSync(s.p('hometv', 'backup', 'scripts-before', 'watchdog.sh'), 'utf8'), /the TV's own copy/, 'the old scripts kept');
+    assert.doesNotMatch(fs.readFileSync(s.p('hometv', 'watchdog.sh'), 'utf8'), /the TV's own copy/);
+    assert.deepEqual(fs.readdirSync(s.p('hometv')).filter((f) => f.endsWith('.new')), [], 'nothing half-done left');
     assert.ok(r.done, s.text());
     assert.deepEqual(s.hooks(), ['10-hometv-home', '15-hometv-debloat']);
     assert.ok(!fs.existsSync(s.p('hometv', 'DISABLE')));
