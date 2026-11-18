@@ -9,6 +9,8 @@
  *   token      the screen's token for the loopback routes; "" until the server holds its port. Never written to disk
  *   tmdbKey    the TMDB key the household sent, or ""; priceKeys the Watchmode and Movie of the Night keys
  *   stop       closes the server now
+ *   keysSaved  { keys: { tmdb, watchmode, motn } }: each saved key's fingerprint (SHA-256, 12 hex), read afresh from the
+ *              file; no key. Anyone may ask: hometv-lg root asks from the root shell once it has put the keys back
  * The root edition's way back (docs/root-plan.md, levels 0 and 1; root/undo-home.sh does the work, as root: the start-up
  * hook elevates this service at each start):
  *   rootState  { edition, hooked, chosen, ranThisStart }: root/ is on the TV; its start-up hook is linked; "Use LG's
@@ -22,7 +24,7 @@
  *   updateInstall { version }: downloads and checks every file, then update-apply.js swaps them in, detached, as root;
  *                 answers at once, the page follows it with updateStatus
  *   updateStatus  { last, busy }: the last update's record (updates/last.json)
- * Every method but `alive` and `version` wants a caller that is HomeTV's page, or LG's Home with HomeTV mounted over it: a TV that
+ * Every method but `alive`, `version` and `keysSaved` wants a caller that is HomeTV's page, or LG's Home with HomeTV mounted over it: a TV that
  * doesn't say who called is refused, because these hand out keys or change Home. Nothing is sent anywhere but the key
  * checks that pages.js makes (one free request per key, to its own service) and the update requests (HTTPS GETs of the
  * release's manifest and, after Install update, its files); nothing is logged.
@@ -277,6 +279,12 @@ function createMethods(deps) {
       if (!p) return;
       message.respond({ returnValue: true, watchmode: p.keyOf('watchmode'), motn: p.keyOf('motn') });
     },
+    keysSaved: function (message) {
+      // Fingerprints only, no key: anyone may ask (hometv-lg root asks from the root shell after putting keys back).
+      var p = one(message);
+      if (!p) return;
+      message.respond({ returnValue: true, keys: p.fingerprints() });
+    },
     rootState: function (message) {
       if (!exact(message)) return refuse(message);
       var s = rootStateOf(rootDir, initd, bootIdFile);
@@ -390,7 +398,7 @@ try {
 if (Service) {
   var service = new Service(ID);
   methods = createMethods({ activities: service.activityManager });
-  ['alive', 'start', 'stop', 'token', 'tmdbKey', 'priceKeys', 'rootState', 'useLgHome', 'version', 'updateCheck', 'updateStatus', 'updateInstall'].forEach(function (name) {
+  ['alive', 'start', 'stop', 'token', 'tmdbKey', 'priceKeys', 'keysSaved', 'rootState', 'useLgHome', 'version', 'updateCheck', 'updateStatus', 'updateInstall'].forEach(function (name) {
     service.register(name, methods[name]);
   });
 }

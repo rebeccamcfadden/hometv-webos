@@ -14,12 +14,23 @@ import { fakeTv, tvWithState } from './fake-ssap.mjs';
 import { fakeTelnet, fakeRootedTv, SH } from './fake-telnet.mjs';
 import { runInstall, STEPS, ROOT_STEPS, loadState, scrub, rootFiles } from '../tools/lib/install-steps.mjs';
 import { telnetParser, telnetShell, pushFile } from '../tools/lib/telnet.mjs';
+import { keepKeys, keptKeys, fingerprint, windowsVault, KEPT_FILE } from '../tools/lib/keep-keys.mjs';
+import { createRequire } from 'node:module';
+
+const pages = createRequire(import.meta.url)('../service/pages.js');
 
 const APP = 'com.hometv.app';
 const HOME = 'com.webos.app.home';
 const DEVMODE = 'com.palmdts.devmode';
 const HBC = 'org.webosbrew.hbchannel';
-const SECRETS = ['SECRET123', 'aa:bb:cc', '127.0.0.1', os.homedir()];
+// a pretend TMDB read token, as HomeTV's key page saves it on the TV: it may show only as its last 4 characters
+const TOKEN = 'eyJhbGciOiJIUzI1NiJ9.fakeTmdbReadToken.sig9Wq7';
+const SECRETS = ['SECRET123', 'aa:bb:cc', '127.0.0.1', os.homedir(), TOKEN, 'fakeTmdbReadToken'];
+/** Stands in for Windows' DPAPI: what it keeps is unreadable as text; `fail` stands for another Windows user. */
+const fakeVault = (box = {}) => ({
+  protect: (b) => Buffer.from(b.map((x) => x ^ 0x5a)),
+  unprotect: (b) => { if (box.fail) throw new Error('not this user'); return Buffer.from(b.map((x) => x ^ 0x5a)); }
+});
 
 function scratch(name) {
   const d = path.resolve('dist', 'test-' + name + '-' + crypto.randomBytes(4).toString('hex'));
@@ -59,7 +70,8 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
   const slopbro = [];
   const logins = [];
   const sticks = [];
-  const flags = { defaultPassword: false, lost: [], homeUp: 'mounted\nalive\n', rollBacks: 0, rollBackCut: false };
+  const flags = { defaultPassword: false, lost: [], homeUp: 'mounted\nalive\n', rollBacks: 0, rollBackCut: false, devKeys: null, devLogin: true, keysSaved: 'ok' };
+  const keysDir = path.join(t, 'tv', 'private');
   const ctx = {
     host: '127.0.0.1', dir: laptop, ipk, kit, verifyWaitMs: 0,
     ssapPorts: [{ url: 'ws://127.0.0.1:' + ws + '/', insecure: false }],
@@ -75,10 +87,23 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
       return '';
     },
     runSlopbro: async (k, host, args = []) => { slopbro.push([...args, host].join(' ')); state.apps.push(HBC); return 0; },
+    vault: fakeVault(),
+    // Developer Mode's SSH (prisoner): HomeTV's keys file, as its key page saved it (flags.devKeys), in the first folder
+    devShell: (o) => ({
+      async run(cmd) {
+        logins.push({ ...o, cmd });
+        if (!flags.devLogin) return { code: 255, stdout: '', stderr: 'Permission denied (publickey).' };
+        if (cmd === 'id -un') return { code: 0, stdout: 'prisoner\n', stderr: '' };
+        if (cmd.includes('hometv-keys-v1.json')) {
+          return { code: 0, stdout: flags.devKeys === 'unreadable' ? '--hometv-keys-unreadable--\n' : flags.devKeys ? '--hometv-keys--\n' + flags.devKeys + '\n' : '', stderr: '' };
+        }
+        return { code: 127, stdout: '', stderr: 'not in the pretend ssh' };
+      }
+    }),
     // a pretend Windows ssh (tools/lib/root-shell.mjs's shape): root when the key is the one the TV was given; answers
     // the restart check's key-only check and Homebrew Channel's switches from the folder standing for the TV
     rootShell: (o) => ({
-      async run(cmd) {
+      async run(cmd, { input = null } = {}) {
         logins.push({ ...o, cmd });
         const ak = path.join(t, 'tv', 'ssh', 'authorized_keys');
         const ok = fs.existsSync(ak) && fs.existsSync(o.key + '.pub') &&
@@ -89,6 +114,18 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
         if (cmd.includes('hbchannel.service/getConfiguration')) {
           const f = (n) => !flags.lost.includes(n) && fs.existsSync(path.join(t, 'tv', 'prefs', 'webosbrew_' + n));
           return { code: 0, stdout: JSON.stringify({ returnValue: true, root: true, telnetDisabled: f('telnet_disabled'), sshdEnabled: f('sshd_enabled'), blockUpdates: f('block_updates') }), stderr: '' };
+        }
+        // HomeTV's keys file on the root edition (keys-back): read, written from the connection, read by the real pages.js
+        const keysFile = path.join(keysDir, 'hometv-keys-v1.json');
+        if (cmd.startsWith('cat ') && cmd.includes('hometv-keys-v1.json')) return { code: 0, stdout: fs.existsSync(keysFile) ? fs.readFileSync(keysFile, 'utf8') : '', stderr: '' };
+        if (cmd.includes('keys-written')) {
+          fs.mkdirSync(keysDir, { recursive: true });
+          fs.writeFileSync(keysFile, input);
+          return { code: 0, stdout: 'keys-written\n', stderr: '' };
+        }
+        if (cmd.includes('com.hometv.app.service/keysSaved')) {
+          if (flags.keysSaved === 'down') return { code: 1, stdout: '', stderr: 'Error: no answer' };
+          return { code: 0, stdout: JSON.stringify({ returnValue: true, keys: pages.create({ dataDir: keysDir, port: 0 }).fingerprints() }), stderr: '' };
         }
         // the takeover check: mounted over LG's Home, the page's heartbeat fresh
         if (cmd.includes('statSync')) return { code: 0, stdout: flags.homeUp, stderr: '' };
@@ -109,7 +146,7 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
     if (tn) await tn.stop();
     fs.rmSync(t, { recursive: true, force: true });
   };
-  return { t, ctx, state, out, asked, slopbro, logins, sticks, tn, rooted, laptop, flags, done, text: () => out.join('\n') };
+  return { t, ctx, state, out, asked, slopbro, logins, sticks, tn, rooted, laptop, flags, keysDir, done, text: () => out.join('\n') };
 }
 
 // The answers a person gives on the happy path; the hooks do what the person does on the TV meanwhile.
@@ -621,7 +658,7 @@ test('the command line: --list, usage, and the double-click menu\'s install choi
     assert.ok(!fs.readFileSync(path.join(dir, 'install-log.txt'), 'utf8').includes('127.0.0.1'));
     // 4: hometv-lg root, from its checklist (here the backup is there; the first question's "no" stops it)
     const root = await menu('4');
-    assert.match(root, /Step 1 of 7: Before root: the checklist/);
+    assert.match(root, /Step 1 of 9: Before root: the checklist/);
     assert.match(root, /photos of the TV's settings aren't taken/);
   } finally {
     tv.server.close();
@@ -667,16 +704,31 @@ const report = (s) => {
 
 test('hometv-lg root: the checklist and "Clear the way", then the install\'s own steps from root-checks on', () => {
   assert.deepEqual(ROOT_STEPS.map((s) => s.id),
-    ['root-preflight', 'clear-the-way', 'root-checks', 'root', 'hbc-check', 'root-install', 'restart-check']);
-  for (const id of ROOT_STEPS.slice(2).map((s) => s.id)) assert.equal(ROOT_STEPS.find((s) => s.id === id), STEPS.find((s) => s.id === id), id);
+    ['root-preflight', 'keep-keys', 'clear-the-way', 'root-checks', 'root', 'hbc-check', 'root-install', 'restart-check', 'keys-back']);
+  for (const id of ROOT_STEPS.slice(3, -1).map((s) => s.id)) assert.equal(ROOT_STEPS.find((s) => s.id === id), STEPS.find((s) => s.id === id), id);
   for (const s of ROOT_STEPS) assert.ok(s.title && s.what && s.undo && typeof s.run === 'function', s.id);
 });
 
-test('hometv-lg root, the whole way: checklist, clear the way, root, lock-down, restart, one report', { skip: !SH, timeout: 180000 }, async () => {
+test('hometv-lg root, the whole way: checklist, keys kept, clear the way, root, lock-down, restart, keys back, one report', { skip: !SH, timeout: 180000 }, async () => {
   const s = await rootSetup();
+  // HomeTV's key page saved the TMDB token under Developer Mode; the laptop has Developer Mode's key (hometv-lg devmode)
+  s.flags.devKeys = JSON.stringify({ code: 'OLDC2345', keys: { tmdb: { key: TOKEN, state: 'ok' }, watchmode: { key: '', state: '' } } });
+  fs.writeFileSync(path.join(s.laptop, 'devmode_rsa'), 'a pretend key');
+  // the root edition's service already made its own file, with a new phone code
+  fs.mkdirSync(s.keysDir, { recursive: true });
+  fs.writeFileSync(path.join(s.keysDir, 'hometv-keys-v1.json'), JSON.stringify({ code: 'NEWC2345', keys: {} }));
   try {
     const r = await runInstall(s.ctx, ROOT_RUN);
     assert.deepEqual(r, { done: true }, s.text());
+    // kept before Clear the way, put back after the restart check, read by HomeTV, and the laptop's copy gone
+    assert.match(s.text(), /✓ kept on this laptop, encrypted for this Windows user: TMDB …9Wq7/);
+    assert.match(s.text(), /put back, and HomeTV reads them: TMDB …9Wq7; the laptop's copy is deleted/);
+    const onTv = JSON.parse(fs.readFileSync(path.join(s.keysDir, 'hometv-keys-v1.json'), 'utf8'));
+    assert.equal(onTv.keys.tmdb.key, TOKEN);
+    assert.equal(onTv.code, 'NEWC2345', 'the root edition\'s phone code stays');
+    assert.equal(fs.existsSync(path.join(s.laptop, KEPT_FILE)), false);
+    assert.ok(s.logins.every((l) => !l.cmd.includes(TOKEN)), 'never on a command line');
+    assert.ok(s.text().indexOf('kept on this laptop') < s.text().indexOf('Developer Mode copy and the Developer Mode app are deleted'));
     assert.deepEqual(s.slopbro, ['127.0.0.1']);
     // asked once each: no second restart or USB question in root-checks
     assert.equal(s.asked.filter((q) => q.includes('USB stick')).length, 1);
@@ -705,7 +757,7 @@ test('hometv-lg root, the whole way: checklist, clear the way, root, lock-down, 
     assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { done: true });
     assert.equal(s.slopbro.length, 1);
     assert.equal(s.tn.seen.connections, before);
-    assert.match(s.text(), /Step 1 of 7: Before root: the checklist \(done/);
+    assert.match(s.text(), /Step 1 of 9: Before root: the checklist \(done/);
   } finally {
     await s.done();
   }
@@ -803,7 +855,7 @@ test('hometv-lg root: "Clear the way" stops while HomeTV or the Developer Mode a
     s.out.length = 0;
     s.asked.length = 0;
     assert.deepEqual(await runInstall(s.ctx, ROOT_RUN), { stopped: 'clear-the-way' });
-    assert.match(s.text(), /Step 1 of 7: Before root: the checklist \(done/);
+    assert.match(s.text(), /Step 1 of 9: Before root: the checklist \(done/);
     assert.equal(s.asked.filter((q) => q.includes('photographed')).length, 0);
     assert.match(s.text(), /delete HomeTV:/);
     assert.match(s.text(), /HomeTV still on the TV/);
@@ -881,9 +933,10 @@ test('the command line: hometv-lg root --list and its usage', { timeout: 30000 }
     const env = { ...process.env, HOMETV_DIR: dir };
     const list = execFileSync(process.execPath, ['tools/hometv-lg.mjs', 'root', '--list'], { env, encoding: 'utf8' });
     assert.match(list, /^1\. root-preflight +not run +Before root: the checklist/);
-    assert.match(list, /7\. restart-check +not run/);
+    assert.match(list, /8\. restart-check +not run/);
+    assert.match(list, /9\. keys-back +not run/);
     assert.throws(() => execFileSync(process.execPath, ['tools/hometv-lg.mjs', 'root', '127.0.0.1', '--from', 'backup'], { env, stdio: 'pipe' }),
-      (e) => /hometv-lg root <tv address>/.test(String(e.stderr)) && /Steps: root-preflight, clear-the-way/.test(String(e.stderr)));
+      (e) => /hometv-lg root <tv address>/.test(String(e.stderr)) && /Steps: root-preflight, keep-keys, clear-the-way/.test(String(e.stderr)));
     const { spawnSync } = await import('node:child_process');
     assert.match(spawnSync(process.execPath, ['tools/hometv-lg.mjs', 'help'], { env, encoding: 'utf8' }).stdout, /hometv-lg root <tv address>/);
   } finally {
@@ -913,5 +966,151 @@ test('hometv-lg root: an older run\'s checklist or "Clear the way" never spares 
     assert.deepEqual(s.slopbro, ['127.0.0.1']);
   } finally {
     await s.done();
+  }
+});
+
+// --- B10: HomeTV's saved keys through root (the project lead, 2026-11-18): kept before Clear the way, put back after root
+
+const KEEP = { steps: ROOT_STEPS.filter((st) => st.id === 'keep-keys'), name: 'root' };
+const BACK = { steps: ROOT_STEPS.filter((st) => st.id === 'keys-back'), name: 'root', report: true };
+
+/** A TV with HomeTV and Developer Mode on, its key page holding the token; the laptop with Developer Mode's key. */
+async function keysSetup() {
+  const s = await setup({ telnet: false, apps: ['netflix', DEVMODE, APP] });
+  s.flags.devKeys = JSON.stringify({ code: 'OLDC2345', keys: { tmdb: { key: TOKEN, state: 'ok' } } });
+  fs.writeFileSync(path.join(s.laptop, 'devmode_rsa'), 'a pretend key');
+  return s;
+}
+
+/** The laptop's own SSH key, on the pretend TV (root-install puts it there): the pretend root shell logs in with it. */
+async function letIn(s) {
+  const { laptopKey } = await import('../tools/lib/sshkey.mjs');
+  fs.mkdirSync(path.join(s.t, 'tv', 'ssh'), { recursive: true });
+  fs.writeFileSync(path.join(s.t, 'tv', 'ssh', 'authorized_keys'), laptopKey(s.laptop).publicLine + '\n');
+}
+
+test('keys: kept on the laptop encrypted, only the last 4 shown; a re-run keeps the copy it has', async () => {
+  const s = await keysSetup();
+  try {
+    assert.deepEqual(await runInstall(s.ctx, KEEP), { done: true }, s.text());
+    assert.match(s.text(), /✓ kept on this laptop, encrypted for this Windows user: TMDB …9Wq7/);
+    const blob = fs.readFileSync(path.join(s.laptop, KEPT_FILE));
+    assert.ok(!blob.toString('latin1').includes('fakeTmdbReadToken'), 'the copy is encrypted');
+    assert.equal(keptKeys(s.laptop, fakeVault()).keys.tmdb.key, TOKEN);
+    assert.equal(loadState(s.laptop).steps['keep-keys'].note, 'kept on this laptop, encrypted for this Windows user: TMDB …9Wq7');
+    s.flags.devLogin = false;
+    s.out.length = 0;
+    assert.deepEqual(await runInstall(s.ctx, { ...KEEP, from: 'keep-keys' }), { done: true });
+    assert.match(s.text(), /kept already on this laptop: TMDB …9Wq7/);
+    noSecrets(s);
+  } finally {
+    await s.done();
+  }
+});
+
+test('keys: a read that fails says so and carries on, keeping nothing (the token is typed again after root)', async () => {
+  const cases = [
+    [(s) => { s.flags.devLogin = false; }, /couldn't log in to Developer Mode's SSH/],
+    [(s) => { s.flags.devKeys = 'unreadable'; }, /Developer Mode's account isn't allowed to read HomeTV's keys file/],
+    [(s) => { fs.rmSync(path.join(s.laptop, 'devmode_rsa')); }, /you chose not to read them/],
+    [(s) => { s.ctx.vault = { protect: () => { throw new Error('Windows couldn\'t encrypt it (DPAPI)'); } }; }, /couldn't encrypt them \(Windows couldn't encrypt it \(DPAPI\)\); nothing was written/]
+  ];
+  for (const [arrange, msg] of cases) {
+    const s = await keysSetup();
+    arrange(s);
+    try {
+      assert.deepEqual(await runInstall(s.ctx, KEEP), { done: true }, String(msg));
+      assert.match(s.text(), msg);
+      assert.match(s.text(), /The keys weren't kept: .*Carrying on: after root, type the TMDB token again on HomeTV's key page from the phone/);
+      assert.equal(fs.existsSync(path.join(s.laptop, KEPT_FILE)), false);
+      noSecrets(s);
+    } finally {
+      await s.done();
+    }
+  }
+  // no saved keys at all: nothing to keep, and nothing to put back later
+  const s = await keysSetup();
+  s.flags.devKeys = JSON.stringify({ code: 'OLDC2345', keys: { tmdb: { key: '', state: '' } } });
+  try {
+    assert.deepEqual(await runInstall(s.ctx, KEEP), { done: true });
+    assert.match(s.text(), /nothing kept: HomeTV has no saved keys on the TV/);
+    assert.deepEqual(await runInstall(s.ctx, { ...BACK, report: false }), { done: true });
+    assert.match(s.text(), /skipped: no keys were kept on this laptop/);
+  } finally {
+    await s.done();
+  }
+});
+
+test('keys: put back after root, read by HomeTV\'s service, then the laptop\'s copy deleted', async () => {
+  const s = await setup({ telnet: false });
+  await letIn(s);
+  keepKeys(s.laptop, { tmdb: { key: TOKEN, state: 'ok' } }, s.ctx.vault);
+  try {
+    assert.deepEqual(await runInstall(s.ctx, BACK), { done: true }, s.text());
+    const onTv = JSON.parse(fs.readFileSync(path.join(s.keysDir, 'hometv-keys-v1.json'), 'utf8'));
+    assert.deepEqual(onTv.keys.tmdb, { key: TOKEN, state: 'ok' });
+    assert.equal(pages.create({ dataDir: s.keysDir, port: 0 }).keyOf('tmdb'), TOKEN, 'HomeTV\'s key page reads it');
+    assert.equal(fs.existsSync(path.join(s.laptop, KEPT_FILE)), false);
+    assert.match(report(s), /\[done\] After root: HomeTV.s saved keys put back/);
+    assert.ok(s.logins.every((l) => !l.cmd.includes(TOKEN)));
+    noSecrets(s);
+  } finally {
+    await s.done();
+  }
+});
+
+test('keys: put back fails: the copy is kept, the words say root is done and what to do; another Windows user can\'t open it', async () => {
+  const s = await setup({ telnet: false });
+  await letIn(s);
+  keepKeys(s.laptop, { tmdb: { key: TOKEN, state: 'ok' } }, s.ctx.vault);
+  s.flags.keysSaved = 'down';
+  s.ctx.keysWaitMs = 0;
+  try {
+    assert.deepEqual(await runInstall(s.ctx, BACK), { stopped: 'keys-back' });
+    assert.match(s.text(), /HomeTV's keys \(TMDB …9Wq7\) weren't put back: HomeTV's service didn't answer/);
+    assert.match(s.text(), /HomeTV is Home and root is done; only the saved keys aren't back\. The laptop's copy is kept, encrypted \(lg-keys-kept\.dpapi\)/);
+    assert.match(s.text(), /--from keys-back, or type the TMDB token on the key page from the phone/);
+    assert.ok(fs.existsSync(path.join(s.laptop, KEPT_FILE)));
+    assert.match(report(s), /\[stopped\] After root: HomeTV.s saved keys put back/);
+    // the service answers with another key (it kept its own in memory, say): still not taken as back
+    s.flags.keysSaved = 'ok';
+    fs.writeFileSync(path.join(s.keysDir, 'hometv-keys-v1.json'), '{}');
+    const realBack = s.ctx.rootShell;
+    s.ctx.rootShell = (o) => {
+      const sh = realBack(o);
+      return { run: (cmd, opt) => cmd.includes('keysSaved') ? Promise.resolve({ code: 0, stdout: '{"returnValue":true,"keys":{"tmdb":"000000000000"}}', stderr: '' }) : sh.run(cmd, opt) };
+    };
+    s.out.length = 0;
+    assert.deepEqual(await runInstall(s.ctx, BACK), { stopped: 'keys-back' });
+    assert.match(s.text(), /HomeTV reads another TMDB key, or none/);
+    assert.ok(fs.existsSync(path.join(s.laptop, KEPT_FILE)));
+    // run as another Windows user: the copy doesn't open, and stays
+    s.ctx.rootShell = realBack;
+    s.ctx.vault = fakeVault({ fail: true });
+    s.out.length = 0;
+    assert.deepEqual(await runInstall(s.ctx, BACK), { stopped: 'keys-back' });
+    assert.match(s.text(), /couldn't be opened: the copy opens only for the Windows user who kept it/);
+    assert.ok(fs.existsSync(path.join(s.laptop, KEPT_FILE)));
+    // back as the right user, the service answering: it goes through
+    s.ctx.vault = fakeVault();
+    s.out.length = 0;
+    assert.deepEqual(await runInstall(s.ctx, BACK), { done: true }, s.text());
+    assert.equal(fs.existsSync(path.join(s.laptop, KEPT_FILE)), false);
+    noSecrets(s);
+  } finally {
+    await s.done();
+  }
+});
+
+test('keys: Windows\' DPAPI keeps and opens them for this user', { skip: process.platform !== 'win32', timeout: 60000 }, () => {
+  const dir = scratch('dpapi');
+  try {
+    const v = windowsVault();
+    keepKeys(dir, { tmdb: { key: TOKEN, state: 'ok' } }, v);
+    assert.ok(!fs.readFileSync(path.join(dir, KEPT_FILE)).toString('latin1').includes('fakeTmdbReadToken'));
+    assert.equal(keptKeys(dir, v).keys.tmdb.key, TOKEN);
+    assert.equal(fingerprint(TOKEN).length, 12);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });

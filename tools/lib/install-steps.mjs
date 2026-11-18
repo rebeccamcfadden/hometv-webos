@@ -19,6 +19,8 @@ import { laptopKey, keyPaths } from './sshkey.mjs';
 import { checkStick } from './recovery.mjs';
 import { ROOTABLE } from './checks.mjs';
 import { mask } from './mask.mjs';
+import { keyFile as devmodeKeyFile, getKey as getDevmodeKey } from './devmode-key.mjs';
+import { DEVMODE_KEY_DIRS, ROOT_KEY_DIR, KEPT_FILE, describeKeys, readKeys, keepKeys, keptKeys, forgetKeys, putKeysBack, windowsVault } from './keep-keys.mjs';
 
 const ROOT_SWS = Object.keys(ROOTABLE).join(' or ');
 const SW_WHERE = 'Settings > All Settings > Support > TV Information, Software Version';
@@ -39,7 +41,8 @@ export const TV_PATHS = {
   home: '/usr/palm/applications/' + HOME,
   mounts: '/proc/mounts',
   alive: '/tmp/hometv-alive',
-  log: '/tmp/hometv-boot.log'
+  log: '/tmp/hometv-boot.log',
+  keys: ROOT_KEY_DIR
 };
 
 export const RESTART = 'unplug the TV from the wall, wait 30 seconds, plug it back in and turn it on (the remote\'s power ' +
@@ -755,6 +758,55 @@ export const ROOT_PRE = [
     }
   },
   {
+    id: 'keep-keys',
+    title: 'Before Clear the way: HomeTV\'s saved keys kept on this laptop',
+    what: 'Clear the way deletes HomeTV and the keys its key page saved (the TMDB token, and price keys if any). While ' +
+      'Developer Mode is still on, the laptop reads them over its SSH and keeps them in the HomeTV folder (' + KEPT_FILE + '), ' +
+      'encrypted so only this Windows user can open them (DPAPI). A key is never shown, only its last 4 characters. After ' +
+      'root they go back into HomeTV, and the laptop\'s copy is deleted. If they can\'t be read, it says so and carries on: ' +
+      'you type the TMDB token again on the key page from the phone after root.',
+    undo: 'Delete ' + KEPT_FILE + ' in the HomeTV folder (done for you once HomeTV reads the keys after root).',
+    async run(ctx) {
+      const apps = await withTv(ctx, appIds);
+      if (apps.has(HBC)) return { note: 'skipped: the TV is already rooted (Homebrew Channel is installed)' };
+      const vault = ctx.vault || windowsVault();
+      const kept = keptKeys(ctx.dir, vault);
+      if (kept.keys) return { note: 'kept already on this laptop: ' + describeKeys(kept.keys) };
+      if (!apps.has(APP) || !apps.has(DEVMODE)) {
+        return { note: 'nothing kept: ' + (apps.has(APP) ? 'the Developer Mode app' : 'HomeTV') + ' isn\'t on the TV, so its keys can\'t be read (type the TMDB token again after root)' };
+      }
+      const notKept = (why) => {
+        ctx.say('  The keys weren\'t kept: ' + why + '. Carrying on: after root, type the TMDB token again on HomeTV\'s key page from the phone.');
+        return { note: 'not kept (' + why + '); type the TMDB token again after root' };
+      };
+      let key = devmodeKeyFile(ctx.dir);
+      if (!fs.existsSync(key)) {
+        if (!yes(await ctx.ask('  HomeTV\'s saved keys are read over Developer Mode\'s SSH, which needs its key: switch Key Server on in the Developer Mode ' +
+          'app (it shows a passphrase). Get the key now? (n: carry on without keeping them) [y/N] '))) return notKept('you chose not to read them');
+        const got = await (ctx.getDevmodeKey || getDevmodeKey)(ctx.host, ctx.dir, ctx.ask, ctx.say);
+        if (got.error) return notKept('the Developer Mode key couldn\'t be had (' + got.error.replace(/\.$/, '') + ')');
+        key = got.file;
+      }
+      const shell = (ctx.devShell || sshShell)({
+        host: ctx.host, key, knownHosts: path.join(ctx.dir, 'devmode-known-hosts'), port: ctx.devSshPort || 9922, user: 'prisoner',
+        timeoutMs: 30000, options: ['-o', 'HostKeyAlgorithms=+ssh-rsa', '-o', 'PubkeyAcceptedKeyTypes=+ssh-rsa']
+      });
+      const who = await shell.run('id -un');
+      if (who.code !== 0 || String(who.stdout).trim() !== 'prisoner') {
+        return notKept('the laptop couldn\'t log in to Developer Mode\'s SSH (is Key Server on, and Developer Mode still on?)');
+      }
+      const r = await readKeys(shell, ctx.devKeyDirs || DEVMODE_KEY_DIRS);
+      if (!r.keys) return r.none ? { note: 'nothing kept: HomeTV has no saved keys on the TV' } : notKept(r.why);
+      try {
+        keepKeys(ctx.dir, r.keys, vault);
+      } catch (e) {
+        return notKept('this laptop couldn\'t encrypt them (' + String(e && e.message ? e.message : e).replace(/\.$/, '') + '); nothing was written');
+      }
+      ctx.say('  ✓ kept on this laptop, encrypted for this Windows user: ' + describeKeys(r.keys));
+      return { note: 'kept on this laptop, encrypted for this Windows user: ' + describeKeys(r.keys) };
+    }
+  },
+  {
     id: 'clear-the-way',
     title: 'Clear the way: HomeTV and the Developer Mode app deleted, then a restart',
     what: 'Root goes on a TV back to stock (docs/root-plan.md, step 5): you delete HomeTV\'s Developer Mode copy and the ' +
@@ -806,8 +858,38 @@ export const ROOT_PRE = [
   }
 ];
 
-/** hometv-lg root: the checklist, "Clear the way", then the same steps as hometv-lg install from root-checks on. */
-export const ROOT_STEPS = [...ROOT_PRE, ...STEPS.slice(STEPS.findIndex((s) => s.id === 'root-checks'))];
+/** After the restart check (hometv-lg root only): the keys "keep-keys" kept, back into the root edition's HomeTV. */
+const KEYS_BACK = {
+  id: 'keys-back',
+  title: 'After root: HomeTV\'s saved keys put back',
+  what: 'Writes the keys kept before Clear the way into the root edition\'s HomeTV over SSH (on the connection, never on a ' +
+    'command line; the phone code and any other key there stay), has HomeTV\'s service read them, and deletes the laptop\'s ' +
+    'copy once it does. If they can\'t be put back, the copy stays and it says what to do.',
+  undo: 'Send another key from the phone on HomeTV\'s key page, or clear it there.',
+  async run(ctx) {
+    const kept = keptKeys(ctx.dir, ctx.vault || windowsVault());
+    if (!kept.keys && !kept.why) return { note: 'skipped: no keys were kept on this laptop' };
+    const left = 'HomeTV is Home and root is done; only the saved keys aren\'t back. ';
+    if (!kept.keys) {
+      return stop('The laptop\'s copy of HomeTV\'s keys couldn\'t be opened: ' + kept.why + '.',
+        left + 'Run this again as that Windows user, or type the TMDB token on the key page from the phone, then delete ' + KEPT_FILE + ' in the HomeTV folder.');
+    }
+    const P = { ...TV_PATHS, ...ctx.tvPaths };
+    const { key, knownHosts } = keyPaths(ctx.dir);
+    const shell = (ctx.rootShell || sshShell)({ host: ctx.host, port: ctx.sshPort || 22, key, knownHosts });
+    const why = !(await isRoot(shell)) ? 'the laptop\'s key didn\'t log in over SSH' : await putKeysBack(shell, kept.keys, P.keys, { waitMs: ctx.keysWaitMs });
+    if (why) {
+      return stop('HomeTV\'s keys (' + describeKeys(kept.keys) + ') weren\'t put back: ' + why + '.',
+        left + 'The laptop\'s copy is kept, encrypted (' + KEPT_FILE + '). Restart the TV and run this again with --from keys-back, or type the ' +
+        'TMDB token on the key page from the phone, then delete that file.');
+    }
+    forgetKeys(ctx.dir);
+    return { note: 'put back, and HomeTV reads them: ' + describeKeys(kept.keys) + '; the laptop\'s copy is deleted' };
+  }
+};
+
+/** hometv-lg root: the checklist, "Clear the way", then the same steps as hometv-lg install from root-checks on, then the keys back. */
+export const ROOT_STEPS = [...ROOT_PRE, ...STEPS.slice(STEPS.findIndex((s) => s.id === 'root-checks')), KEYS_BACK];
 
 // --- The runner
 

@@ -797,6 +797,23 @@ function create(opts) {
       ensureLoaded();
       return KEY_IDS.indexOf(id) >= 0 ? data.keys[id].key : '';
     },
+    /**
+     * Reads the keys file again (hometv-lg root writes the keys back into it after root: tools/lib/keep-keys.mjs) and
+     * gives each key's fingerprint, the first 12 hex characters of its SHA-256 ("" when none): the laptop tells the key
+     * arrived without any key leaving. Not read again while a key is being checked, or with no private folder.
+     */
+    fingerprints: function () {
+      ensureLoaded();
+      var busy = false;
+      for (var i = 0; i < KEY_IDS.length; i++) if (checking[KEY_IDS[i]]) busy = true;
+      if (store && !busy) load();
+      var out = {};
+      for (var j = 0; j < KEY_IDS.length; j++) {
+        var k = data.keys[KEY_IDS[j]].key;
+        out[KEY_IDS[j]] = k ? crypto.createHash('sha256').update(k, 'utf8').digest('hex').slice(0, 12) : '';
+      }
+      return out;
+    },
     /** How long the screen has not held the routes open, so service.js can let the process go. 0 while it does. */
     idleMs: function () {
       return Math.max(0, now() - Math.max(activeAt, heldUntil));

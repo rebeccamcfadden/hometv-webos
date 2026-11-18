@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -158,6 +159,22 @@ test('tmdbKey and priceKeys give back what the key page kept, "" for the rest, w
   const none = make();
   assert.deepEqual(await call(none.methods, 'tmdbKey'), { returnValue: true, key: '' });
   assert.deepEqual(await call(none.methods, 'priceKeys'), { returnValue: true, watchmode: '', motn: '' });
+});
+
+test('keysSaved: fingerprints only, read afresh from the file (hometv-lg root writes it back after root), for any caller', async () => {
+  const dataDir = dir();
+  const { methods } = make({ dataDir });
+  const fp = (k) => crypto.createHash('sha256').update(k).digest('hex').slice(0, 12);
+  assert.deepEqual(await call(methods, 'keysSaved', 'com.webos.lunasend'), { returnValue: true, keys: { tmdb: '', watchmode: '', motn: '' } });
+  // the service already holds a blank file with its phone code; the laptop writes the keys in beside it
+  const file = path.join(dataDir, 'hometv-keys-v1.json');
+  const code = JSON.parse(fs.readFileSync(file, 'utf8')).code;
+  fs.writeFileSync(file, JSON.stringify({ code, keys: { tmdb: { key: 'fake.kept-tmdb-token', state: 'ok' } } }));
+  const r = await call(methods, 'keysSaved', '');
+  assert.deepEqual(r, { returnValue: true, keys: { tmdb: fp('fake.kept-tmdb-token'), watchmode: '', motn: '' } });
+  assert.ok(!JSON.stringify(r).includes('kept-tmdb'), 'no key in the answer');
+  assert.deepEqual(await call(methods, 'tmdbKey'), { returnValue: true, key: 'fake.kept-tmdb-token' }, 'HomeTV reads it');
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).code, code);
 });
 
 test('start keeps the process alive once, sweeps while idle, and lets go when the screen stops holding', async () => {
