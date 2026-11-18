@@ -754,7 +754,8 @@ test('page-build: the shell index, the bundled page entry and the keys', () => {
   assert.deepEqual(parseKeys(`# comment, with commas\n${keys.publicKey}\n\n${otherKeys.publicKey}, ${keys.publicKey}`), [keys.publicKey, otherKeys.publicKey]);
   assert.throws(() => parseKeys('abc'), /not an Ed25519 public key/);
   assert.throws(() => makeShellConfig({ entry: {}, shell: '1.0.0', page: '1.0.0', updateUrl: 'ftp://x' }), /not an http/);
-  assert.deepEqual(parseKeys(fs.readFileSync(path.join(root, 'app', 'loader', 'page-keys.txt'), 'utf8')), [], 'no key in the repo yet: updates off');
+  // the LG page key's public half (tools/page-key.mjs on the project lead's PC, 2026-11-18): one key, page updates on
+  assert.equal(parseKeys(fs.readFileSync(path.join(root, 'app', 'loader', 'page-keys.txt'), 'utf8')).length, 1, 'the LG page key: updates on');
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   assert.match(pkg.appVersion, /^\d+\.\d+\.\d+$/, 'the app (the .ipk) has its own version');
   assert.match(pkg.scripts['build:app'], /vite build && node tools\/page-build\.mjs/);
