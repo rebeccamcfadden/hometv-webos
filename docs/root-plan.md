@@ -81,7 +81,7 @@ Channel's `services/service.ts`, `services/startup.sh`, issue #256 and PR #257. 
   when told `--webos-version 11` (its `TARGET_APPS` lists voiceweb for 11 only; the option picks the app, nothing
   else). v0.1.0 (`21023d5`) already holds both (voiceweb `b8bc271`, the option `da374e5`); the root step adds
   `--webos-version 11` on 33.31.75 only (`tools/lib/checks.mjs`, `ROOTABLE`).
-- **The pin is `f76b717`, SlopBro's main on 2026-11-09** (Rebecca, 2026-11-18: a reviewed commit of main, its single
+- **The pin is `f76b717`, SlopBro's main on 2026-11-09** (the project lead, 2026-11-18: a reviewed commit of main, its single
   file built by `hometv-lg get root-kit`). Read 2026-11-18 (B6), the whole diff `v0.1.0...f76b717` (5 commits):
   `slopbro.py` changes in two places only, the docstring (Python 3.8 or newer) and `67b3cc4` (a file counts as served
   only after its whole body is sent by a GET, not at a HEAD request: SlopBro waits for the TV to fetch every page
@@ -120,7 +120,7 @@ Channel's `services/service.ts`, `services/startup.sh`, issue #256 and PR #257. 
   permissions" for it (seen on the call). The laptop check then says root is unknown and to read the version on the
   TV; root-checks asks the person to type it from Settings › Support › TV Information, accepts only a known version,
   and the report says it was read by the person, not the TV.
-- **Decided (Rebecca, 2026-11-18):** pin a commit of SlopBro's main, built by the root kit (above: `f76b717`);
+- **Decided (the project lead, 2026-11-18):** pin a commit of SlopBro's main, built by the root kit (above: `f76b717`);
   `--webos-version 11` on 33.31.75, as the reporters did. **Checks for the first real-TV root run** (not blocking):
   Homebrew Channel's start-up on 10.3.2 (its maintainer wrote, #256, that it "relies on functionality in the Home
   app"; HomeTV's mount comes only after it, at each start); the laptop's firewall (on the call the TV couldn't reach
