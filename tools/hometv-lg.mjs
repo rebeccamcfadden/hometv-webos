@@ -4,7 +4,7 @@
 //   hometv-lg devmode <tv address> [--v2 <file>] [--from-v0] [--only v0|v2]   HomeTV v2 on a TV in Developer Mode, checked
 //   hometv-lg install <tv address> [--ipk <file>] [--from <step>]   (docs/install.md)
 //   hometv-lg root <tv address> [--ipk <file>] [--from <step>]      the rooted path alone, with a checklist and a report
-//   hometv-lg root <tv address> --home-again | unroot-home <tv address>   the light ways back (docs/root-plan.md)
+//   hometv-lg root <tv address> --home-again [--watch] | unroot-home <tv address>   the light ways back (docs/root-plan.md)
 //   hometv-lg get recovery <stick drive letter>   checks the USB stick for level 5 (docs/recovery.md)
 //   hometv-lg prepare <tv address> [--from <step>] | prepare --undo   getting ready for the call (root exe; docs/root.md)
 import fs from 'node:fs';
@@ -195,7 +195,7 @@ if (cmd === 'check') {
     (ROOT ? '  hometv-lg prepare <tv address> [--from <step>]   (or: prepare --list | prepare --undo)\n' +
       '  hometv-lg install <tv address> [--ipk <file>] [--from <step>]   (or: install --list)\n' +
       '  hometv-lg root <tv address> [--ipk <file>] [--from <step>]      (or: root --list)\n' +
-      '  hometv-lg root <tv address> --home-again   |   hometv-lg unroot-home <tv address>\n' : '') +
+      '  hometv-lg root <tv address> --home-again [--watch]   |   hometv-lg unroot-home <tv address>\n' : '') +
     '  hometv-lg get dev-manager' + (ROOT ? ' | root-kit | recovery <stick drive letter>' : '') + '\n' +
     '  hometv-lg restore <backup file> <tv address> [--root] [--dry-run]\n\n' +
     'check   reads the TV (model, apps, inputs, what v0 needs) after its "Allow" prompt;\n' +
@@ -212,7 +212,8 @@ if (cmd === 'check') {
     '        run again, it carries on where it stopped (docs/install.md).\n' +
     'root    the rooted path alone, on a TV that passed the unrooted install: a checklist (backup, photos, sign-in list,\n' +
     '        USB stick, automatic updates off, the owner types root), Clear the way, root, the lock-down, and a report.\n' +
-    '        --home-again: HomeTV as Home again after its "Use LG\'s Home" setting (docs/root-plan.md, level 1).\n' +
+    '        --home-again: HomeTV as Home again after its "Use LG\'s Home" setting or a roll back (docs/root-plan.md, level 1);\n' +
+    '        with --watch, it shows what the heartbeat and the TV\'s start-up notes say for up to 3 minutes after the restart.\n' +
     'unroot-home  removes HomeTV\'s root edition (level 2): LG\'s Home back, Homebrew Channel and root stay; checked after\n' +
     '        a restart. The full unroot is level 3, a factory reset.\n' +
     'get recovery  checks the USB stick for LG\'s USB recovery (level 5): FAT32, LG_DTV, one firmware file for this\n' +

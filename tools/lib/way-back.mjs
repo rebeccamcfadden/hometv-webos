@@ -72,10 +72,31 @@ export async function homeAgain(ctx) {
     return stop('HomeTV isn\'t installed on the TV (uninstalled in Homebrew Channel?).',
       'Install HomeTV from Homebrew Channel, or run hometv-lg root <tv address> --from root-install with its .ipk here, then this again.');
   }
-  if (s.hooked && !s.chosen && !s.compatStopped) {
+  if (s.hooked && !s.chosen && !s.compatStopped && !ctx.watch) {
     ctx.say('  ✓ HomeTV is already Home from each start: nothing to do. (Not on screen? Restart the TV: ' + RESTART + '.)');
     return { done: true, note: 'already Home' };
   }
+  if (s.hooked && !s.chosen && !s.compatStopped) {
+    ctx.say('  HomeTV is already Home from each start: nothing to change; the restart and the watch follow.');
+  } else {
+    const r0 = await enableAgain(ctx, shell, p, s);
+    if (r0) return r0;
+  }
+  const fg0 = await restartToHome(ctx);
+  // --watch: what the heartbeat and the boot notes say, for up to 3 minutes, before deciding (call #2)
+  if (ctx.watch) await watchHome(ctx, shell, p);
+  const fg = ctx.watch ? await withTv(ctx, foreground) : fg0;
+  // as the install's restart check: a takeover that didn't come up is rolled back (hooks out, LG's Home back)
+  if (fg !== HOME) return rollBack(ctx, 'no Home on screen after the restart', shell);
+  if (!yes(await ctx.ask('  Is it HomeTV on screen (not LG\'s own Home)? [y/N] '))) return rollBack(ctx, 'you saw LG\'s own Home', shell);
+  const why = await homeCameUp(shell, p, ctx.verifyWaitMs, { say: ctx.say, host: ctx.host, firstBeatMs: ctx.watch ? 0 : ctx.firstBeatMs });
+  if (why) return rollBack(ctx, why, shell);
+  ctx.say('  ✓ HomeTV is Home again');
+  return { done: true, note: 'HomeTV is Home again' };
+}
+
+/** install.sh again: the hooks linked, DISABLE gone. Returns a stop, or null when done. */
+async function enableAgain(ctx, shell, p, s) {
   if (s.compatStopped) ctx.say('  HomeTV stepped back at the last start: the TV\'s software changed to one not in root/compat.json.');
   ctx.say('  This runs install.sh on the TV again: HomeTV\'s two start-up hooks linked again, the "Use LG\'s Home" mark ' +
     'removed. HomeTV becomes Home at the next restart.\n' +
@@ -88,14 +109,55 @@ export async function homeAgain(ctx) {
     return stop('install.sh didn\'t put HomeTV back: ' + scrub(why, ctx.host), 'LG\'s Home stays. Fix what it says, then run this again.');
   }
   ctx.say('  ✓ the start-up hooks are back; HomeTV becomes Home at the next restart');
-  const fg = await restartToHome(ctx);
-  // as the install's restart check: a takeover that didn't come up is rolled back (hooks out, LG's Home back)
-  if (fg !== HOME) return rollBack(ctx, 'no Home on screen after the restart', shell);
-  if (!yes(await ctx.ask('  Is it HomeTV on screen (not LG\'s own Home)? [y/N] '))) return rollBack(ctx, 'you saw LG\'s own Home', shell);
-  const why = await homeCameUp(shell, p, ctx.verifyWaitMs);
-  if (why) return rollBack(ctx, why, shell);
-  ctx.say('  ✓ HomeTV is Home again');
-  return { done: true, note: 'HomeTV is Home again' };
+  return null;
+}
+
+/** The boot notes --watch shows: the start-up hook's, the heartbeat's, the service's, the watchdog's and the roll back's. */
+const WATCH_NOTES = 'home: |after-sam: |service: |heartbeat: |watchdog: |undo-home: |elevate';
+
+/**
+ * --watch: every `ctx.watchEveryMs` (15 s) for up to `ctx.watchMs` (3 minutes) after the restart, one line on what the TV
+ * says (HomeTV mounted, the heartbeat's age, the app on screen) and the boot log's new notes, masked. Changes nothing;
+ * stops early once the heartbeat is fresh twice running, or HomeTV is no longer mounted (the watchdog gave LG's Home back).
+ */
+export async function watchHome(ctx, shell, p) {
+  const total = ctx.watchMs !== undefined ? ctx.watchMs : 180000;
+  const every = ctx.watchEveryMs !== undefined ? ctx.watchEveryMs : 15000;
+  const age = 'var s;try{s=require("fs").statSync(process.argv[1])}catch(e){}console.log(s?"age "+Math.round((Date.now()-s.mtime.getTime())/1000):"age none")';
+  const cmd = 'grep -q ' + sq(' ' + p.home + ' ') + ' ' + sq(p.mounts) + ' && echo mounted; node -e ' + sq(age) + ' ' + sq(p.alive) + ' 2>/dev/null; ' +
+    'luna-send -n 1 -w 5000 -f luna://com.webos.applicationManager/getForegroundAppInfo \'{}\' 2>/dev/null | sed -n \'s/.*"appId": *"\\([^"]*\\)".*/fg \\1/p\' | head -n 1; ' +
+    'echo ---; grep -E ' + sq(WATCH_NOTES) + ' ' + sq(p.log) + ' 2>/dev/null | tail -n 60; true';
+  ctx.say('  Watching HomeTV for up to ' + Math.round(total / 60000 * 10) / 10 + ' minutes (nothing is changed while it watches):');
+  const t0 = Date.now();
+  const seen = new Set();
+  let fresh = 0;
+  for (let n = 0; ; n++) {
+    const out = String((await shell.run(cmd)).stdout || '');
+    const [head, notes = ''] = out.split('---');
+    const mounted = /mounted/.test(head);
+    const a = (head.match(/age (\d+|none)/) || [])[1];
+    const fg = (head.match(/fg (\S+)/) || [])[1] || 'unknown';
+    const secs = Math.round((Date.now() - t0) / 1000);
+    const clock = Math.floor(secs / 60) + ':' + String(secs % 60).padStart(2, '0');
+    ctx.say('    ' + clock + '  ' + (mounted ? 'HomeTV mounted' : 'HomeTV not mounted') + ', heartbeat ' +
+      (a === undefined || a === 'none' ? 'never' : a + ' s ago') + ', on screen: ' + scrub(fg, ctx.host));
+    for (const l of notes.split('\n').map((x) => x.trim()).filter(Boolean)) {
+      if (seen.has(l)) continue;
+      seen.add(l);
+      ctx.say('      ' + scrub(l, ctx.host));
+    }
+    fresh = a !== undefined && a !== 'none' && Number(a) < 30 ? fresh + 1 : 0;
+    if (fresh >= 2) {
+      ctx.say('  ✓ HomeTV\'s page answers');
+      return 'answers';
+    }
+    if (!mounted && n > 0) {
+      ctx.say('  HomeTV isn\'t mounted over LG\'s Home any more (the watchdog may have given LG\'s Home back)');
+      return 'unmounted';
+    }
+    if (Date.now() - t0 + every > total) return 'timed out';
+    await sleep(every);
+  }
 }
 
 /** Level 2: HomeTV's root edition removed; LG's Home back; Homebrew Channel checked. */

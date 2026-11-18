@@ -1,4 +1,4 @@
-// hometv-lg root <tv address> --home-again   |   hometv-lg unroot-home <tv address>
+// hometv-lg root <tv address> --home-again [--watch]   |   hometv-lg unroot-home <tv address>
 // The light ways back from the laptop, over the root install's SSH key (tools/lib/way-back.mjs; docs/root-plan.md,
 // "The way back", levels 1 and 2). Each asks first and checks the TV after the restart.
 import os from 'node:os';
@@ -9,6 +9,8 @@ import { runWayBack } from './lib/way-back.mjs';
 // hometv-lg passes its command as argv[1]
 const which = process.argv[1] === 'unroot-home' ? 'unroot-home' : 'home-again';
 const args = process.argv.slice(2).filter((a) => a !== '--home-again');
+// --watch: after the restart, what the heartbeat and the boot notes say, for up to 3 minutes, before deciding
+const watch = which === 'home-again' && args.includes('--watch');
 const VALUED = ['--ws-port'];
 const val = (k) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
 const host = args.find((a, i) => !a.startsWith('--') && !VALUED.includes(args[i - 1]));
@@ -17,7 +19,8 @@ const dir = process.env.HOMETV_DIR || path.join(os.homedir(), 'HomeTV');
 if (!host || !/^[0-9A-Za-z.\-:]+$/.test(host)) {
   console.error(which === 'unroot-home'
     ? 'Usage: hometv-lg unroot-home <tv address>   (removes HomeTV\'s root edition: LG\'s Home back, Homebrew Channel stays)'
-    : 'Usage: hometv-lg root <tv address> --home-again   (HomeTV as Home again after "Use LG\'s Home")');
+    : 'Usage: hometv-lg root <tv address> --home-again [--watch]   (HomeTV as Home again after "Use LG\'s Home" or a roll back;\n' +
+      '       --watch: after the restart, shows what the heartbeat and the TV\'s start-up notes say for up to 3 minutes)');
   process.exitCode = 2;
 } else {
   // Tests only: a pretend TV on plain ws at this port, and its SSH port.
@@ -27,7 +30,7 @@ if (!host || !/^[0-9A-Za-z.\-:]+$/.test(host)) {
     try { return await rl.question(question); } finally { rl.close(); }
   };
   const r = await runWayBack({
-    host, dir, ask,
+    host, dir, ask, watch,
     say: (s) => console.log(s),
     ssapPorts: wsPort ? [{ url: 'ws://' + host + ':' + wsPort + '/', insecure: false }] : undefined,
     sshPort: Number(process.env.HOMETV_TEST_SSH_PORT || 0) || undefined

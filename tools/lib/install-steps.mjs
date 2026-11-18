@@ -629,7 +629,7 @@ export const STEPS = [
           'In Homebrew Channel > Settings, switch Telnet off, SSH Server on and Block system updates on, restart the TV, then ' +
           'run this again with --from restart-check.');
       }
-      const up = await homeCameUp(shell, P, ctx.verifyWaitMs);
+      const up = await homeCameUp(shell, P, ctx.verifyWaitMs, { say: ctx.say, host: ctx.host, firstBeatMs: ctx.firstBeatMs });
       if (up) return rollBack(ctx, up, shell);
       ctx.say('  ✓ HomeTV is mounted over LG\'s Home and its page answers');
       return { note: 'HomeTV is Home (root edition); Telnet off, SSH by key only, Block system updates on' };
@@ -637,21 +637,53 @@ export const STEPS = [
   }
 ];
 
+/** How long the restart check waits for HomeTV's page's first heartbeat: on the test TV the page may take 60-90 s after sam's restart (call #2). */
+export const FIRST_BEAT_MS = 150000;
+
 /**
  * After the takeover's restart: '' when HomeTV is mounted over LG's Home and its page answers (the heartbeat its service
- * touches every 10 s while it shows, root/watchdog.sh's), else why not. Three looks, `waitMs` apart.
+ * touches every 10 s while it shows, root/watchdog.sh's), else why not. While mounted but not answering yet, it waits up
+ * to `o.firstBeatMs` for the first heartbeat, then makes three looks, `waitMs` apart. When the page doesn't answer, what
+ * the TV noted about the heartbeat (refused callers, the 127.0.0.1 way, the bus groups) is shown through `o.say`, masked.
  */
-export async function homeCameUp(shell, P, waitMs = 10000) {
+export async function homeCameUp(shell, P, waitMs = 10000, o = {}) {
   const age = 'var s;try{s=require("fs").statSync(process.argv[1])}catch(e){}console.log(s&&Date.now()-s.mtime.getTime()<30000?"alive":"stale")';
   const cmd = 'grep -q ' + sq(' ' + P.home + ' ') + ' ' + sq(P.mounts) + ' && echo mounted; node -e ' + sq(age) + ' ' + sq(P.alive) + ' 2>/dev/null; true';
-  let why = '';
-  for (let i = 0; i < 3; i++) {
-    if (i) await sleep(waitMs);
+  const look = async () => {
     const out = String((await shell.run(cmd)).stdout || '');
-    why = !/mounted/.test(out) ? 'HomeTV isn\'t mounted over LG\'s Home' : !/alive/.test(out) ? 'HomeTV\'s page isn\'t answering' : '';
+    return !/mounted/.test(out) ? 'HomeTV isn\'t mounted over LG\'s Home' : !/alive/.test(out) ? 'HomeTV\'s page isn\'t answering' : '';
+  };
+  let why = await look();
+  if (!why) return '';
+  const firstMs = o.firstBeatMs !== undefined ? o.firstBeatMs : FIRST_BEAT_MS;
+  if (/answering/.test(why) && firstMs > 0) {
+    if (o.say) o.say('  Waiting for HomeTV\'s page to answer (up to ' + Math.round(firstMs / 1000) + ' seconds; after a restart it can take a minute or more)…');
+    const tries = waitMs > 0 ? Math.ceil(firstMs / waitMs) : 2;
+    for (let i = 0; i < tries && /answering/.test(why); i++) {
+      await sleep(waitMs);
+      why = await look();
+    }
     if (!why) return '';
   }
+  for (let i = 1; i < 3; i++) {
+    await sleep(waitMs);
+    why = await look();
+    if (!why) return '';
+  }
+  if (/answering/.test(why) && o.say) {
+    const notes = await heartbeatNotes(shell, P, o.host);
+    if (notes) o.say('  What the TV noted about the heartbeat (' + P.log + ', masked):\n' + notes.split('\n').map((l) => '    ' + l).join('\n'));
+  }
   return why;
+}
+
+/**
+ * The boot log's lines about the heartbeat, masked: callers HomeTV's service refused, its first heartbeat, the 127.0.0.1
+ * listener's notes, the bus groups and the service's elevation. '' when there are none.
+ */
+export async function heartbeatNotes(shell, P, host) {
+  const r = await shell.run('grep -E ' + sq('service: |heartbeat: |home: bus groups|elevate') + ' ' + sq(P.log) + ' 2>/dev/null | tail -n 20; true');
+  return scrub(String(r.stdout || '').trim(), host);
 }
 
 /**
@@ -661,7 +693,8 @@ export async function homeCameUp(shell, P, waitMs = 10000) {
  */
 export async function rollBack(ctx, why, shell = null) {
   const P = { ...TV_PATHS, ...ctx.tvPaths };
-  const back = 'HomeTV as Home again, once the HomeTV team has looked: hometv-lg root <tv ip> --home-again.';
+  const back = 'HomeTV as Home again, once the HomeTV team has looked: hometv-lg root <tv ip> --home-again --watch ' +
+    '(--watch shows what the heartbeat and the start-up notes say after the restart).';
   const sshPort = ctx.sshPort || 22;
   const { key, knownHosts } = keyPaths(ctx.dir);
   if (!shell) {

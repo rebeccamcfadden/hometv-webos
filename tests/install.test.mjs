@@ -681,7 +681,8 @@ test('restart check: HomeTV not mounted, or its page not answering, rolls back (
   try {
     assert.deepEqual(await runInstall(s.ctx), { stopped: 'restart-check' });
     assert.match(s.text(), /didn't come up as Home \(HomeTV's page isn't answering\), so it was rolled back/);
-    assert.equal(s.logins.filter((l) => l.cmd.includes('statSync')).length, 3, 'looked three times');
+    assert.match(s.text(), /Waiting for HomeTV's page to answer/);
+    assert.equal(s.logins.filter((l) => l.cmd.includes('statSync')).length, 5, 'waited for the first heartbeat (two looks with no wait set), then three looks');
     s.flags.homeUp = '';
     s.out.length = 0;
     assert.deepEqual(await runInstall(s.ctx, { from: 'restart-check' }), { stopped: 'restart-check' });
