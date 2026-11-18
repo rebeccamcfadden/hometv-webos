@@ -33,7 +33,7 @@ case "$*" in
   *appInstallService/dev/install*)
     n=$(cat "$STUB_LOG.installs" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$STUB_LOG.installs"
     if [ -n "$STUB_INSTALL_FAIL" ] && [ "$n" -le "$STUB_INSTALL_FAIL" ]; then echo '{"details": {"state": "install failed"}}'
-    else mkdir -p "$STUB_APP" && echo '<title>HomeTV</title>' > "$STUB_APP/index.html" && echo '{"details": {"state": "installed"}}'; fi;;
+    else [ -z "$STUB_INSTALL_WIPES" ] || rm -rf "$STUB_INSTALL_WIPES"; mkdir -p "$STUB_APP" && echo '<title>HomeTV</title>' > "$STUB_APP/index.html" && echo '{"details": {"state": "installed"}}'; fi;;
   *getForegroundAppInfo*) echo '{"appId": "com.webos.app.home"}';;
   *getSystemInfo*) printf '{"firmwareVersion": "%s", "modelName": "%s"}\\n' "\${STUB_FW-33.31.75}" "\${STUB_MODEL-55UT80006LA}";;
   *) echo '{"returnValue": true}';;

@@ -628,7 +628,7 @@ test('the start-up hook notes the bus groups and starts the 127.0.0.1 heartbeat 
   }
 });
 
-test('heartbeat.js: GET /alive on 127.0.0.1 touches the heartbeat and notes the first beat and why the service call failed, masked', async () => {
+test('heartbeat.js: GET /alive on 127.0.0.1 notes, never counts as a heartbeat (no service, no settings: LG\'s Home must come back), the first beat and why the service call failed, masked', async () => {
   const t = fs.mkdtempSync(path.join(os.tmpdir(), 'hometv-hb-'));
   const alive = path.join(t, 'alive');
   const log = path.join(t, 'boot.log');
@@ -645,7 +645,7 @@ test('heartbeat.js: GET /alive on 127.0.0.1 touches the heartbeat and notes the 
     assert.equal(server.address().address, '127.0.0.1', 'loopback only');
     const why = encodeURIComponent('Denied method call "alive" for category "/" (from 192.168.1.50)');
     assert.deepEqual(await get('/alive?why=' + why + '&as=com.webos.app.home%201234&hidden=0'), { status: 204, cors: '*' });
-    assert.ok(fs.existsSync(alive));
+    assert.ok(!fs.existsSync(alive), 'the heartbeat file is the service\'s alone');
     await get('/alive?why=' + why);
     assert.equal((await get('/other')).status, 404);
     assert.equal((await get('/alive', 'POST')).status, 404);

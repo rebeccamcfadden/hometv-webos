@@ -9,6 +9,7 @@ import { showChecks } from './screens/checks';
 import { v1Tabs } from '@v1';
 import { initScreensaver } from './ui/screensaver';
 import { markSetupDone, pageStorage, prefs, setupDone, SETUP_V1_KEY, UI_SIZE_SCALE } from './launcherSettings';
+import { restoreIfEmpty, startKeeping } from './settingsKeep';
 import { showSetup } from './screens/setup';
 import { routes } from './screens/routes';
 import { startUpdateNotice } from './ui/updateNotice';
@@ -58,6 +59,22 @@ bridge.platform.registerButtons(['blue', 'info']);
 async function start() {
   bridge.setToast((text) => shell.toast(text, /didn’t|refused|failed/i.test(text)));
   await bridge.connect();
+  // HomeTV's settings from its service's copy when this page's store is empty (mounted over LG's Home, or after a
+  // reinstall): put back, then the page starts again once (settingsKeep.ts); and the copy kept up to date from here on.
+  const copy = bridge.platform.settingsCopy();
+  if (copy) {
+    let once: Storage | null = null;
+    try {
+      once = window.sessionStorage;
+    } catch (e) {
+      once = null;
+    }
+    if (await restoreIfEmpty(pageStorage(), copy, once)) {
+      window.location.reload();
+      return;
+    }
+    startKeeping(pageStorage(), copy);
+  }
   const serviceFoundMs = Date.now() - t0;
   home.setApps(null);
   // Home's own shade over a theme's backdrop is lighter than every other screen's.

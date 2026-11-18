@@ -1,7 +1,8 @@
 // The heartbeat HomeTV's page sends while it shows, which the root edition's watchdog and the laptop's restart check
-// read (root/watchdog.sh, /tmp/hometv-alive). First through HomeTV's service (Luna `alive`); when that fails, through
-// the root edition's listener on 127.0.0.1 (root/heartbeat.js), which also notes in the TV's boot log why the call
-// failed. On call #2 (2026-11-18) the heartbeat never came while HomeTV was mounted over LG's Home, though it came
+// read (root/watchdog.sh, /tmp/hometv-alive), through HomeTV's service (Luna `alive`) only. When that fails, the page
+// tells the root edition's listener on 127.0.0.1 why (root/heartbeat.js notes it in the TV's boot log); that is no
+// heartbeat: a page that can't reach its service has no key and no saved settings, so LG's Home must still come back.
+// On call #2 (2026-11-18) the heartbeat never came while HomeTV was mounted over LG's Home, though it came
 // when HomeTV was opened from its tile: mounted, the page runs as LG's Home, and the bus may refuse LG's Home's call.
 // After three failed calls in a row the page also keeps what went wrong in its storage, for the Checks screen: written
 // when it changes (not at every beat), and dropped once the service answers the page running as the same id again.
@@ -23,7 +24,7 @@ export interface HeartbeatTrouble {
   as: string;
   /** The service call's error, as the TV gave it. */
   luna: string;
-  /** The 127.0.0.1 way: "ok", or what went wrong. */
+  /** Telling the 127.0.0.1 listener: "ok", or what went wrong. */
   loopback: string;
   /** The page said it was hidden. */
   hidden: boolean;
@@ -41,7 +42,7 @@ export interface HeartbeatDeps {
 
 const short = (s: string, n = 120) => String(s || '').replace(/\s+/g, ' ').trim().slice(0, n);
 
-/** One beat at a time: 'service', 'loopback', or 'none' when neither way answered. */
+/** One beat at a time: 'service' (it counts), 'loopback' (only the reason was told), or 'none'. */
 export function createHeartbeat(d: HeartbeatDeps): () => Promise<'service' | 'loopback' | 'none'> {
   let fails = 0;
   let busy = false;
@@ -102,5 +103,5 @@ export function heartbeatText(t: HeartbeatTrouble | null): string {
   if (!t) return '';
   const when = new Date(t.at);
   const stamp = `${when.toDateString().slice(4, 10)} ${when.toTimeString().slice(0, 5)}`;
-  return `Heartbeat trouble (${stamp}${t.as ? `, running as ${t.as}` : ''}${t.hidden ? ', page hidden' : ''}): HomeTV’s service said “${t.luna}”; the 127.0.0.1 way: ${t.loopback}.`;
+  return `Heartbeat trouble (${stamp}${t.as ? `, running as ${t.as}` : ''}${t.hidden ? ', page hidden' : ''}): HomeTV’s service said “${t.luna}”; told the root edition (127.0.0.1): ${t.loopback}.`;
 }

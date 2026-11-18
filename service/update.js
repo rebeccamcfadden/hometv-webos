@@ -24,13 +24,14 @@ var APP_ID = 'com.hometv.app';
 var MANIFEST = 'hometv-root.json';
 /** The root scripts an update may replace: the files of root/ that install.sh copies (README.md and package.json aside). */
 var ROOT_FILES = ['10-hometv-home', '15-hometv-debloat', 'after-sam.sh', 'compat.json', 'debloat-stop.sh', 'debloat-undo.sh',
-  'decide.js', 'install.sh', 'lib.sh', 'stage-home.sh', 'undo-home.sh', 'uninstall.sh', 'watchdog.sh'];
+  'decide.js', 'heartbeat.js', 'install.sh', 'lib.sh', 'stage-home.sh', 'undo-home.sh', 'uninstall.sh', 'watchdog.sh'];
 /**
  * root/ files that install.sh copies (hometv-lg root puts them there) but no update carries yet: a TV checks a release's
  * manifest with its own, older copy of this list and refuses a name it doesn't know, so a new file joins ROOT_FILES only
- * in a release after the one that taught the TVs its name. Until then a TV updated in place runs without it.
+ * in a release after the one that taught the TVs its name. Until then a TV updated in place runs without it. (heartbeat.js
+ * joined in 0.2.1, the first build with the root update feed on: no TV before it ever reads a root manifest.)
  */
-var INSTALL_ONLY = ['heartbeat.js'];
+var INSTALL_ONLY = [];
 var MAX_MANIFEST = 64 * 1024;
 var MAX_IPK = 64 * 1024 * 1024;
 var MAX_SCRIPT = 512 * 1024;

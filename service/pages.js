@@ -340,6 +340,57 @@ function privateStore(dirs) {
   return null;
 }
 
+/**
+ * The page's own settings kept by the service (settingsSave / settingsLoad, service/service.js): HomeTV's page runs as
+ * com.hometv.app from its tile and as com.webos.app.home mounted over LG's Home, and the TV may keep a separate page
+ * store for each; a reinstall may empty it. A copy here lets the page put its settings back. Beside the keys, 0600.
+ */
+var SETTINGS_FILE = 'hometv-settings-v1.json';
+var MAX_SETTINGS = 256 * 1024;
+var SETTING_NAME = /^hometv-[a-z0-9-]{1,40}$/;
+
+/** { name: text } with HomeTV's own names only, or null when it isn't one (too large, odd names or values). */
+function cleanSettings(o) {
+  if (!o || typeof o !== 'object' || Object.prototype.toString.call(o) === '[object Array]') return null;
+  var out = {};
+  var size = 0;
+  var names = Object.keys(o);
+  if (names.length > 64) return null;
+  for (var i = 0; i < names.length; i++) {
+    var v = o[names[i]];
+    if (!SETTING_NAME.test(names[i]) || typeof v !== 'string') return null;
+    size += names[i].length + v.length;
+    out[names[i]] = v;
+  }
+  return size <= MAX_SETTINGS ? out : null;
+}
+
+/** The settings copy's file, in the first private folder that can be written (as the keys'); null when none can. */
+function settingsStore(dirs) {
+  dirs = dirs || DATA_DIRS;
+  for (var i = 0; i < dirs.length; i++) {
+    if (!privateStore([dirs[i]])) continue;
+    var file = path.join(dirs[i], SETTINGS_FILE);
+    return {
+      read: function () {
+        try {
+          if (fs.statSync(file).size > MAX_SETTINGS * 2) return null;
+          var o = JSON.parse(fs.readFileSync(file, 'utf8'));
+          var s = cleanSettings(o && o.settings);
+          return s ? { settings: s, savedAt: typeof o.savedAt === 'number' ? o.savedAt : 0 } : null;
+        } catch (e) {
+          return null;
+        }
+      },
+      write: function (settings, now) {
+        var s = cleanSettings(settings);
+        return !!s && writeWhole(file, JSON.stringify({ format: 1, savedAt: now, settings: s }));
+      }
+    };
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------- the service
 
 /**
@@ -823,6 +874,8 @@ function create(opts) {
 
 module.exports = {
   create: create,
+  settingsStore: settingsStore,
+  SETTINGS_FILE: SETTINGS_FILE,
   /** For the tests. */
   rules: {
     normalizeCode: normalizeCode,

@@ -16,7 +16,7 @@ that ends root, or Homebrew Channel's failsafe start) leaves LG's Home as it was
 | `after-sam.sh` | Restarts the services that lose track of the app manager (webOS 25: videooutputd, umediaserver) |
 | `undo-home.sh` | Puts LG's Home back: `temp` now until the next start (Home pressed three times, the watchdog); no argument, now and for good; `at-restart`, for good from the next restart (HomeTV's Settings › Use LG's Home). For good = the two hooks removed and `DISABLE` written; `install.sh` undoes it. Unmounts only HomeTV's own mount (its marker `.hometv-overlay`, or the kernel's mountinfo naming `hometv/home-overlay`); a mount that isn't HomeTV's, or one still busy, stays and it says so |
 | `watchdog.sh` | Puts LG's Home back until the next start if HomeTV's page stops answering while on screen |
-| `heartbeat.js` | The heartbeat's second way in: a GET of `http://127.0.0.1:8767/alive` touches `/tmp/hometv-alive`, for HomeTV's page while it is mounted over LG's Home and the bus may refuse its call to the service. Loopback only, started by `10-hometv-home`, ended by `undo-home.sh` and `uninstall.sh`; a few notes a start in the boot log (lasharor's launcher talks to its root service the same way) |
+| `heartbeat.js` | Where HomeTV's page says why its heartbeat call to the service failed (a GET of `http://127.0.0.1:8767/alive`), noted in the boot log; never a heartbeat itself. Loopback only, started by `10-hometv-home`, ended by `undo-home.sh` and `uninstall.sh` (lasharor's launcher talks to its root service the same way) |
 | `decide.js` | Which way, which services, the appinfo for the mount, the model family, and the firmware list check |
 | `compat.json` | The firmware list for the takeover (lasharor's `compat.json` idea): LG software version + model family, each `tested`, `reported`, `known` (the test TV's model, as the project lead decided) or `planned`. `install.sh` refuses a TV not in it unless the owner agreed (`hometv-lg` asks; `--unlisted-ok`, kept in `compat-ok`); after the software changes to one not listed, the start-up hook leaves LG's Home alone and writes `compat-stopped` (`hometv-lg root <tv ip> --home-again` asks again). Seeded with 33.31.61 and 33.31.75. Root itself is gated by `ROOTABLE` in `tools/lib/checks.mjs` |
 | `debloat-stop.sh`, `debloat-undo.sh`, `15-hometv-debloat` | Stops LG's ad and telemetry services while HomeTV is Home (four groups; the ad servers blocked in a copy of `/etc/hosts` mounted in memory, never in the file itself), and puts them back |
@@ -26,7 +26,7 @@ that ends root, or Homebrew Channel's failsafe start) leaves LG's Home as it was
 
 Tested on a PC only, with stub commands (`tests/root.test.mjs`). The heartbeat: HomeTV's page calls its service
 (`service/service.js`) every 10 seconds while it shows, and the service touches `/tmp/hometv-alive`; when that call
-fails (mounted, the page runs as LG's Home), it asks `heartbeat.js` on 127.0.0.1 instead. The boot log
+fails (mounted, the page runs as LG's Home), it tells `heartbeat.js` on 127.0.0.1 why; that doesn't count. The boot log
 (`/tmp/hometv-boot.log`) notes who the service refused, its first heartbeat, the listener's, and the bus groups. The same service
 runs `undo-home.sh` for HomeTV's page only: `temp` when Home is pressed three times, `at-restart` from Settings › Use
 LG's Home (`rootState`, `useLgHome`; elevated, so as root). Elevation only

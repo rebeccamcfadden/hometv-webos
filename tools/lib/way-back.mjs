@@ -104,7 +104,8 @@ export async function homeAgain(ctx) {
 }
 
 /** What refresh does, and its undo, said before the question. */
-const REFRESH_SAYS = (p) => '  First it brings the TV\'s copy of HomeTV\'s root scripts (' + p.dir + ') up to this program\'s, and HomeTV ' +
+const REFRESH_SAYS = (p) => '  First it keeps a copy of HomeTV\'s saved keys and settings on the TV (' + p.dir + '/backup/private-before; they never ' +
+  'leave the TV), then brings the TV\'s copy of HomeTV\'s root scripts (' + p.dir + ') up to this program\'s, and HomeTV ' +
   'itself when this program\'s is newer (LG\'s installer, as root).\n' +
   '  Undo: the scripts it replaces are kept in ' + p.dir + '/backup/scripts-before, the HomeTV it replaces in ' + p.dir +
   '/updates/previous.ipk (when the TV kept one).';
@@ -114,6 +115,8 @@ const REFRESH_SAYS = (p) => '  First it brings the TV\'s copy of HomeTV\'s root 
  * installed from this program's .ipk when it is newer than the TV's (call #2's fix is in both). Returns a stop, or null.
  */
 async function refresh(ctx, shell, p) {
+  const priv = await keepPrivate(ctx, shell, p);
+  if (priv.stop) return priv;
   const files = (ctx.rootFiles || rootFiles)();
   const keep = p.dir + '/backup/scripts-before';
   const names = files.map((f) => sq(f.name)).join(' ');
@@ -146,6 +149,54 @@ async function refresh(ctx, shell, p) {
     return stop('Swapping in the new root scripts failed part-way; the TV\'s own were put back from ' + keep + '.', 'Run this again; if it stays, tell the HomeTV team.');
   }
   ctx.say('  ✓ ' + files.length + ' root scripts on the TV are this program\'s (SHA-256 checked)');
+  const done = await updateApp(ctx, shell, p);
+  const lost = await privateKept(ctx, shell, p, priv.sums);
+  return done || lost;
+}
+
+/** HomeTV's saved keys and settings on the TV (service/pages.js: the keys file and the page's settings copy), by SHA-256. */
+async function privateSums(shell, p) {
+  const out = String((await shell.run('cd ' + sq(p.keys) + ' 2>/dev/null && for f in hometv-*.json; do [ -f "$f" ] && sha256sum "$f"; done; true')).stdout || '');
+  return new Map(out.split(/\r?\n/).map((l) => /^([0-9a-f]{64}) [ *](hometv-[\w.-]+\.json)$/.exec(l.trim())).filter(Boolean).map((m) => [m[2], m[1]]));
+}
+
+/**
+ * Before anything changes: a copy of HomeTV's saved keys and settings, kept on the TV (root only, beside the root
+ * scripts; never sent to the laptop or shown), and their SHA-256 sums. Returns { sums }, or a stop.
+ */
+async function keepPrivate(ctx, shell, p) {
+  const sums = await privateSums(shell, p);
+  if (!sums.size) {
+    ctx.say('  HomeTV has no saved keys or settings on the TV yet (nothing to keep)');
+    return { sums };
+  }
+  const bk = p.dir + '/backup/private-before';
+  const r = await shell.run('rm -rf ' + sq(bk + '.part') + ' && mkdir -p ' + sq(bk + '.part') + ' && chmod 700 ' + sq(bk + '.part') + ' && cp -p ' +
+    [...sums.keys()].map((f) => sq(p.keys + '/' + f)).join(' ') + ' ' + sq(bk + '.part') + '/ && rm -rf ' + sq(bk) + ' && mv ' + sq(bk + '.part') + ' ' + sq(bk));
+  if (r.code !== 0) return stop('Couldn\'t keep a copy of HomeTV\'s saved keys and settings on the TV first.', 'Nothing changed. Check the TV\'s storage isn\'t full, then run this again.');
+  ctx.say('  ✓ HomeTV\'s saved keys and settings kept on the TV first (' + sums.size + ' file' + (sums.size === 1 ? '' : 's') + ', in ' + bk + ')');
+    return { sums };
+}
+
+/** After the change: each kept file still there and the same, else put back from the copy and checked again. */
+async function privateKept(ctx, shell, p, before) {
+  if (!before.size) return null;
+  const lost = (now) => [...before].filter(([f, h]) => now.get(f) !== h).map(([f]) => f);
+  let gone = lost(await privateSums(shell, p));
+  if (gone.length) {
+    const bk = p.dir + '/backup/private-before';
+    await shell.run('mkdir -p ' + sq(p.keys) + ' && chmod 700 ' + sq(p.keys) + ' && cp -p ' + gone.map((f) => sq(bk + '/' + f)).join(' ') + ' ' + sq(p.keys) + '/; true');
+    gone = lost(await privateSums(shell, p));
+    if (gone.length) return stop('HomeTV\'s saved keys or settings changed and couldn\'t be put back: ' + gone.join(', ') + '.', 'The copy is in ' + bk + ' on the TV. Tell the HomeTV team before anything else.');
+    ctx.say('  ✓ HomeTV\'s saved keys and settings were put back from the copy, and checked');
+    return null;
+  }
+  ctx.say('  ✓ settings kept: HomeTV\'s saved keys and settings are as they were (SHA-256 checked)');
+  return null;
+}
+
+/** HomeTV installed from this program's .ipk when it is newer than the TV's. Returns a stop, or null. */
+async function updateApp(ctx, shell, p) {
   const tvVersion = String((await shell.run('node -e ' + sq('try{console.log(require(process.argv[1]).version||"")}catch(e){console.log("")}') + ' ' + sq(p.app + '/appinfo.json') + ' 2>/dev/null; true')).stdout || '').trim();
   const found = await findIpk(ctx);
   if (found.error) {

@@ -162,7 +162,7 @@ test('service: alive takes LG\'s Home with any instance or suffix (HomeTV mounte
   }
 });
 
-test('page: the heartbeat falls back to 127.0.0.1 when the service refuses, and keeps the trouble after three failed calls', async () => {
+test('page: when the service refuses the heartbeat, the page tells 127.0.0.1 why, and keeps the trouble after three failed calls', async () => {
   const hb = await loadTs('webos/heartbeat.ts');
   const store = new Map();
   let writes = 0;
@@ -183,7 +183,7 @@ test('page: the heartbeat falls back to 127.0.0.1 when the service refuses, and 
   assert.equal(await beat(), 'none');
   const t = hb.heartbeatTrouble(storage);
   assert.deepEqual([t.as, t.luna, t.loopback, t.hidden], [HOME + ' 1234', reply.errorText, 'no answer', false]);
-  assert.match(hb.heartbeatText(t), /running as com\.webos\.app\.home 1234\): HomeTV’s service said “Denied method call "alive" for category "\/"”; the 127\.0\.0\.1 way: no answer\./);
+  assert.match(hb.heartbeatText(t), /running as com\.webos\.app\.home 1234\): HomeTV’s service said “Denied method call "alive" for category "\/"”; told the root edition \(127\.0\.0\.1\): no answer\./);
   await beat();
   await beat();
   assert.equal(writes, 1, 'written when it changes, not at every beat');
@@ -198,6 +198,61 @@ test('page: the heartbeat falls back to 127.0.0.1 when the service refuses, and 
   await beat();
   assert.equal(hb.heartbeatTrouble(storage), null);
   assert.equal(hb.heartbeatText(null), '');
+});
+
+test('service: the page\'s settings copy is HomeTV\'s only, its own names only, and comes back as saved', async () => {
+  const t = scratch('settings');
+  try {
+    const methods = svc.createMethods({ settingsDirs: [path.join(t, 'private')] });
+    const msg = (name, payload, sender) => new Promise((resolve) => methods[name]({ sender, payload, respond: resolve }));
+    const s = { 'hometv-settings-v1': '{"uiSize":"large"}', 'hometv-setup-done': '1', 'hometv-tmdb-account-v1': '{"session":"x"}' };
+    assert.deepEqual(await msg('settingsLoad', {}, APP), { returnValue: true, settings: null, savedAt: 0 });
+    for (const who of ['', 'com.other.app']) {
+      assert.equal((await msg('settingsSave', { settings: s }, who)).errorText, 'not HomeTV');
+      assert.equal((await msg('settingsLoad', {}, who)).errorText, 'not HomeTV');
+    }
+    assert.equal((await msg('settingsSave', { settings: s }, APP)).returnValue, true);
+    // the same copy for HomeTV opened from its tile and mounted over LG's Home
+    assert.deepEqual((await msg('settingsLoad', {}, HOME + ' 12')).settings, s);
+    for (const bad of [{ 'other-key': 'x' }, { 'hometv-x': 1 }, ['x'], { 'hometv-big': 'x'.repeat(300 * 1024) }]) {
+      assert.equal((await msg('settingsSave', { settings: bad }, HOME)).returnValue, false);
+    }
+    assert.deepEqual((await msg('settingsLoad', {}, APP)).settings, s, 'a refused save changes nothing');
+    const file = path.join(t, 'private', 'hometv-settings-v1.json');
+    if (process.platform !== 'win32') assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+  } finally {
+    fs.rmSync(t, { recursive: true, force: true });
+  }
+});
+
+test('page: settings come back from the service\'s copy when the page\'s store is empty (mounted, or reinstalled), once', async () => {
+  const k = await loadTs('settingsKeep.ts');
+  const mk = (o = {}) => { const m = new Map(Object.entries(o)); return { getItem: (x) => (m.has(x) ? m.get(x) : null), setItem: (x, v) => m.set(x, String(v)), m }; };
+  let kept = null;
+  const saves = [];
+  const copy = { load: async () => kept, save: async (s) => (saves.push(s), (kept = s), true) };
+  const timers = { set: () => 1, clear: () => {} };
+  // the tile's store: first run done; sent to the service (caches and logs left out)
+  const tile = mk({ 'hometv-setup-done': '1', 'hometv-settings-v1': '{"theme":"night"}', 'hometv-home-row': '["netflix"]', 'hometv-live-v1:index': 'x', 'hometv-error-log': 'y' });
+  k.startKeeping(tile, copy, 60000, timers);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.deepEqual(Object.keys(kept).sort(), ['hometv-home-row', 'hometv-settings-v1', 'hometv-setup-done']);
+  // an empty store never writes over the copy
+  k.startKeeping(mk(), copy, 60000, timers);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(saves.length, 1);
+  // mounted over LG's Home with a store of its own, empty: the copy is put back, then once only
+  const home = mk();
+  const once = mk();
+  assert.equal(await k.restoreIfEmpty(home, copy, once), true);
+  assert.equal(home.getItem('hometv-settings-v1'), '{"theme":"night"}');
+  assert.equal(home.getItem('hometv-setup-done'), '1');
+  const again = mk();
+  assert.equal(await k.restoreIfEmpty(again, copy, once), false, 'no second time in one page session');
+  // a store with first run done is left alone; no copy (an older service) changes nothing
+  assert.equal(await k.restoreIfEmpty(tile, copy, mk()), false);
+  kept = null;
+  assert.equal(await k.restoreIfEmpty(mk(), copy, mk()), false);
 });
 
 // --- HomeTV's page
@@ -235,13 +290,13 @@ test('page: HomeTV knows it is LG\'s Home by its own app id; "Use LG\'s Home" sh
 // --- hometv-lg root --home-again and unroot-home
 
 /** A pretend rooted TV: its screen (fake SSAP) and its root shell (Git's sh in a folder, the real root/ scripts). */
-async function rootedTv({ apps = ['netflix', APP, HBC], keyOk = true, replies = {}, hooks = {} } = {}) {
+async function rootedTv({ apps = ['netflix', APP, HBC], keyOk = true, replies = {}, hooks = {}, extraEnv = {} } = {}) {
   const t = scratch('wayback');
   const rooted = fakeRootedTv(path.join(t, 'tv'));
   const bin = path.join(t, 'tv', 'bin');
   for (const c of ['systemctl', 'mount', 'umount', 'pkill', 'pgrep', 'sleep']) fs.writeFileSync(path.join(bin, c), '#!/bin/sh\necho "' + c + ' $*" >> "$STUB_LOG"\nexit 1\n');
   const env = { ...rooted.env, HOMETV_SKIP_ROOT_CHECK: '1', HOMETV_LASTAPP: fwd(path.join(t, 'tv', 'lastapp.json')),
-    HOMETV_SBIN: fwd(path.join(t, 'tv', 'sbin')), HOMETV_HOSTS: fwd(path.join(t, 'tv', 'hosts')), HOMETV_DEBLOAT_DELAY: '0' };
+    HOMETV_SBIN: fwd(path.join(t, 'tv', 'sbin')), HOMETV_HOSTS: fwd(path.join(t, 'tv', 'hosts')), HOMETV_DEBLOAT_DELAY: '0', ...extraEnv };
   const tvSh = (cmd, input) => spawnSync(SH, ['-c', rooted.setup + '\n' + cmd], { env, encoding: 'utf8', timeout: 60000, input });
   // root/ on the TV, as hometv-lg install leaves it
   for (const f of fs.readdirSync('root')) if (f !== 'README.md') fs.copyFileSync(path.join('root', f), path.join(t, 'tv', 'hometv', f));
@@ -261,7 +316,7 @@ async function rootedTv({ apps = ['netflix', APP, HBC], keyOk = true, replies = 
   const out = [];
   const asked = [];
   const ctx = {
-    host: '127.0.0.1', dir: laptop, tvPaths: rooted.tvPaths, launchWaitMs: 500, ipkPin, ipkDirs: [laptop],
+    host: '127.0.0.1', dir: laptop, tvPaths: { ...rooted.tvPaths, keys: fwd(path.join(t, 'tv', 'private')) }, launchWaitMs: 500, ipkPin, ipkDirs: [laptop],
     ssapPorts: [{ url: 'ws://127.0.0.1:' + ws + '/', insecure: false }],
     say: (s) => out.push(s),
     ask: async (q) => {
@@ -280,7 +335,7 @@ async function rootedTv({ apps = ['netflix', APP, HBC], keyOk = true, replies = 
   };
   const p = (...x) => path.join(t, 'tv', ...x);
   return {
-    t, ctx, state, out, asked, tvSh, p,
+    t, ctx, state, out, asked, tvSh, p, setEnv: (o) => Object.assign(env, o),
     text: () => out.join('\n'),
     hooks: () => fs.readdirSync(p('initd')).sort(),
     done: () => { tv.server.close(); fs.rmSync(t, { recursive: true, force: true }); }
@@ -316,7 +371,7 @@ test('hometv-lg root --home-again: after "Use LG\'s Home", the hooks come back a
     assert.ok(fs.existsSync(s.p('hometv', 'backup', 'scripts-before', 'lib.sh')));
     assert.match(s.text(), /HomeTV 0\.2\.1 installed \(was 0\.2\.0\)/);
     assert.equal(fs.readFileSync(s.p('hometv', 'updates', 'current.version'), 'utf8').trim(), '0.2.1');
-    assert.ok(s.asked.findIndex((q) => q.includes('Make HomeTV')) >= 0 && /First it brings the TV's copy/.test(s.text()), 'said and asked first');
+    assert.ok(s.asked.findIndex((q) => q.includes('Make HomeTV')) >= 0 && /First it keeps a copy of HomeTV's saved keys and settings on the TV/.test(s.text()), 'said and asked first');
     assert.ok(!s.text().includes('127.0.0.1'), 'no TV address');
     // run again: nothing to do
     const again = await runWayBack(s.ctx, 'home-again');
@@ -386,6 +441,46 @@ test('hometv-lg root --home-again: a page that never answers is rolled back, wit
     assert.deepEqual(s.hooks(), []);
   } finally {
     s.done();
+  }
+});
+
+test('hometv-lg root --home-again: HomeTV\'s saved keys and settings are kept first, and put back if the reinstall loses them', { skip: !SH, timeout: 120000 }, async () => {
+  const box = {};
+  const priv = (t, ...x) => path.join(t, 'tv', 'private', ...x);
+  const s = await rootedTv({ replies: { 'Make HomeTV': 'y', 'HomeTV on screen': 'y' }, hooks: { 'back on': () => takeover(box.t)() } });
+  box.t = s.t;
+  const KEYS = '{"keys":{"tmdb":{"key":"secret-token-abcd","state":"ok"}}}';
+  const SETTINGS = '{"format":1,"savedAt":1,"settings":{"hometv-setup-done":"1"}}';
+  try {
+    fs.mkdirSync(priv(s.t), { recursive: true });
+    fs.writeFileSync(priv(s.t, 'hometv-keys-v1.json'), KEYS);
+    fs.writeFileSync(priv(s.t, 'hometv-settings-v1.json'), SETTINGS);
+    s.tvSh('sh ' + s.ctx.tvPaths.dir + '/undo-home.sh at-restart');
+    const r = await runWayBack(s.ctx, 'home-again');
+    assert.ok(r.done, s.text());
+    assert.match(s.text(), /kept on the TV first \(2 files/);
+    assert.match(s.text(), /settings kept: HomeTV's saved keys and settings are as they were/);
+    assert.ok(!s.text().includes('secret-token'), 'no key shown');
+  } finally {
+    s.done();
+  }
+  // LG's installer that empties the folder: put back from the copy, and checked
+  const box2 = {};
+  const w = await rootedTv({ replies: { 'Make HomeTV': 'y', 'HomeTV on screen': 'y' }, hooks: { 'back on': () => takeover(box2.t)() } });
+  box2.t = w.t;
+  try {
+    fs.mkdirSync(priv(w.t), { recursive: true });
+    fs.writeFileSync(priv(w.t, 'hometv-keys-v1.json'), KEYS);
+    fs.writeFileSync(priv(w.t, 'hometv-settings-v1.json'), SETTINGS);
+    w.tvSh('sh ' + w.ctx.tvPaths.dir + '/undo-home.sh at-restart');
+    w.setEnv({ STUB_INSTALL_WIPES: fwd(priv(w.t)) });
+    const r = await runWayBack(w.ctx, 'home-again');
+    assert.ok(r.done, w.text());
+    assert.match(w.text(), /put back from the copy, and checked/);
+    assert.equal(fs.readFileSync(priv(w.t, 'hometv-keys-v1.json'), 'utf8'), KEYS);
+    assert.equal(fs.readFileSync(priv(w.t, 'hometv-settings-v1.json'), 'utf8'), SETTINGS);
+  } finally {
+    w.done();
   }
 });
 

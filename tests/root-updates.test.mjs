@@ -334,7 +334,5 @@ test('root update: the manifest rules and the address of a file', () => {
   assert.equal(U.fileUrl('https://x.org/a/hometv-root.json', r.manifest, 'lib.sh'), 'https://x.org/a/lib.sh');
   const listed = fs.readdirSync(path.join(root, 'root')).filter((f) => !['README.md', 'package.json', ...U.INSTALL_ONLY].includes(f)).sort();
   assert.deepEqual([...U.ROOT_FILES].sort(), listed, 'ROOT_FILES is every root script but those no update carries yet');
-  // a TV whose update.js predates heartbeat.js (0.2.0) would refuse a manifest naming it
-  assert.ok(!U.ROOT_FILES.includes('heartbeat.js') && fs.existsSync(path.join(root, 'root', 'heartbeat.js')));
   assert.equal(U.loadConfig(path.join(root, 'service')).on, false, 'off in the repo: no address, no key');
 });

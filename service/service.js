@@ -9,6 +9,9 @@
  *   token      the screen's token for the loopback routes; "" until the server holds its port. Never written to disk
  *   tmdbKey    the TMDB key the household sent, or ""; priceKeys the Watchmode and Movie of the Night keys
  *   stop       closes the server now
+ *   settingsSave { settings }: a copy of the page's own settings (its storage's hometv-* entries), kept beside the keys;
+ *              settingsLoad gives it back: the page restores it when its store is empty (mounted over LG's Home the
+ *              TV may give it another store; a reinstall may empty it)
  *   keysSaved  { keys: { tmdb, watchmode, motn } }: each saved key's fingerprint (SHA-256, 12 hex), read afresh from the
  *              file; no key. Anyone may ask: hometv-lg root asks from the root shell once it has put the keys back
  * The root edition's way back (docs/root-plan.md, levels 0 and 1; root/undo-home.sh does the work, as root: the start-up
@@ -241,6 +244,19 @@ function createMethods(deps) {
       (svc ? ' (service \'' + idForLog(svc) + '\')' : '');
   }
 
+  /** The page's settings copy (pages.js settingsStore), made on first use; null when no private folder can be written. */
+  var settingsSt;
+  function settings() {
+    if (settingsSt === undefined) {
+      try {
+        settingsSt = (pages || require('./pages.js')).settingsStore(deps.settingsDirs) || null;
+      } catch (e) {
+        settingsSt = null;
+      }
+    }
+    return settingsSt;
+  }
+
   function refuse(message, method) {
     var w = who(message);
     note('refused ' + method + ' ' + w, 'refused ' + (method || '?') + ' from ' + w);
@@ -339,6 +355,19 @@ function createMethods(deps) {
       var p = one(message);
       if (!p) return;
       message.respond({ returnValue: true, watchmode: p.keyOf('watchmode'), motn: p.keyOf('motn') });
+    },
+    settingsSave: function (message) {
+      if (!strict(message)) return refuse(message, 'settingsSave');
+      var st = settings();
+      if (!st) return message.respond({ returnValue: false, errorText: 'no private folder' });
+      var ok = st.write(message.payload && message.payload.settings, now());
+      message.respond(ok ? { returnValue: true } : { returnValue: false, errorText: 'not HomeTV\'s settings, or too large' });
+    },
+    settingsLoad: function (message) {
+      if (!strict(message)) return refuse(message, 'settingsLoad');
+      var st = settings();
+      var s = st && st.read();
+      message.respond({ returnValue: true, settings: s ? s.settings : null, savedAt: s ? s.savedAt : 0 });
     },
     keysSaved: function (message) {
       // Fingerprints only, no key: anyone may ask (hometv-lg root asks from the root shell after putting keys back).
@@ -459,7 +488,7 @@ try {
 if (Service) {
   var service = new Service(ID);
   methods = createMethods({ activities: service.activityManager, logFile: LOG });
-  ['alive', 'start', 'stop', 'token', 'tmdbKey', 'priceKeys', 'keysSaved', 'rootState', 'useLgHome', 'version', 'updateCheck', 'updateStatus', 'updateInstall'].forEach(function (name) {
+  ['alive', 'start', 'stop', 'token', 'tmdbKey', 'priceKeys', 'settingsSave', 'settingsLoad', 'keysSaved', 'rootState', 'useLgHome', 'version', 'updateCheck', 'updateStatus', 'updateInstall'].forEach(function (name) {
     service.register(name, methods[name]);
   });
 }

@@ -218,20 +218,27 @@ SlopBro's bug, and may stop the start-up scripts. Then:
   that fails is said and the run carries on (the token is typed again from the phone); a put-back that fails keeps the
   copy and says what to do.
 - **The heartbeat while HomeTV is LG's Home** (B12, after call #2 on 2026-11-18, where it never came while HomeTV was
-  mounted and the restart check rolled back): mounted, the page runs as LG's Home (`com.webos.app.home`), and the most
-  likely cause is the bus refusing LG's Home's call to HomeTV's service (luna-service2 lets a client call a method only
-  when they share a permission group; Homebrew Channel's `elevate-service` puts the service's methods in `public`).
-  Three changes, all in memory or reversible: the page falls back to a GET of `http://127.0.0.1:8767/alive`, served by
-  `root/heartbeat.js` (started by the start-up hook as root, loopback only, it only touches the heartbeat file; ended by
-  `undo-home.sh` and `uninstall.sh`; lasharor's launcher talks to its root service the same way); the service's `alive`
-  takes LG's Home with any instance or suffix (the methods that change Home stay exact); and the boot log now says which
-  it was (the service's refused callers by method, its first heartbeat, the listener's first beat and the page's error,
-  and the bus groups LG's Home and the service hold, read only). The page keeps the error after three failed calls and
-  shows it on the Checks screen. The restart check waits up to 2.5 minutes for the first heartbeat and shows those
-  notes when it doesn't come; `hometv-lg root <tv address> --home-again --watch` shows them for up to 3 minutes after
-  the restart before deciding. No permission file is written: giving LG's Home a group through
-  `/var/luna-service2-dev` waits for the next call's notes and the project lead.
-
+  mounted and the restart check rolled back): mounted, the page runs as LG's Home (`com.webos.app.home`). Three causes
+  fit: the bus refusing LG's Home's call to HomeTV's service (luna-service2 lets a client call a method only when they
+  share a permission group; Homebrew Channel's `elevate-service` puts the service's methods in `public`), a caller id
+  the service refused, or the page skipping beats while the TV called it hidden. Fixed: `alive` takes LG's Home with any
+  instance or suffix (the methods that change Home stay exact), and the page beats hidden or not (the watchdog only counts
+  it while Home is on screen). Told: the boot log notes the service's refused callers by method, its first heartbeat, the
+  bus groups LG's Home and the service hold (read only), and what the page says over 127.0.0.1 (`root/heartbeat.js`,
+  loopback only, started by the hook, ended by `undo-home.sh` and `uninstall.sh`) when its call fails; that report
+  **never counts as a heartbeat**, since a page that can't reach its service has no key and no saved settings, so LG's
+  Home still comes back then. The page keeps the error after three failed calls for the Checks screen. The restart check
+  waits up to 2.5 minutes for the first heartbeat and shows those notes when it doesn't come;
+  `hometv-lg root <tv address> --home-again --watch` shows them for up to 3 minutes after the restart before deciding.
+  No permission file is written: giving LG's Home a group through `/var/luna-service2-dev` waits for the next try's
+  notes and the project lead.
+- **The household's settings survive the takeover and a reinstall** (the project lead, 2026-11-19): HomeTV's service
+  keeps a copy of the page's own settings (`settingsSave`/`settingsLoad`: region, weather place, Text and UI size,
+  theme, Home row, first run, TMDB sign-in, lists; beside the keys, 0600), and a page whose store is empty (mounted over
+  LG's Home the TV may give it a store of its own; a reinstall may empty it) puts the copy back and starts again, once.
+  `--home-again` keeps a copy of the saved keys and settings on the TV before it changes anything
+  (`backup/private-before`; they never leave the TV), checks them by SHA-256 afterwards ("settings kept") and puts back
+  any that changed.
 ## Sources
 
 - SlopBro: [repo](https://github.com/throwaway96/slopbro) (`wwwroot/autoroot.sh`, `wwwroot/main.js`, commit `21023d5`, unchanged at the pin `f76b717`,

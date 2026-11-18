@@ -5,6 +5,7 @@
 import type { Key } from './shell/app';
 import { luna, lunaError, lunaSubscribe, onWebOS, type LunaReply } from './webos/luna';
 import { createHeartbeat, heartbeatText, heartbeatTrouble } from './webos/heartbeat';
+import type { SettingsCopy } from './settingsKeep';
 
 /** The TV's wall clock (platform.clock()): month 0-11, weekday 0 (Sunday) to 6, as Date has them. */
 export interface WallClock {
@@ -463,6 +464,18 @@ export const platform = {
     void beat();
     heartbeat = window.setInterval(() => void beat(), HEARTBEAT_MS);
     document.addEventListener('visibilitychange', () => void beat());
+  },
+
+  /**
+   * HomeTV's service's copy of the page's settings (settingsKeep.ts): null off a TV. A service without the methods (an
+   * older HomeTV) answers no copy and refuses the save, which changes nothing.
+   */
+  settingsCopy(): SettingsCopy | null {
+    if (!onWebOS()) return null;
+    return {
+      load: () => luna(SERVICE + '/settingsLoad', {}, 5000).then((r) => (r.returnValue && r.settings && typeof r.settings === 'object' ? (r.settings as Record<string, string>) : null)),
+      save: (settings) => luna(SERVICE + '/settingsSave', { settings }, 5000).then((r) => r.returnValue === true),
+    };
   },
 
   /** The heartbeat's last trouble for the Checks screen (webos/heartbeat.ts), "" when none was kept. */
