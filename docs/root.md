@@ -65,7 +65,13 @@ the work and checks each step. About an hour, plus the time to get ready.
 2. **The checklist** (`root-preflight`): the TV answers and the backup is on the laptop; then one question at a time:
    the photos, the sign-in list, the USB stick's drive letter (it reads the stick), automatic updates (asked only if
    the TV doesn't say). Last, if the TV's owner agrees, type `root`.
-3. **Clear the way** (`clear-the-way`): delete HomeTV and the Developer Mode app on the TV, then restart it: **unplug at
+3. **Keep the saved keys** (`keep-keys`): deleting HomeTV deletes the keys its key page saved (the TMDB token, and
+   price keys if any). While Developer Mode is still on, the program reads them over its SSH (with Key Server on, it
+   may ask for the passphrase) and keeps them in the HomeTV folder (`lg-keys-kept.dpapi`), encrypted so only this
+   Windows user can open them. It never shows a key, only its last 4 characters. If it can't read them it says so and
+   carries on: type the TMDB token again on the key page from the phone after root.
+
+   **Clear the way** (`clear-the-way`): delete HomeTV and the Developer Mode app on the TV, then restart it: **unplug at
    the wall, 30 seconds, plug in, turn on** (the remote's power button isn't a restart: Quick Start+). The Developer
    Mode app goes *before* root and never comes back after (SlopBro issue #22; Homebrew Channel #256). It then checks
    LG's Home and the backup's apps are there.
@@ -81,6 +87,9 @@ the work and checks each step. About an hour, plus the time to get ready.
 8. **Restart and check** (`restart-check`): restart the same way. The picture may stay black for about ten seconds
    (normal). Press Home; it asks *Is it HomeTV on screen?*. If HomeTV didn't come up, it rolls back by itself (LG's Home
    back) and says so.
+   **The keys back** (`keys-back`): the saved keys go into the root edition's HomeTV, HomeTV's service reads them,
+   and the laptop's copy is deleted. If that fails, the copy stays and it says what to do (`--from keys-back` after a
+   restart, or type the token from the phone).
 9. **The report**: `lg-root-report-<date>.txt` in the HomeTV folder, with no address or serial number. Send it to the
    person helping.
 

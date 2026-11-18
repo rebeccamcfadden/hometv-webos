@@ -45,7 +45,7 @@ window) runs them in order and stops on any failed check.
 | 2 | **HomeTV unrooted** (LG developer account, Developer Mode, HomeTV and its checks screen from the laptop) | Developer Mode on; HomeTV installed as a developer app | Delete HomeTV; delete the Developer Mode app | Very low | Packaging works; the TV proves it |
 | 3 | **Backup** (below; [backup.md](backup.md)) | Nothing | - | None | Built and tested against pretend TVs; the TV proves it |
 | 4 | **The way back, ready before root** (below): the undo for each level, LG's firmware file for the test TV's model on a USB stick, the steps printed ([recovery.md](recovery.md)) | Nothing | - | None | Levels 0-2 built and tested against a pretend TV; levels 3-5 on paper; the USB stick is checked on the PC (`hometv-lg get recovery`, and in `hometv-lg root`'s checklist: FAT32, `LG_DTV`, one firmware file, its model family and version when its name says them) |
-| 5 | **Clear the way:** delete HomeTV and the Developer Mode app, restart, confirm Home and the apps work | Back to stock | - | Very low | Built (`hometv-lg root`) and tested against a pretend TV; the restart is confirmed by the person; the TV proves it |
+| 5 | **Clear the way:** delete HomeTV and the Developer Mode app, restart, confirm Home and the apps work | Back to stock | - | Very low | Built (`hometv-lg root`) and tested against a pretend TV; the restart is confirmed by the person; HomeTV's saved keys kept before and put back after root (B10); the TV proves it |
 | 6 | **Root** with SlopBro (pinned to the reviewed commit `f76b717`, main on 2026-11-09; `hometv-lg get root-kit` builds its single file from the checked sources) from the laptop, with `--webos-version 11` on 33.31.75 ([below](#333175-the-test-tvs-software-since-2026-11-17)); restart; open Homebrew Channel once (that sets it to start with the TV) | See [What root changes](#what-root-changes) | Level 3 (factory reset) | Low but not zero; see the warning for the test TV's firmware | Built and tested against a pretend TV (a pretend SlopBro); the kit's build checked on the PC; footprint on paper; success only on the TV |
 | 7 | **Lock it down:** SSH with a key only (no default password), Telnet off, "Block system updates" **on** as a second layer behind LG's own Allow Automatic Updates (switched off on the first call; undone in LG's menu), never `chattr` | Three flag files | Switch back in Homebrew Channel | None | Built and tested against a pretend TV (the switches set, then read back over SSH after the restart with the key, no default password); the TV proves it |
 | 8 | **HomeTV through Homebrew Channel, on Home and at power-on** (the in-memory takeover, lasharor's method, credited) | HomeTV's files and one start-up script; the takeover in memory | Level 1 or 2 | Low; only on a firmware and model family in `root/compat.json` (else the person is asked), checked after the install's restart (rolled back, hooks out, if HomeTV didn't come up), and a watchdog puts LG's Home back if HomeTV stops answering later | Built and tested against a pretend TV (`root/` in a real `sh`, the restart check and its roll back); lasharor's reports on two sibling UT TVs on webOS 25; the TV proves it |
@@ -211,6 +211,12 @@ SlopBro's bug, and may stop the start-up scripts. Then:
 - **`hometv-lg check` names the problem and the next step** (the project lead, 2026-11-18), rather than "can't tell" or
   "ended" for an SSH that refuses: see [When an LG update ends root](#when-an-lg-update-ends-root).
 - **The root call is in two stages** (the project lead, 2026-11-18): stage 1 root, stage 2 the v2 install and checks.
+- **HomeTV's saved keys go through root** (the project lead, 2026-11-18, B10): before Clear the way, `hometv-lg root`
+  reads them over Developer Mode's SSH (`keep-keys`) and keeps them on the laptop encrypted for the Windows user (DPAPI),
+  never shown but for the last 4 characters; after the restart check it writes them into the root edition over root
+  SSH (`keys-back`), has HomeTV's service read them (`keysSaved`: fingerprints, no key) and deletes the copy. A read
+  that fails is said and the run carries on (the token is typed again from the phone); a put-back that fails keeps the
+  copy and says what to do.
 
 ## Sources
 
