@@ -32,9 +32,10 @@ test('the Seasonal period by date: ten periods, Halloween from 15 October to 2 N
   assert.equal(new Set(Array.from({ length: 12 }, (_, i) => at(i + 1, 20))).size >= 9, true);
 });
 
-test('backdrops come from the launcher repo: Midnight, OLED and High Contrast have none; Seasonal follows period and phase', () => {
+test('backdrops come from the launcher repo: OLED and High Contrast have none, Midnight has the evening picture; Seasonal follows period and phase', () => {
   const b = (id, p = 'snow', hour = 5, phase = 'day') => t.themeById(id).backdrop(p, hour, phase);
-  for (const id of ['midnight', 'oled', 'high-contrast']) assert.equal(b(id).kind, 'none');
+  for (const id of ['oled', 'high-contrast']) assert.equal(b(id).kind, 'none');
+  assert.deepEqual(b('midnight'), { kind: 'url', src: t.EVENING_URL });
   assert.equal(b('landscapes', 'snow', 6).src, t.BACKDROP_BASE + 'classic/landscapes-3.webp');
   assert.equal(b('seasonal-vector', 'halloween', 0, 'night').src, t.BACKDROP_BASE + 'seasonal/vector-6/halloween-night.webp');
   assert.deepEqual(b('seasonal-8bit', 'bloom', 0, 'day'), { kind: 'pixel', src: t.BACKDROP_BASE + 'seasonal/8bit/bloom.png' });

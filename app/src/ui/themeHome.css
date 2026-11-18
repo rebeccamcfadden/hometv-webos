@@ -72,3 +72,18 @@ html[data-theme]:not([data-theme='midnight']) body {
 #stage[data-logos='minimal'] .tile.is-focused {
   box-shadow: 0 0 0 4px var(--h-focus);
 }
+
+/* Midnight with its evening picture (data-pic is set once it is on the TV): the same layers as the other themes, over
+   Midnight's own tokens. Before that, or when it can't be fetched, Midnight is the glow styles.css gives the stage. */
+html[data-theme='midnight'][data-pic] #stage {
+  background:
+    linear-gradient(rgba(var(--shade-rgb), 0.86), rgba(var(--shade-rgb), 0.9)),
+    var(--bg-image) center / cover no-repeat,
+    var(--bg);
+}
+html[data-theme='midnight'][data-pic] #stage[data-on='home'] {
+  background:
+    linear-gradient(rgba(var(--shade-rgb), var(--shade-top)), rgba(var(--shade-rgb), var(--shade-mid)) 55%, rgba(var(--shade-rgb), var(--shade-shelf))),
+    var(--bg-image) center / cover no-repeat,
+    var(--bg);
+}

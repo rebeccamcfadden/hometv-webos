@@ -2,7 +2,8 @@
 // list, each theme's faces and backdrop, the Seasonal period by date, and the Google Fonts address. Classic themes keep
 // their look all year; Seasonal ones follow the date through ten periods, and their picture follows the part of the day
 // (F22). Colours, radii and type are CSS variables (ui/themes.css, made by tools/gen-theme-css.mjs); Midnight, HomeTV's
-// first theme, is the shared tokens.css and has no backdrop here, so it looks as before. Pure, so tests run it in Node.
+// first theme, is the shared tokens.css, with Android's evening picture behind it, fetched once like the others and kept
+// (the plain glow shows until it has arrived). Pure, so tests run it in Node.
 import type { Phase } from './daylight';
 
 export type ThemeId = 'midnight' | 'daylight' | 'oled' | 'high-contrast' | 'cinema' | 'landscapes' | 'seasonal-vector' | 'seasonal-8bit';
@@ -45,9 +46,11 @@ export interface ThemeDef {
 
 export const UI_WEIGHTS = '400;500;600;700';
 const url = (path: string): Backdrop => ({ kind: 'url', src: BACKDROP_BASE + path });
+/** Midnight's evening picture: the launcher's bg_evening.jpg (68 KB), which Android bundles; here it is fetched from the same repo. */
+export const EVENING_URL = 'https://cdn.jsdelivr.net/gh/rebeccamcfadden/hometv-launcher@main/design_preview/public/img/bg-evening.jpg';
 
 export const THEMES: ThemeDef[] = [
-  { id: 'midnight', name: 'Midnight', group: 'classic', display: { family: 'Inter', weights: '300' }, ui: { family: 'Inter', weights: UI_WEIGHTS }, backdrop: () => ({ kind: 'none' }) },
+  { id: 'midnight', name: 'Midnight', group: 'classic', display: { family: 'Inter', weights: '300' }, ui: { family: 'Inter', weights: UI_WEIGHTS }, backdrop: () => ({ kind: 'url', src: EVENING_URL }) },
   { id: 'daylight', name: 'Daylight', group: 'classic', display: { family: 'Figtree', weights: '300' }, ui: { family: 'Figtree', weights: UI_WEIGHTS }, backdrop: () => url('classic/daylight.webp') },
   { id: 'oled', name: 'OLED Black', group: 'classic', display: { family: 'Manrope', weights: '300' }, ui: { family: 'Manrope', weights: UI_WEIGHTS }, backdrop: () => ({ kind: 'none' }) },
   {

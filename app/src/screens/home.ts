@@ -17,7 +17,7 @@ import { homeHero, weatherCard } from '../ui/homeTop';
 import { inputLabel, openTvPage, showInput } from './navMenus';
 import type { TvInput } from '../platform';
 import './home.css';
-import { V1 } from '../features';
+import { CALL_CHECKS_ON_HOME, V1 } from '../features';
 
 const MODE_TEXT = {
   app: `${bridge.platform.brand} app`,
@@ -173,7 +173,7 @@ export function homeScreen(): Screen & { setApps(apps: AppInfo[] | null): void }
         homeTile('Launcher settings', 'home', 'sc-launcher', 'shortcuts', () => showSettings()),
         homeTile('TV Settings', 'settings', 'sc-settings', 'shortcuts', () => openTvPage('main', 'The TV’s settings')),
         // The first call's checks (Blue or Info open them too); the key page is v1's.
-        (checksTile = homeTile('Call checks', 'info', 'checks', 'shortcuts', showChecks)),
+        CALL_CHECKS_ON_HOME ? (checksTile = homeTile('Call checks', 'info', 'checks', 'shortcuts', showChecks)) : null,
         V1 ? homeTile('API keys', 'filter', 'keys', 'shortcuts', showKeys) : null,
       ];
       content.appendChild(

@@ -2,8 +2,8 @@
 // data-phase and data-font on <html> (ui/themes.css keys the colours, radii and type on them), the active theme's fonts
 // from Google Fonts (the TV's Roboto when that can't be had or Typeface says System), and the backdrop, downloaded once
 // and kept (backdropStore.ts). A Seasonal picture follows the date (ten periods) and the sun at the Weather place, or
-// Time of day's Day or Night. Midnight, the first theme, sets nothing but its attribute: it has no backdrop and no
-// fonts to fetch, so it looks as it did.
+// Time of day's Day or Night. Midnight, the first theme, has its evening picture but no fonts to fetch; until the picture
+// has arrived (or when it can't be fetched) it looks as it did.
 import { prefs } from '../launcherSettings';
 import { backdropBlob } from './backdropStore';
 import { msToNextPhase, phaseAt, setSite, siteFromZone, type Phase } from './daylight';
@@ -39,6 +39,9 @@ function applyFonts(t: ThemeDef, system: boolean) {
 
 function setImage(src: string | null) {
   root.style.setProperty('--bg-image', src ? `url("${src}")` : 'none');
+  // Midnight shows its glow until the picture is here (ui/themeHome.css).
+  if (src) root.setAttribute('data-pic', '1');
+  else root.removeAttribute('data-pic');
 }
 
 /** No picture: the sky shows, and the last picture's blob is let go (a TV with little memory keeps no decoded image it isn't showing). */
