@@ -117,7 +117,10 @@ async function setup({ apps = ['netflix', DEVMODE], minor, telnet = true, telnet
         }
         // HomeTV's keys file on the root edition (keys-back): read, written from the connection, read by the real pages.js
         const keysFile = path.join(keysDir, 'hometv-keys-v1.json');
-        if (cmd.startsWith('cat ') && cmd.includes('hometv-keys-v1.json')) return { code: 0, stdout: fs.existsSync(keysFile) ? fs.readFileSync(keysFile, 'utf8') : '', stderr: '' };
+        if (cmd.includes('--hometv-read-done--')) {
+          if (flags.keysRead === 'cut') return { code: 255, stdout: '', stderr: 'Connection reset' };
+          return { code: 0, stdout: fs.existsSync(keysFile) ? fs.readFileSync(keysFile, 'utf8') + '\n--hometv-read-done--\n' : '--hometv-no-file--\n', stderr: '' };
+        }
         if (cmd.includes('keys-written')) {
           fs.mkdirSync(keysDir, { recursive: true });
           fs.writeFileSync(keysFile, input);
@@ -1072,6 +1075,15 @@ test('keys: put back fails: the copy is kept, the words say root is done and wha
     assert.match(s.text(), /--from keys-back, or type the TMDB token on the key page from the phone/);
     assert.ok(fs.existsSync(path.join(s.laptop, KEPT_FILE)));
     assert.match(report(s), /\[stopped\] After root: HomeTV.s saved keys put back/);
+    // the read of the TV's file is cut short: nothing is written over it (its phone code, a key sent since)
+    s.flags.keysSaved = 'ok';
+    s.flags.keysRead = 'cut';
+    fs.writeFileSync(path.join(s.keysDir, 'hometv-keys-v1.json'), JSON.stringify({ code: 'NEWC2345', keys: { motn: { key: 'fake-motn', state: 'ok' } } }));
+    s.out.length = 0;
+    assert.deepEqual(await runInstall(s.ctx, BACK), { stopped: 'keys-back' });
+    assert.match(s.text(), /weren't put back: the keys file on the TV couldn't be read/);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(s.keysDir, 'hometv-keys-v1.json'), 'utf8')).code, 'NEWC2345');
+    s.flags.keysRead = '';
     // the service answers with another key (it kept its own in memory, say): still not taken as back
     s.flags.keysSaved = 'ok';
     fs.writeFileSync(path.join(s.keysDir, 'hometv-keys-v1.json'), '{}');

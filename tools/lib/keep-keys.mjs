@@ -67,9 +67,9 @@ export function windowsVault() {
  * The file's text comes back only to be parsed here.
  */
 export async function readKeys(shell, dirs) {
-  const files = dirs.map((d) => sq(d + '/' + KEYS_FILE)).join(' ');
-  const r = await shell.run('for f in ' + files + '; do if [ -r "$f" ]; then echo ' + MARK + '; cat "$f"; echo; ' +
-    'elif [ -e "$f" ]; then echo ' + UNREADABLE + '; fi; done; true');
+  // A folder the account can't enter hides even whether the file is there: that's "can't read", never "no keys".
+  const r = await shell.run('for d in ' + dirs.map(sq).join(' ') + '; do f="$d/' + KEYS_FILE + '"; if [ -r "$f" ]; then echo ' + MARK +
+    '; cat "$f"; echo; elif [ -e "$f" ] || { [ -d "$d" ] && ! [ -x "$d" ]; }; then echo ' + UNREADABLE + '; fi; done; true');
   const out = String(r.stdout || '');
   if (r.code !== 0) return { keys: null, why: 'the TV didn\'t answer the read' };
   for (const part of out.split(MARK).slice(1)) {
@@ -114,9 +114,12 @@ export function forgetKeys(dir) {
  */
 export async function putKeysBack(shell, keys, dir = ROOT_KEY_DIR, { tries = 3, waitMs = 3000 } = {}) {
   const file = dir + '/' + KEYS_FILE;
-  const now = await shell.run('cat ' + sq(file) + ' 2>/dev/null; true');
+  // only a file that isn't there counts as empty: a failed read must never wipe the phone code or a key sent since
+  const now = await shell.run('if [ -e ' + sq(file) + ' ]; then if cat ' + sq(file) + '; then echo; echo --hometv-read-done--; fi; else echo --hometv-no-file--; fi');
+  const nowOut = String(now.stdout || '');
+  if (now.code !== 0 || !/--hometv-(read-done|no-file)--/.test(nowOut)) return 'the keys file on the TV couldn\'t be read';
   let data = {};
-  try { data = JSON.parse(String(now.stdout || '')) || {}; } catch { data = {}; }
+  try { data = JSON.parse(nowOut.split('--hometv-read-done--')[0].split('--hometv-no-file--')[0]) || {}; } catch { data = {}; }
   const merged = { code: typeof data.code === 'string' ? data.code : '', keys: {} };
   for (const id of IDS) {
     const e = data.keys && data.keys[id];
