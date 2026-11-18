@@ -4,6 +4,7 @@
 
 import type { Key } from './shell/app';
 import { luna, lunaError, lunaSubscribe, onWebOS, type LunaReply } from './webos/luna';
+import { createHeartbeat, heartbeatText, heartbeatTrouble } from './webos/heartbeat';
 
 /** The TV's wall clock (platform.clock()): month 0-11, weekday 0 (Sunday) to 6, as Date has them. */
 export interface WallClock {
@@ -248,10 +249,43 @@ function devGet(path: string): Promise<string> {
   });
 }
 
-function beat(): void {
-  if (typeof document !== 'undefined' && document.hidden) return;
-  luna(SERVICE + '/alive', {}, 5000);
+/** The id this page runs as: LG's Home when mounted over it ("com.webos.app.home"), "" when the TV doesn't say. */
+function runningAs(): string {
+  const w = window as unknown as { webOSSystem?: { identifier?: unknown }; PalmSystem?: { identifier?: unknown } };
+  const sys = w.webOSSystem || w.PalmSystem;
+  return sys && typeof sys.identifier === 'string' ? sys.identifier : '';
 }
+
+/** A GET's HTTP status, 0 when it failed (the root edition's heartbeat listener on 127.0.0.1). */
+function statusOf(url: string): Promise<number> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url);
+    xhr.timeout = 3000;
+    xhr.onload = () => resolve(xhr.status);
+    xhr.onerror = xhr.ontimeout = () => resolve(0);
+    xhr.send();
+  });
+}
+
+/**
+ * Sent while the page runs, hidden or not: the watchdog itself only counts it while Home is on screen, and a page the
+ * TV calls hidden while it is Home (unknown on a mounted Home) must not read as a dead one.
+ */
+const beat = createHeartbeat({
+  call: () => luna(SERVICE + '/alive', {}, 5000),
+  get: statusOf,
+  storage: (() => {
+    try {
+      return window.localStorage || null;
+    } catch (e) {
+      return null;
+    }
+  })(),
+  as: runningAs,
+  hidden: () => typeof document !== 'undefined' && !!document.hidden,
+  now: () => Date.now(),
+});
 
 export const platform = {
   /** Shown to people: "LG", in "LG app", the checks and reports. */
@@ -426,9 +460,18 @@ export const platform = {
     // Luna is async, osVersion() isn't: read it now so the problem report has it.
     platform.osVersion();
     if (!onWebOS() || heartbeat !== null) return;
-    beat();
-    heartbeat = window.setInterval(beat, HEARTBEAT_MS);
-    document.addEventListener('visibilitychange', beat);
+    void beat();
+    heartbeat = window.setInterval(() => void beat(), HEARTBEAT_MS);
+    document.addEventListener('visibilitychange', () => void beat());
+  },
+
+  /** The heartbeat's last trouble for the Checks screen (webos/heartbeat.ts), "" when none was kept. */
+  heartbeatTrouble(): string {
+    try {
+      return heartbeatText(heartbeatTrouble(window.localStorage));
+    } catch (e) {
+      return '';
+    }
   },
 
   /** The key page's TV side (screens/keys.ts): where its service runs and how the screen talks to it. */

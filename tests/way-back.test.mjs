@@ -133,6 +133,63 @@ test('service: "Use LG\'s Home" runs undo-home.sh at-restart and answers only on
   }
 });
 
+test('service: alive takes LG\'s Home with any instance or suffix (HomeTV mounted over it); refusals and the first beat go to the boot log', async () => {
+  const t = scratch('alive');
+  const log = path.join(t, 'boot.log');
+  try {
+    const methods = svc.createMethods({ logFile: log, uptime: () => '61.20', alive: path.join(t, 'alive') });
+    const msg = (sender, appId) => new Promise((resolve) => methods.alive({ sender, payload: {}, respond: resolve,
+      ls2Message: appId === undefined ? undefined : { applicationID: () => appId, senderServiceName: () => '' } }));
+    for (const who of [HOME, HOME + ' 1', HOME + '-12', HOME + '-0b6f9c5e', APP, APP + ' 7', '']) {
+      assert.equal(svc.allowed({ sender: who }), true, who);
+    }
+    for (const who of ['com.webos.app.homeevil', 'com.other.app', 'com.hometv.app-evil']) assert.equal(svc.allowed({ sender: who }), false, who);
+    // the methods that change Home stay exact
+    assert.equal((await call(methods, 'rootState', {}, HOME + '-12')).errorText, 'not HomeTV');
+    assert.equal((await msg('com.other.app<x>', 'com.other.app<x> 99')).errorText, 'not HomeTV');
+    await msg('com.other.app<x>', 'com.other.app<x> 99');
+    const text = fs.readFileSync(log, 'utf8');
+    assert.match(text, /^61\.20 service: refused rootState from 'com\.webos\.app\.home-12'$/m);
+    assert.equal((text.match(/refused alive from 'com\.other\.app\?x\?' \(app id 'com\.other\.app\?x\? 99'\)/g) || []).length, 1, 'once per caller and method, ids only');
+    // a beat that counts: the heartbeat touched, noted once, with who sent it
+    assert.deepEqual(await msg(HOME, HOME + ' 4321'), { returnValue: true });
+    await msg(HOME, HOME + ' 4321');
+    assert.ok(fs.existsSync(path.join(t, 'alive')));
+    const after = fs.readFileSync(log, 'utf8');
+    assert.equal((after.match(/service: first heartbeat, from 'com\.webos\.app\.home' \(app id 'com\.webos\.app\.home 4321'\)/g) || []).length, 1);
+  } finally {
+    fs.rmSync(t, { recursive: true, force: true });
+  }
+});
+
+test('page: the heartbeat falls back to 127.0.0.1 when the service refuses, and keeps the trouble after three failed calls', async () => {
+  const hb = await loadTs('webos/heartbeat.ts');
+  const store = new Map();
+  const storage = { getItem: (k) => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, v) };
+  let reply = { returnValue: false, errorCode: -1, errorText: 'Denied method call "alive" for category "/"' };
+  let status = 204;
+  const got = [];
+  const beat = hb.createHeartbeat({
+    call: async () => reply, get: async (url) => (got.push(url), status), storage,
+    as: () => HOME + ' 1234', hidden: () => false, now: () => Date.UTC(2026, 10, 18, 17, 34),
+  });
+  assert.equal(await beat(), 'loopback');
+  assert.match(got[0], /^http:\/\/127\.0\.0\.1:8767\/alive\?why=Denied%20method%20call.*&as=com\.webos\.app\.home%201234&hidden=0$/);
+  await beat();
+  assert.equal(hb.heartbeatTrouble(storage), null, 'not kept before the third');
+  status = 0;
+  assert.equal(await beat(), 'none');
+  const t = hb.heartbeatTrouble(storage);
+  assert.deepEqual([t.as, t.luna, t.loopback, t.hidden], [HOME + ' 1234', reply.errorText, 'no answer', false]);
+  assert.match(hb.heartbeatText(t), /running as com\.webos\.app\.home 1234\): HomeTV’s service said “Denied method call "alive" for category "\/"”; the 127\.0\.0\.1 way: no answer\./);
+  // the service answers again: no fallback, and the trouble stays for the Checks screen
+  reply = { returnValue: true };
+  assert.equal(await beat(), 'service');
+  assert.equal(got.length, 3);
+  assert.ok(hb.heartbeatTrouble(storage));
+  assert.equal(hb.heartbeatText(null), '');
+});
+
 // --- HomeTV's page
 
 const { re, settings } = await loadTs({ re: 'webos/rootEdition.ts', settings: 'screens/settingsGroups.ts' });
@@ -253,6 +310,54 @@ test('hometv-lg root --home-again: a takeover that doesn\'t come up after the re
     assert.deepEqual(s.hooks(), [], 'the hooks are out again');
     assert.ok(fs.existsSync(s.p('hometv', 'DISABLE')));
     assert.ok(fs.existsSync(s.p('hometv', 'install.sh')), 'the root edition stays, for --home-again later');
+  } finally {
+    s.done();
+  }
+});
+
+test('hometv-lg root --home-again --watch: reports the heartbeat and the boot notes, masked, before deciding', { skip: !SH, timeout: 120000 }, async () => {
+  const box = {};
+  const notes = (t) => fs.appendFileSync(path.join(t, 'tv', 'boot.log'),
+    '59.10 home: mounting HomeTV over LG\'s Home, restarting sam\n61.00 home: bus groups: files read 3; com.webos.app.home: applications; com.hometv.app.service: public; shared: none\n' +
+    '75.30 service: refused alive from \'com.webos.app.home-9\' (seen from 127.0.0.1)\n80.00 something else entirely\n');
+  const s = await rootedTv({ replies: { 'Make HomeTV': 'y', 'HomeTV on screen': 'y' }, hooks: { 'back on': () => { takeover(box.t)(); notes(box.t); } } });
+  box.t = s.t;
+  Object.assign(s.ctx, { watch: true, watchEveryMs: 0, watchMs: 2000, verifyWaitMs: 0 });
+  try {
+    s.tvSh('sh ' + s.ctx.tvPaths.dir + '/undo-home.sh at-restart');
+    const r = await runWayBack(s.ctx, 'home-again');
+    assert.ok(r.done, s.text());
+    const text = s.text();
+    assert.match(text, /Watching HomeTV for up to/);
+    assert.match(text, /0:0\d {2}HomeTV mounted, heartbeat \d+ s ago/);
+    assert.match(text, /home: bus groups: .*shared: none/);
+    assert.match(text, /service: refused alive from 'com\.webos\.app\.home-9'/);
+    assert.ok(!/something else entirely/.test(text), 'only the notes it watches');
+    assert.equal((text.match(/refused alive from/g) || []).length, 1, 'each note once');
+    assert.match(text, /HomeTV's page answers/);
+    assert.match(text, /HomeTV is Home again/);
+    assert.ok(!text.includes('127.0.0.1'), 'no TV address');
+  } finally {
+    s.done();
+  }
+});
+
+test('hometv-lg root --home-again: a page that never answers is rolled back, with what the TV noted about the heartbeat', { skip: !SH, timeout: 120000 }, async () => {
+  const box = {};
+  const s = await rootedTv({ replies: { 'Make HomeTV': 'y', 'HomeTV on screen': 'y' }, hooks: { 'back on': () => {
+    fs.appendFileSync(path.join(box.t, 'tv', 'mounts'), 'overlay /usr/palm/applications/com.webos.app.home none bind 0 0\n');
+    fs.appendFileSync(path.join(box.t, 'tv', 'boot.log'), '70.00 heartbeat: the page\'s call to HomeTV\'s service failed: Denied method call\n');
+  } } });
+  box.t = s.t;
+  Object.assign(s.ctx, { verifyWaitMs: 0, firstBeatMs: 1000 });
+  try {
+    s.tvSh('sh ' + s.ctx.tvPaths.dir + '/undo-home.sh at-restart');
+    const r = await runWayBack(s.ctx, 'home-again');
+    const text = s.text();
+    assert.match(text, /Waiting for HomeTV's page to answer/);
+    assert.match(text, /What the TV noted about the heartbeat[\s\S]*service failed: Denied method call/);
+    assert.match(r.why, /HomeTV's page isn't answering\), so it was rolled back/);
+    assert.deepEqual(s.hooks(), []);
   } finally {
     s.done();
   }

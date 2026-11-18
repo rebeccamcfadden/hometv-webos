@@ -60,6 +60,9 @@ export function showChecks() {
   el.appendChild(
     h('p.phonelink' + (bridge.problem() ? '.after-problem' : ''), bridge.mode() === 'app' ? 'Results stay on this TV; read them out or take a photo.' : `On a phone on the same Wi-Fi, open ${link}`),
   );
+  // The root edition's heartbeat (call #2): what went wrong when HomeTV's service didn't take it, for the HomeTV team.
+  const beatTrouble = bridge.platform.heartbeatTrouble();
+  if (beatTrouble) el.appendChild(h('p.phonelink.heartbeat', beatTrouble));
   const list = h('div.checklist');
   const log = h('div.log');
   el.appendChild(h('div.cols', list, log));
