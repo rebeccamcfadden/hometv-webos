@@ -51,17 +51,22 @@ const tv = await open(host, {
   // Tests only: a pretend TV on plain ws at this port.
   ports: wsPort ? [{ url: 'ws://' + host + ':' + wsPort + '/', insecure: false }] : undefined
 }).catch(async (e) => {
-  // A TV this laptop rooted: SSH may still answer, and the root line says which of the two didn't
-  if (rootedBefore(dir, host, rootKeyFile)) {
-    const rs = await rootStatus({ wasRooted: true, tvAnswers: false, apps: null, shell: rootShellFor() });
-    if (rs.state !== 'unreachable') {
-      console.error('LG\'s remote-control connection didn\'t answer (' + (e.code || e.message) + ').');
-      for (const line of describeRootStatus(rs)) console.error(line);
-      process.exit(1);
-    }
+  // the TV answered but didn't pair (refused, or "Allow" not pressed): not a Wi-Fi problem
+  const answered = !/^could not reach the TV/.test(e.message || '');
+  const rs = rootedBefore(dir, host, rootKeyFile)
+    ? await rootStatus({ wasRooted: true, tvAnswers: answered, apps: null, shell: rootShellFor() }) : null;
+  if (answered) {
+    console.error('The TV answered but didn\'t pair with this laptop (' + e.message + '). Press "Allow" on the TV when ' +
+      'it asks (the remote\'s OK button), then run this again.');
+  } else if (!rs || rs.state === 'unreachable') {
+    console.error('Can\'t reach the TV at ' + host + ' (' + (e.code || e.message) + '). Check it\'s on and on the same ' +
+      'Wi-Fi, then run this again.');
+    process.exit(1);
+  } else {
+    // a TV this laptop rooted: SSH may still answer, and the root line says what it can
+    console.error('LG\'s remote-control connection didn\'t answer (' + (e.code || e.message) + ').');
   }
-  console.error('Can\'t reach the TV at ' + host + ' (' + (e.code || e.message) + '). Check it\'s on and on the same ' +
-    'Wi-Fi, then run this again.');
+  for (const line of rs ? describeRootStatus(rs) : []) console.error(line);
   process.exit(1);
 });
 if (tv.clientKey && tv.clientKey !== clientKey) fs.writeFileSync(keyFile, tv.clientKey, { mode: 0o600 });

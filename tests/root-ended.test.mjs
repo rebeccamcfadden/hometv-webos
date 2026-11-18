@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import net from 'node:net';
+import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { loadTs } from './ts-module.mjs';
 import { rootedBefore, knownHost, rootStatus, describeRootStatus } from '../tools/lib/root-status.mjs';
@@ -176,6 +177,24 @@ test('laptop: hometv-lg check when LG\'s connection doesn\'t answer: SSH decides
     assert.equal(up.code, 1);
     assert.match(up.out, /LG's remote-control connection didn't answer/);
     assert.match(up.out, /Root: still on/);
+    // the TV answers but refuses to pair, and SSH is off: not a Wi-Fi problem, and the app list is unread
+    const refusing = http.createServer().on('upgrade', (req, sock) => {
+      const accept = crypto.createHash('sha1').update(req.headers['sec-websocket-key'] + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11').digest('base64');
+      sock.write('HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ' + accept + '\r\n\r\n');
+      const p = Buffer.from(JSON.stringify({ type: 'error', id: 'register_0', error: '403 denied' }));
+      sock.write(Buffer.concat([Buffer.from([0x81, p.length]), p]));
+      sock.on('error', () => {});
+    });
+    await new Promise((resolve) => refusing.listen(port, '127.0.0.1', resolve));
+    try {
+      const unpaired = await run('timeout');
+      assert.equal(unpaired.code, 1);
+      assert.match(unpaired.out, /The TV answered but didn't pair with this laptop \(pairing refused: 403 denied\)\. Press "Allow"/);
+      assert.doesNotMatch(unpaired.out, /Can't reach the TV/);
+      assert.match(unpaired.out, /Root: can't tell \(SSH doesn't answer; the TV's app list couldn't be read/);
+    } finally {
+      refusing.close();
+    }
   } finally {
     fs.rmSync(d, { recursive: true, force: true });
   }
