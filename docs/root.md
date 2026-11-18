@@ -43,7 +43,9 @@ the work and checks each step. About an hour, plus the time to get ready.
 ## Have these ready
 
 - **The rooting program.** The released `hometv-lg.exe` (on the [check page](https://rebeccamcfadden.github.io/hometv-webos/check/))
-  leaves the root install out until it is reviewed; the person helping sends the one built with `npm run exe -- --root`.
+  leaves the root install out; the rooting program is its own release, `hometv-lg-root.exe` in
+  [`hometv-lg-root-v1`](https://github.com/rebeccamcfadden/hometv-webos/releases/tag/hometv-lg-root-v1) (built with
+  `npm run exe -- --root`), linked with its SHA-256 from the [root page](https://rebeccamcfadden.github.io/hometv-webos/root/).
 - **The backup file** of this TV on the laptop: `lg-backup-….json` in `%USERPROFILE%\HomeTV`. The install made one;
   if not, `hometv-lg check <tv address> --backup` ([backup.md](backup.md)).
 - **Photos of the TV's settings screens**: picture, sound, the privacy switches, the home-row order, Power On Screen
@@ -59,7 +61,7 @@ the work and checks each step. About an hour, plus the time to get ready.
 
 ## The steps
 
-1. **Run the rooting program**, in Command Prompt, in Downloads: `hometv-lg.exe root <tv address>`. Before each step it
+1. **Run the rooting program**, in Command Prompt, in Downloads: `hometv-lg-root.exe root <tv address>`. Before each step it
    says what the step does and how it's undone; it stops at the first thing that isn't right and says what to do. Run
    it again and it carries on where it stopped (`--list` shows the steps, `--from <step>` starts at one).
 2. **The checklist** (`root-preflight`): the TV answers and the backup is on the laptop; then one question at a time:
@@ -103,8 +105,8 @@ the work and checks each step. About an hour, plus the time to get ready.
 | Level | When | What to do | Then |
 |---|---|---|---|
 | 0 | Something is odd, once | Press **Home three times** within two seconds while HomeTV is on screen, or unplug the TV for 30 seconds | LG's Home until the next start |
-| 1 | LG's Home is preferred | In HomeTV, *Settings › Use LG's Home*, then restart. Back: `hometv-lg.exe root <tv address> --home-again` | LG's Home; HomeTV stays as an app; root stays, unused |
-| 2 | HomeTV off Home for good | `hometv-lg.exe unroot-home <tv address>` (restart and checks), then delete HomeTV in Homebrew Channel if wanted | LG's Home; Homebrew Channel stays |
+| 1 | LG's Home is preferred | In HomeTV, *Settings › Use LG's Home*, then restart. Back: `hometv-lg-root.exe root <tv address> --home-again` | LG's Home; HomeTV stays as an app; root stays, unused |
+| 2 | HomeTV off Home for good | `hometv-lg-root.exe unroot-home <tv address>` (restart and checks), then delete HomeTV in Homebrew Channel if wanted | LG's Home; Homebrew Channel stays |
 | 3 | No root at all: the full unroot | *Settings › All Settings › General › System › Reset to Initial Settings*, then set up again with the backup (`hometv-lg restore`), the photos and the sign-in list | The TV as it came, on its current firmware |
 | 4 | The TV won't finish starting | Unplug for 30 seconds; if Settings opens, level 3. If not, pull the plug while LG's logo shows; at *Failsafe mode!* choose *Reboot later*, then straight to level 3 (the failsafe start leaves Telnet open without a password until the next restart) | A working TV |
 | 5 | Still won't start | TV unplugged, the stick in, plug in and turn on; *Yes* to the update; don't switch off until it restarts by itself. Then level 3 | LG's firmware put back |
@@ -130,7 +132,7 @@ software.
 Two cases that look alike:
 
 - **Homebrew Channel still opens, but Home is LG's:** root is still there; the new software isn't in
-  `root/compat.json`, so HomeTV's start-up hook stepped back. `hometv-lg.exe root <tv address> --home-again` explains it
+  `root/compat.json`, so HomeTV's start-up hook stepped back. `hometv-lg-root.exe root <tv address> --home-again` explains it
   and asks before putting HomeTV back ([troubleshooting.md](troubleshooting.md)).
 - ***Use LG's Home* was chosen** (level 1): a choice, not an update; HomeTV says nothing then.
 

@@ -75,9 +75,15 @@
 
 <h2 id="ready">Have these ready</h2>
 <ul>
-  <li><strong>The rooting program.</strong> The <code>hometv-lg.exe</code> from the <a href="../check/">check page</a>
-    can't root (it says it "leaves out the root install"). The person helping you sends you the one that can. Put it
-    in your Downloads folder.</li>
+  <li><strong>The rooting program, <code>hometv-lg-root.exe</code></strong> (about 96 MB; the <code>hometv-lg.exe</code>
+    from the <a href="../check/">check page</a> can't root: it says it "leaves out the root install"). Put it in your
+    Downloads folder, next to the other one:
+    <p><a class="download" href="https://github.com/rebeccamcfadden/hometv-webos/releases/download/hometv-lg-root-v1/hometv-lg-root.exe">Download hometv-lg-root.exe</a></p>
+    <p class="small">File: <code>hometv-lg-root.exe</code>, release <code>hometv-lg-root-v1</code>. SHA-256:
+      <code id="sha-root">16f5ac2b954d46930415e5b4698bd692f31b201ccae74b7b9a61e6dcf4731fec</code>. To check it (optional),
+      in Command Prompt in Downloads: <code>certutil -hashfile hometv-lg-root.exe SHA256</code>; the long code should
+      match. Windows will probably say "Windows protected your PC": <span class="path">More info</span>, then
+      <span class="path">Run anyway</span>.</p></li>
   <li><strong>The backup file</strong> of this TV on the laptop: <code>lg-backup-….json</code>, in the
     <code>HomeTV</code> folder in your user folder. The install made one. If it's missing, run this in Command Prompt,
     in Downloads, with your TV's address:
@@ -101,7 +107,7 @@
   <li>
     <p><strong>Run the rooting program.</strong> In Command Prompt, in your Downloads folder, with the TV's address
       (the four numbers from the check):</p>
-    <div class="cmd"><span id="c2">hometv-lg.exe root 192.168.1.50</span><button onclick="copy('c2', this)">Copy</button></div>
+    <div class="cmd"><span id="c2">hometv-lg-root.exe root 192.168.1.50</span><button onclick="copy('c2', this)">Copy</button></div>
     <p class="small">Change <code>192.168.1.50</code> to your TV's own address before pressing Enter.</p>
     <p>Before each step it says what the step does and how it's undone. It stops at the first thing that isn't right
       and says what to do. Run the same line again and it carries on where it stopped.</p>
@@ -160,9 +166,9 @@
     two seconds) while HomeTV is on screen. Or unplug the TV for 30 seconds.</td><td>LG's Home until the next
     start.</td></tr>
   <tr id="level-1"><td>1</td><td>You'd rather have LG's Home</td><td>In HomeTV: <span class="path">Settings › Use
-    LG's Home</span>, then restart the TV. To have HomeTV back: <code>hometv-lg.exe root &lt;tv address&gt;
+    LG's Home</span>, then restart the TV. To have HomeTV back: <code>hometv-lg-root.exe root &lt;tv address&gt;
     --home-again</code>.</td><td>LG's Home. HomeTV stays as an app; root stays, unused.</td></tr>
-  <tr id="level-2"><td>2</td><td>HomeTV off Home for good</td><td>On the laptop: <code>hometv-lg.exe unroot-home
+  <tr id="level-2"><td>2</td><td>HomeTV off Home for good</td><td>On the laptop: <code>hometv-lg-root.exe unroot-home
     &lt;tv address&gt;</code>. It has you restart the TV and checks. Then delete HomeTV in Homebrew Channel, if you
     like.</td><td>LG's Home. Homebrew Channel stays.</td></tr>
   <tr id="level-3"><td>3</td><td>No root at all: the full unroot</td><td><span class="path">Settings › All Settings ›
@@ -201,7 +207,7 @@
 <p>Two cases that look alike:</p>
 <ul>
   <li><strong>Homebrew Channel still opens, but Home is LG's:</strong> root is still there. HomeTV stepped back because
-    the new software is one it wasn't tried on. On the laptop, <code>hometv-lg.exe root &lt;tv address&gt;
+    the new software is one it wasn't tried on. On the laptop, <code>hometv-lg-root.exe root &lt;tv address&gt;
     --home-again</code> explains it and asks before putting HomeTV back.</li>
   <li><strong>You chose <span class="path">Use LG's Home</span></strong> (level 1): that's your choice, not an update.
     HomeTV says nothing then.</li>
