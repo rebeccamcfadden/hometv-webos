@@ -73,7 +73,37 @@
     checks the TV's software version and stops on any it doesn't know.</li>
 </ul>
 
+<h2 id="before">Before the call: run "Get ready"</h2>
+<p>A day or two before the call, on your own: the rooting program gets the laptop and the TV ready, one step at a
+  time, and changes nothing on the TV. Double-click <code>hometv-lg-root.exe</code> (download it under
+  <a href="#ready">Have these ready</a>) and choose <strong>1 Get ready for the call</strong>, or in Command Prompt, in
+  Downloads, with your TV's address:</p>
+<div class="cmd"><span id="c0">hometv-lg-root.exe prepare 192.168.1.50</span><button onclick="copy('c0', this)">Copy</button></div>
+<ol>
+  <li><strong>The tools:</strong> it downloads and checks <code>hometv-lg.exe</code> (next to it), HomeTV 0.2.0 and the
+    root kit, so the call doesn't need them.</li>
+  <li><strong>Windows' OpenSSH client:</strong> if it's missing, it offers to add it (Windows asks once: Yes).</li>
+  <li><strong>The firewall:</strong> it shows whether Windows treats your Wi-Fi as Public or Private, and offers to set it
+    to Private and let the program in, as a rule named "HomeTV root (remove after the call)" (Windows asks once: Yes).
+    Then the TV's browser opens for a moment: that proves the TV reaches the laptop. Press Back.</li>
+  <li><strong>The TV:</strong> it answers (press OK if it asks to Allow); Developer Mode and Key Server are on (it can
+    save Developer Mode's key now, with the passphrase); automatic updates are off.</li>
+  <li><strong>The software version:</strong> read from the TV, or typed by you from
+    <span class="path">Settings › All Settings › Support › TV Information</span>. If root isn't known to work on it, the
+    program says so plainly: root is off for this call, and the call only sets HomeTV up.</li>
+  <li><strong>The backup</strong>, if there isn't a recent one; <strong>the sign-in list</strong>
+    (<code>sign-in-list.txt</code>, the TV's apps, to tick by hand); <strong>the photos</strong> (it lists the screens;
+    type <code>done</code>); <strong>the USB stick</strong> (it opens LG's page, walks you through, then reads the stick).</li>
+</ol>
+<p>Each step says what it does and how it's undone, and stops at the first thing that isn't ready. Run it again and it
+  carries on. At the end it writes <code>prepare-report-….txt</code> in the <code>HomeTV</code> folder (no address or
+  serial number in it): send it to the person helping you. Its last line says <em>Ready for the call</em>, or what's
+  missing.</p>
+<p class="small">After the call, put the firewall back: choose <strong>After the call</strong> in the program's menu,
+  or run <code>hometv-lg-root.exe prepare --undo</code>.</p>
+
 <h2 id="ready">Have these ready</h2>
+<p class="small">"Get ready" above does or checks each of these.</p>
 <ul>
   <li><strong>The rooting program, <code>hometv-lg-root.exe</code></strong> (about 96 MB; the <code>hometv-lg.exe</code>
     from the <a href="../check/">check page</a> can't root: it says it "leaves out the root install"). Put it in your

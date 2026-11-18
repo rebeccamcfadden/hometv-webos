@@ -40,7 +40,52 @@ the work and checks each step. About an hour, plus the time to get ready.
   software version and stops on any it doesn't know (33.31.61 and 33.31.75 today;
   [root-plan.md](root-plan.md#333175-the-test-tvs-software-since-2026-11-17)).
 
+## Before the call: run "Get ready"
+
+A day or two before the call, the person at the TV runs the rooting program on their own:
+`hometv-lg-root.exe prepare <tv address>` in Command Prompt in Downloads, or double-click it and choose **1 Get ready
+for the call** (`tools/prepare.mjs`, `tools/lib/prepare.mjs`). It never changes the TV and never roots. One step at a
+time, each saying what it does and how it's undone, stopping at the first that isn't ready, and carrying on there when
+run again (`prepare --list`, `--from <step>`; its state is `prepare-state.json` in the HomeTV folder):
+
+1. **The tools** (`tools`): `hometv-lg.exe` beside it (release `hometv-lg-v3`, downloaded if missing, held to its
+   SHA-256; another `hometv-lg.exe` there is replaced only if agreed), HomeTV 0.2.0's .ipk in the HomeTV folder (so
+   `root-install` needs no internet), and the root kit (`get root-kit`: Python and SlopBro, checked; nothing run).
+2. **Windows' OpenSSH client** (`openssh`): present, or offered (`Add-WindowsCapability -Online -Name
+   OpenSSH.Client~~~~0.0.1.0`, one Windows prompt, said first); on "no" it says how to add it by hand.
+3. **The firewall** (`firewall`; on the 2026-11-17 call the TV couldn't reach the laptop): shows the profile Windows
+   gives the network that reaches the TV (its adapter's name, never the Wi-Fi name), then offers, in one Windows prompt:
+   that network set to Private, and an inbound allow rule on Private networks only, named "HomeTV root (remove after
+   the call)", for the root exe and the root kit's Python (SlopBro serves from Python). Both go in the undo list
+   (`prepare-undo.json`) before the change. A work ("Domain") network stops it. Then the existing reach check: the
+   TV's browser opens the laptop's address.
+4. **The TV** (`tv`): it answers (LG's Allow prompt, if needed); with the Developer Mode app there, Developer Mode is
+   on (its SSH port answers) and Key Server answers, for `keep-keys` on the call (checked, never switched; it offers to
+   save Developer Mode's key now with the passphrase, so the call doesn't need Key Server); automatic updates off (read,
+   else asked). No Developer Mode app: noted (the TMDB token is typed again after root), not a stop.
+5. **The software version** (`software`): read, or typed by the person on 10.3.2 (it refuses the read), with the model.
+   Not in `root/compat.json` for this model family, or not in `ROOTABLE`: the program says plainly that root is off for
+   this call (stage 2 only), and the report says so; the USB stick is then skipped.
+6. **The backup** (`backup`): the existing one if this model's is less than 7 days old, else taken now.
+7. **The sign-in list** (`sign-in-list`): `sign-in-list.txt` in the HomeTV folder from the TV's app list (names only,
+   LG's own apps left out), plus "LG account" and "Wi-Fi name: write it here"; no passwords, no address.
+8. **The photos** (`photos`): the screens from [root-plan.md › Backup](root-plan.md#backup-step-3), part 2, listed;
+   the person types `done`.
+9. **The USB stick** (`usb-stick`): LG's US support page lists the firmware zips (for 43UT8000AUA:
+   `Software_File(Version_33.31.75).zip`, about 1.6 GB) but publishes no checksum or signature to check them on the
+   laptop, and serves them through download buttons; so the program doesn't download: it opens LG's page, walks
+   through (download, unzip, FAT32 stick of 32 GB or less, `LG_DTV`, the `.epk`; it never formats or writes), then
+   runs the `get recovery` stick check.
+
+At the end, `prepare-report-<date>.txt` (masked: no address, serial, device id or Wi-Fi name) lists each item ready
+or not ready, for the person to send; its last line is "Ready for the call", "Ready for the call: stage 2 only …", or
+"Not ready yet. Missing: …". After the call, `hometv-lg-root.exe prepare --undo` (or the menu's **After the call**)
+takes the rule out and puts the network's profile back, in one Windows prompt, and reads both back. The released
+`hometv-lg.exe` refuses `prepare` like the other root commands.
+
 ## Have these ready
+
+"Get ready" above does or checks each of these.
 
 - **The rooting program.** The released `hometv-lg.exe` (on the [check page](https://rebeccamcfadden.github.io/hometv-webos/check/))
   leaves the root install out; the rooting program is its own release, `hometv-lg-root.exe` in
