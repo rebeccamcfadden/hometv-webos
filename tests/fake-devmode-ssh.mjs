@@ -40,21 +40,24 @@ if (argv.includes('-N')) {
       fs.mkdirSync(process.env.FAKE_PUTS, { recursive: true });
       fs.writeFileSync(path.join(process.env.FAKE_PUTS, path.basename(m[1])), body);
       const s = state();
-      s.version = (m[1].match(/_(\d+\.\d+\.\d+)_/) || [])[1];
+      s.copiedVersion = (m[1].match(/_(\d+\.\d+\.\d+)_/) || [])[1];
       s.copied = m[1];
       save(s);
       log({ put: m[1], bytes: body.length });
     });
   } else if (command.startsWith('luna-send-pub -i') && command.includes('/dev/install')) {
     const mode = process.env.FAKE_INSTALL || 'ok';
+    // fail:<text>: only a copied file whose name holds <text> is refused
+    const fails = mode === 'fail' || (mode.startsWith('fail:') && String(state().copied || '').includes(mode.slice(5)));
     const say = (o) => process.stdout.write(JSON.stringify(o) + '\n');
     if (mode !== 'silent') {
       say({ returnValue: true, details: { state: 'installing' } });
       setTimeout(() => {
-        if (mode === 'fail') say({ returnValue: false, details: { state: 'failed', errorCode: -5, reason: 'FAILED_IPK_SIGNATURE' } });
+        if (fails) say({ returnValue: false, details: { state: 'failed', errorCode: -5, reason: 'FAILED_IPK_SIGNATURE' } });
         else {
           const s = state();
           if (!s.apps.includes('com.hometv.app')) s.apps.push('com.hometv.app');
+          s.version = s.copiedVersion;
           save(s);
           say({ returnValue: true, details: { state: 'installed' } });
         }

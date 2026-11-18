@@ -449,6 +449,22 @@ test('devmode: on a TV without HomeTV, v2 alone is a first install: the TV\'s re
   } finally { await s.done(); }
 });
 
+test('devmode --from-v0: v0 refused on a TV with 0.1.1 (no downgrade): v2 goes over 0.1.1, not over a v0 that isn\'t there', async () => {
+  const kept = { 'hometv-settings-v1': JSON.stringify({ region: 'us', place: { name: 'Springfield' } }), 'hometv-setup-done': '1' };
+  const s = await setup({ earlier: '0.1.1', page: { storage: kept } });
+  s.env.FAKE_INSTALL = 'fail:0.0.1';
+  try {
+    const r = await s.run();
+    const [v0, v2] = r.report.versions;
+    assert.equal(checkOf(v0, 'installed').status, 'failed');
+    assert.equal(checkOf(v2, 'installed').status, 'ok');
+    assert.equal(s.asked.filter((q) => /install v2 over it/.test(q)).length, 0, 'no "v0 is installed" pause');
+    assert.deepEqual(r.report.earlier, { version: '0.1.1' });
+    assert.equal(checkOf(v2, 'settings').status, 'ok');
+    assert.equal(checkOf(v2, 'firstrun').label, 'first run shown after the update');
+  } finally { await s.done(); }
+});
+
 test('devmode: a launch-point refusal ("TV: ...") is read from the page and reported as denied', async () => {
   const s = await setup({ page: { problem: 'TV: the TV refused to list its apps' }, only: 'v0' });
   try {

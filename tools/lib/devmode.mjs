@@ -163,7 +163,9 @@ export async function runDevmode(ctx) {
       }
       const R = await runVersion({ ...ctx, report }, shell, v, ipks[v], VERSIONS[v], prior, yes);
       report.versions.push(R);
-      prior = { from: v, snapshot: R.snapshot || null };
+      // A version that didn't install isn't what the next goes over: then it is whatever HomeTV the TV has
+      if (R.checks.some((c) => c.id === 'installed' && c.status === 'ok')) prior = { from: v, snapshot: R.snapshot || null };
+      else if (v === 'v0' && wanted.includes('v2')) prior = await readEarlier(ctx, shell, report);
       delete R.snapshot;
     }
   } catch (e) {
