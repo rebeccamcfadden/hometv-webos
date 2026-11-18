@@ -63,8 +63,8 @@ export const PINNED = {
     what: 'HomeTV for LG, root edition (app-v0.2.1)',
     url: 'https://github.com/rebeccamcfadden/hometv-webos/releases/download/app-v0.2.1/com.hometv.app_0.2.1_all.ipk',
     file: 'com.hometv.app_0.2.1_all.ipk',
-    size: 148032,
-    sha256: 'bb380677d1fe9cef20b1b1ea3d50a79e3fc4e3d0aa3b0d5c7badb3b70b436b9c'
+    size: 148186,
+    sha256: '7f86c38b5f83b0a46afb548163c2de16440ae6980a9bfdd94bc7aed7fea8f7d8'
   },
   'hometv-lg-v3': {
     what: 'hometv-lg.exe from the hometv-lg-v3 release: the check and the Developer Mode install, no root',
