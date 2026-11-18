@@ -1,0 +1,28 @@
+{
+ "format": 1,
+ "app": "hometv-webos",
+ "version": "0.2.0",
+ "minShell": "0.2.0",
+ "appVersion": "0.2.0",
+ "entry": {
+  "css": [
+   "assets/style.css"
+  ],
+  "js": [
+   "assets/app.js"
+  ],
+  "body": "<div id=\"stage\"></div>"
+ },
+ "files": [
+  {
+   "path": "assets/app.js",
+   "size": 243783,
+   "sha512": "24ab290158c7b30a8599a75bedd0e69c9a678fd94bfc50cf975efc9b14f6dcc31b60af004a2a6544847b1ffda0a8a4810d92560b7565507b07c675de4b1519cf"
+  },
+  {
+   "path": "assets/style.css",
+   "size": 76168,
+   "sha512": "945fdae3bcae0abc40d82a98228f79d3c807fe10a5397ed492907f586d7b914e413e75c71b0771904213d14cef26f98501013f0befaf3c1f541dda67a75bdbcc"
+  }
+ ]
+}
